@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radar AMBA - Dashboard de Movilidad</title>
     
-    <!-- Frameworks y Librerías -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librerías Críticas (Orden Importante) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.321.0"></script>
 
     <style>
@@ -25,13 +25,13 @@
             color: #1e293b; font-family: 'Outfit', sans-serif; overflow: hidden; 
         }
 
-        #map { height: 100%; width: 100%; background: #e2e8f0; }
+        #map { height: 100%; width: 100%; background: #e2e8f0; z-index: 1; }
         
         .glass {
             background: var(--panel-glass);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(0, 0, 0, 0.05);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
         }
 
         .ui-panel {
@@ -83,12 +83,6 @@
         }
 
         .alert-card { animation: slideIn 0.3s ease-out forwards; }
-
-        /* Estilos específicos para iconos de transporte */
-        .icon-container {
-            width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-            border-radius: 10px;
-        }
     </style>
 </head>
 <body>
@@ -96,7 +90,6 @@
     <div id="loading-line" class="loading-bar"></div>
 
     <div class="ui-panel">
-        <!-- Panel Principal -->
         <div class="glass p-5 rounded-[2.5rem]">
             <div class="flex justify-between items-center mb-6">
                 <div class="flex items-center gap-3">
@@ -114,7 +107,6 @@
                 </div>
             </div>
 
-            <!-- Selectores de Capas -->
             <div class="grid grid-cols-4 gap-2 mb-6">
                 <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1 bg-white">
                     <i data-lucide="bus" class="w-4 h-4"></i> COL
@@ -130,7 +122,6 @@
                 </button>
             </div>
 
-            <!-- Buscador -->
             <div class="space-y-4">
                 <div class="relative group">
                     <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
@@ -140,18 +131,16 @@
                 <div class="flex justify-between items-center px-2">
                     <div class="flex items-center gap-2">
                         <i data-lucide="info" class="w-3 h-3 text-indigo-500"></i>
-                        <span id="unit-count" class="text-[11px] font-bold text-slate-500">Actualizando mapa...</span>
+                        <span id="unit-count" class="text-[11px] font-bold text-slate-500">Iniciando...</span>
                     </div>
                     <span id="last-update" class="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">--:--:--</span>
                 </div>
             </div>
         </div>
 
-        <!-- Alertas y Avisos -->
         <div id="alerts-container" class="custom-scroll flex flex-col gap-2 pb-6"></div>
     </div>
 
-    <!-- Botones Flotantes -->
     <div class="absolute bottom-10 right-10 z-[1000] flex flex-col gap-4">
         <button onclick="locateUser()" class="glass p-4 rounded-3xl text-slate-700 hover:text-indigo-600 transition-all shadow-xl">
             <i data-lucide="locate-fixed"></i>
@@ -164,6 +153,7 @@
     <div id="map"></div>
 
     <script>
+        // CONFIGURACIÓN DEL PROXY
         const BACKEND_URL = "https://shiny-wood-35ad.papamasro.workers.dev";
         
         let map, layers = { bus: null, subte: null, train: null, bike: null }, userLayer;
@@ -171,11 +161,15 @@
         let isRefreshing = false;
         const lineColors = {};
 
-        // Coordenadas aproximadas de cabeceras para subte (fallback visual)
         const subteNodes = {
             "A": [-34.6085, -58.3712], "B": [-34.6031, -58.3701], "C": [-34.5916, -58.3744],
             "D": [-34.5911, -58.3745], "E": [-34.6035, -58.3698], "H": [-34.6357, -58.4054]
         };
+
+        function formatLineName(name) {
+            if (!name) return "??";
+            return name.toString().replace(/^0+/, '') || name;
+        }
 
         function getColor(type, line) {
             if (type === 'bike') return '#10b981';
@@ -184,20 +178,19 @@
                 const colors = { 'A': '#00aed9', 'B': '#ef3b35', 'C': '#0067a7', 'D': '#007e67', 'E': '#6c2e82', 'H': '#ffd400' };
                 return colors[line] || '#fbbf24';
             }
-            // Colectivos: Color dinámico por línea
             if (lineColors[line]) return lineColors[line];
             let hash = 0;
             for (let i = 0; i < line.length; i++) hash = line.charCodeAt(i) + ((hash << 5) - hash);
-            lineColors[line] = `hsl(${Math.abs(hash % 360)}, 65%, 50%)`;
+            lineColors[line] = `hsl(${Math.abs(hash % 360)}, 75%, 45%)`;
             return lineColors[line];
         }
 
         function init() {
-            // Mapa en estilo CLARO
+            if (typeof L === 'undefined') return;
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-34.6037, -58.4117], 13);
             
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 19
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
+                maxZoom: 19 
             }).addTo(map);
 
             layers.bus = L.layerGroup().addTo(map);
@@ -215,11 +208,21 @@
 
         async function fetchAPI(endpoint) {
             try {
-                const response = await fetch(`${BACKEND_URL}${endpoint}`, { headers: { 'Accept': 'application/json' } });
-                if (!response.ok) return null;
-                const contentType = response.headers.get("content-type");
-                return (contentType && contentType.includes("application/json")) ? await response.json() : null;
-            } catch (e) { return null; }
+                const separator = endpoint.includes('?') ? '&' : '?';
+                const url = endpoint.includes('serviceAlerts') 
+                    ? `${BACKEND_URL}${endpoint}${separator}json=1` 
+                    : `${BACKEND_URL}${endpoint}`;
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    console.warn(`Endpoint ${endpoint} no disponible (Status ${response.status})`);
+                    return null;
+                }
+                return await response.json();
+            } catch (e) { 
+                console.error("Fetch error para " + endpoint, e);
+                return null; 
+            }
         }
 
         async function refreshData() {
@@ -231,24 +234,25 @@
             btn?.classList.add('animate-spin');
             bar.style.width = '30%';
 
-            // Consultas múltiples
+            // Se corrigió el endpoint de trenes de vehiclePositionsSimple a vehiclePositions
             const requests = [
                 activeTypes.bus ? fetchAPI("/colectivos/vehiclePositionsSimple") : Promise.resolve([]),
                 activeTypes.subte ? fetchAPI("/subtes/forecastGTFS") : Promise.resolve([]),
-                activeTypes.train ? fetchAPI("/trenes/vehiclePositionsSimple") : Promise.resolve([]),
-                activeTypes.bike ? fetchAPI("/ecobici/stations") : Promise.resolve([]),
+                activeTypes.train ? fetchAPI("/trenes/vehiclePositions") : Promise.resolve([]),
+                activeTypes.bike ? fetchAPI("/ecobici/stations") : Promise.resolve(null),
                 fetchAPI("/colectivos/serviceAlerts"),
                 fetchAPI("/subtes/serviceAlerts")
             ];
 
-            const [buses, subtes, trains, bikes, alertC, alertS] = await Promise.all(requests);
+            const results = await Promise.all(requests);
+            const [buses, subtes, trains, bikes, alertC, alertS] = results;
 
             window.cache = { 
                 bus: Array.isArray(buses) ? buses : [], 
                 subte: Array.isArray(subtes) ? subtes : [],
                 train: Array.isArray(trains) ? trains : [],
                 bike: (bikes && bikes.data && bikes.data.stations) ? bikes.data.stations : [],
-                alerts: [...(alertC?.Entity || []), ...(alertS?.Entity || [])]
+                alerts: [...(alertC?.entity || alertC?.Entity || []), ...(alertS?.entity || alertS?.Entity || [])]
             };
 
             bar.style.width = '100%';
@@ -268,13 +272,19 @@
             container.innerHTML = '';
             const seen = new Set();
             
-            if (window.cache.alerts.length > 0) {
+            if (window.cache.alerts && window.cache.alerts.length > 0) {
                 window.cache.alerts.forEach(item => {
-                    const msg = item.Alert?.HeaderText?.Translation?.[0]?.Text;
-                    if (msg && !seen.has(msg)) {
+                    const alert = item.alert || item.Alert;
+                    if (!alert) return;
+
+                    const headerText = alert.header_text || alert.HeaderText;
+                    const translation = headerText?.translation || headerText?.Translation;
+                    const msg = translation?.[0]?.text || translation?.[0]?.Text;
+
+                    if (msg && !seen.has(msg) && msg.length > 5) {
                         seen.add(msg);
                         const el = document.createElement('div');
-                        el.className = 'glass p-4 rounded-2xl border-l-4 border-indigo-500 alert-card shadow-sm';
+                        el.className = 'glass p-4 rounded-2xl border-l-4 border-indigo-500 alert-card shadow-sm mx-1';
                         el.innerHTML = `<p class="text-[11px] text-slate-600 font-medium leading-relaxed">${msg}</p>`;
                         container.appendChild(el);
                     }
@@ -282,11 +292,15 @@
             }
         }
 
-        function createMarker(lat, lng, label, color, type) {
+        function createMarker(lat, lng, label, color) {
             return L.marker([lat, lng], {
                 icon: L.divIcon({
                     className: '',
-                    html: `<div class="v-marker" style="background:${color}; box-shadow: 0 0 10px ${color}66;"></div><div class="vehicle-label">${label}</div>`,
+                    html: `
+                        <div class="relative">
+                            <div class="v-marker" style="background:${color}; box-shadow: 0 0 12px ${color}88;"></div>
+                            <div class="vehicle-label">${label}</div>
+                        </div>`,
                     iconSize: [14, 14], iconAnchor: [7, 7]
                 })
             });
@@ -297,45 +311,49 @@
             const filter = document.getElementById('search').value.toLowerCase();
             let total = 0;
 
-            // BUSES
             if (activeTypes.bus) {
                 window.cache.bus.forEach(v => {
-                    const line = v.route_short_name || v.route_id || "";
+                    let line = formatLineName(v.route_short_name || v.route_id);
                     if (filter && !line.toLowerCase().includes(filter)) return;
-                    createMarker(v.latitude, v.longitude, line, getColor('bus', line), 'bus').addTo(layers.bus);
+                    createMarker(v.latitude, v.longitude, line, getColor('bus', line)).addTo(layers.bus);
                     total++;
                 });
             }
 
-            // SUBTES (Usamos forecast para ver actividad en estaciones)
             if (activeTypes.subte) {
+                const activeLines = new Set();
                 window.cache.subte.forEach(s => {
                     const line = s.Linea?.Route_Id?.replace("Linea", "") || "";
+                    if (line) activeLines.add(line);
+                });
+                activeLines.forEach(line => {
                     if (filter && !line.toLowerCase().includes(filter)) return;
                     const coords = subteNodes[line];
                     if (coords) {
-                        createMarker(coords[0], coords[1], `LÍNEA ${line}`, getColor('subte', line), 'subte').addTo(layers.subte);
+                        createMarker(coords[0], coords[1], `LÍNEA ${line}`, getColor('subte', line)).addTo(layers.subte);
                         total++;
                     }
                 });
             }
 
-            // TRENES
             if (activeTypes.train) {
                 window.cache.train.forEach(t => {
-                    const line = t.route_id || "Tren";
+                    let line = formatLineName(t.route_id || "Tren");
                     if (filter && !line.toLowerCase().includes(filter)) return;
-                    createMarker(t.latitude, t.longitude, line, getColor('train', line), 'train').addTo(layers.train);
-                    total++;
+                    // El formato de trenes puede variar entre lat/latitude
+                    const lat = t.latitude || t.position?.latitude;
+                    const lon = t.longitude || t.position?.longitude;
+                    if (lat && lon) {
+                        createMarker(lat, lon, line, getColor('train', line)).addTo(layers.train);
+                        total++;
+                    }
                 });
             }
 
-            // ECOBICI
             if (activeTypes.bike) {
                 window.cache.bike.forEach(st => {
                     if (filter && !st.name.toLowerCase().includes(filter)) return;
-                    const label = `${st.num_bikes_available} 🚲`;
-                    createMarker(st.lat, st.lon, label, getColor('bike'), 'bike').addTo(layers.bike);
+                    createMarker(st.lat, st.lon, `${st.num_bikes_available} 🚲`, getColor('bike')).addTo(layers.bike);
                     total++;
                 });
             }
@@ -358,10 +376,16 @@
                     radius: 8, fillColor: '#4f46e5', color: 'white', weight: 3, fillOpacity: 1 
                 }).addTo(userLayer);
                 map.flyTo([latitude, longitude], 15);
-            });
+            }, () => console.log("Ubicación denegada"));
         }
 
-        window.onload = init;
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof L !== 'undefined') {
+                init();
+            } else {
+                console.error("Leaflet no cargó correctamente.");
+            }
+        });
     </script>
 </body>
 </html>
