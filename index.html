@@ -2,10 +2,10 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Radar AMBA - Dashboard de Movilidad</title>
     
-    <!-- Librerías Críticas (Orden Importante) -->
+    <!-- Librerías Críticas -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,7 +16,7 @@
 
         :root {
             --bg-light: #f8fafc;
-            --panel-glass: rgba(255, 255, 255, 0.9);
+            --panel-glass: rgba(255, 255, 255, 0.85);
             --accent: #4f46e5;
         }
 
@@ -29,59 +29,76 @@
         
         .glass {
             background: var(--panel-glass);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
         }
 
+        /* Responsive UI Panel */
         .ui-panel {
-            position: absolute; top: 20px; left: 20px; z-index: 1000; width: 360px;
-            pointer-events: auto;
+            position: absolute; top: 20px; left: 20px; z-index: 1000; 
+            width: calc(100% - 40px); max-width: 360px;
+            pointer-events: none; /* Dejar pasar clics en el espacio vacío */
             max-height: calc(100vh - 40px);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        
+        .ui-panel > * { pointer-events: auto; }
+
+        /* Transiciones del Panel Colapsable */
+        #panel-content, #alerts-container {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
         }
 
+        /* Markers */
         .v-marker {
             width: 14px; height: 14px; 
             border: 2px solid white; 
             border-radius: 50%;
-            transition: all 0.3s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease;
         }
         
+        .leaflet-marker-icon { transition: margin 0.3s ease; }
+        .leaflet-marker-icon:hover { z-index: 1000 !important; }
+        .leaflet-marker-icon:hover .v-marker { transform: scale(1.3); }
+
         .vehicle-label {
             background: white; color: #1e293b; padding: 2px 6px; 
             border-radius: 6px; font-size: 10px; font-weight: 800;
             white-space: nowrap; border: 1px solid rgba(0,0,0,0.1);
             position: absolute; top: -24px; left: 50%; transform: translateX(-50%);
             pointer-events: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            opacity: 0.9; transition: opacity 0.2s, display 0s;
         }
+        .leaflet-marker-icon:hover .vehicle-label { opacity: 1; z-index: 1001; display: block !important; }
+
+        /* LOD: Ocultar textos cuando el zoom está muy lejos */
+        .zoomed-out .vehicle-label { display: none !important; }
+        .zoomed-out .v-marker { width: 8px !important; height: 8px !important; border-width: 1.5px !important; }
 
         .loading-bar {
             height: 4px; width: 0%; background: var(--accent);
-            transition: width 0.4s ease;
+            transition: width 0.3s ease-out;
             position: absolute; top: 0; left: 0; z-index: 2000;
         }
 
         .btn-transport { 
-            transition: all 0.2s ease; 
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
             border: 1px solid rgba(0,0,0,0.05);
+            cursor: pointer;
         }
-        .btn-transport.active {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
+        .btn-transport:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .btn-transport.active { background: var(--accent); color: white; border-color: var(--accent); }
 
-        .custom-scroll { overflow-y: auto; scrollbar-width: none; }
+        .custom-scroll { overflow-y: auto; scrollbar-width: none; pointer-events: auto;}
         .custom-scroll::-webkit-scrollbar { display: none; }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
         }
-
         .alert-card { animation: slideIn 0.3s ease-out forwards; }
     </style>
 </head>
@@ -90,8 +107,9 @@
     <div id="loading-line" class="loading-bar"></div>
 
     <div class="ui-panel">
-        <div class="glass p-5 rounded-[2.5rem]">
-            <div class="flex justify-between items-center mb-6">
+        <div class="glass px-5 py-4 rounded-[2rem] shadow-xl">
+            <!-- Header Colapsable -->
+            <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePanel()">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-indigo-600/10 rounded-2xl">
                         <i data-lucide="map-pinned" class="text-indigo-600 w-6 h-6"></i>
@@ -101,65 +119,91 @@
                         <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Movilidad Inteligente</p>
                     </div>
                 </div>
-                <div id="status-dot" class="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full">
-                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    <span class="text-[10px] font-black text-emerald-600">LIVE</span>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-4 gap-2 mb-6">
-                <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1 bg-white">
-                    <i data-lucide="bus" class="w-4 h-4"></i> COL
-                </button>
-                <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1 bg-white">
-                    <i data-lucide="train-front" class="w-4 h-4"></i> SUB
-                </button>
-                <button onclick="toggleType('train')" id="t-train" class="btn-transport p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1 bg-white">
-                    <i data-lucide="train-track" class="w-4 h-4"></i> TREN
-                </button>
-                <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1 bg-white">
-                    <i data-lucide="bike" class="w-4 h-4"></i> ECO
-                </button>
-            </div>
-
-            <div class="space-y-4">
-                <div class="relative group">
-                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input type="text" id="search" placeholder="Buscar línea o estación..." 
-                           class="w-full bg-slate-100 border-none rounded-2xl pl-12 pr-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-700">
-                </div>
-                <div class="flex justify-between items-center px-2">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="info" class="w-3 h-3 text-indigo-500"></i>
-                        <span id="unit-count" class="text-[11px] font-bold text-slate-500">Iniciando...</span>
+                <div class="flex items-center gap-2">
+                    <div id="status-dot" class="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <span id="status-text" class="text-[10px] font-black text-emerald-600">LIVE</span>
                     </div>
-                    <span id="last-update" class="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">--:--:--</span>
+                    <div class="p-1 hover:bg-slate-200/50 rounded-full transition-colors">
+                        <i data-lucide="chevron-up" id="panel-chevron" class="w-5 h-5 text-slate-500 transition-transform duration-300"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenido del Panel -->
+            <div id="panel-content" style="max-height: 500px; opacity: 1;">
+                <div class="pt-5">
+                    <div class="grid grid-cols-4 gap-2 mb-5">
+                        <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="bus" class="w-4 h-4"></i> COL
+                        </button>
+                        <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="train-front" class="w-4 h-4"></i> SUB
+                        </button>
+                        <button onclick="toggleType('train')" id="t-train" class="btn-transport p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="train-track" class="w-4 h-4"></i> TREN
+                        </button>
+                        <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2 rounded-2xl text-[9px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="bike" class="w-4 h-4"></i> ECO
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="relative group">
+                            <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                            <input type="text" id="search" placeholder="Buscar línea (ej: 152, Mitre)..." 
+                                   class="w-full bg-slate-100/80 border border-slate-200 rounded-2xl pl-12 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:bg-white transition-all text-slate-700 placeholder-slate-400 font-medium">
+                        </div>
+                        <div class="flex justify-between items-end px-1 pt-1">
+                            <div class="flex items-center gap-1.5 mb-1">
+                                <button onclick="locateUser()" class="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-slate-500 transition-colors shadow-sm" title="Mi ubicación">
+                                    <i data-lucide="crosshair" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="refreshData()" class="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-slate-500 transition-colors shadow-sm" title="Actualizar datos">
+                                    <i data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
+                                </button>
+                                <div class="flex items-center gap-1 ml-1">
+                                    <i data-lucide="activity" class="w-3 h-3 text-indigo-500"></i>
+                                    <span id="unit-count" class="text-[10px] font-bold text-slate-600">Iniciando...</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Última actualización</span>
+                                <span id="last-update" class="text-[10px] font-mono text-slate-600 bg-slate-200/50 px-2 py-1 rounded-md">--:--:--</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div id="alerts-container" class="custom-scroll flex flex-col gap-2 pb-6"></div>
-    </div>
-
-    <div class="absolute bottom-10 right-10 z-[1000] flex flex-col gap-4">
-        <button onclick="locateUser()" class="glass p-4 rounded-3xl text-slate-700 hover:text-indigo-600 transition-all shadow-xl">
-            <i data-lucide="locate-fixed"></i>
-        </button>
-        <button onclick="refreshData()" class="glass p-4 rounded-3xl text-slate-700 hover:text-indigo-600 transition-all shadow-xl">
-            <i data-lucide="refresh-cw" id="refresh-icon"></i>
-        </button>
+        <!-- Alertas -->
+        <div id="alerts-wrapper" class="transition-all duration-300" style="display: none;">
+            <div class="flex justify-between items-center cursor-pointer select-none px-4 py-2 mx-1 mt-1 bg-white/70 backdrop-blur-md rounded-xl border border-white/60 shadow-sm" onclick="toggleAlerts()">
+                <span class="text-[10px] font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                    <i data-lucide="bell" class="w-3.5 h-3.5 text-indigo-500"></i> Alertas <span id="alerts-count" class="text-indigo-600"></span>
+                </span>
+                <i data-lucide="chevron-up" id="alerts-chevron" class="w-4 h-4 text-slate-500 transition-transform duration-300"></i>
+            </div>
+            <div id="alerts-container" class="custom-scroll flex flex-col gap-2 mt-2 pb-2 transition-all duration-300 overflow-hidden" style="max-height: 300px; opacity: 1;"></div>
+        </div>
     </div>
 
     <div id="map"></div>
 
     <script>
-        // CONFIGURACIÓN DEL PROXY
+        // CONFIGURACIÓN
         const BACKEND_URL = "https://shiny-wood-35ad.papamasro.workers.dev";
+        const UPDATE_INTERVAL = 30000; // 30 seg
         
         let map, layers = { bus: null, subte: null, train: null, bike: null }, userLayer;
         let activeTypes = { bus: true, subte: false, train: false, bike: false };
         let isRefreshing = false;
+        let isPanelOpen = true;
+        let isAlertsOpen = true;
+        let searchTimeout;
         const lineColors = {};
+        window.cache = { bus: [], subte: [], train: [], bike: [], alerts: [] };
 
         const subteNodes = {
             "A": [-34.6085, -58.3712], "B": [-34.6031, -58.3701], "C": [-34.5916, -58.3744],
@@ -173,7 +217,7 @@
 
         function getColor(type, line) {
             if (type === 'bike') return '#10b981';
-            if (type === 'train') return '#0369a1';
+            if (type === 'train') return '#0284c7';
             if (type === 'subte') {
                 const colors = { 'A': '#00aed9', 'B': '#ef3b35', 'C': '#0067a7', 'D': '#007e67', 'E': '#6c2e82', 'H': '#ffd400' };
                 return colors[line] || '#fbbf24';
@@ -181,13 +225,62 @@
             if (lineColors[line]) return lineColors[line];
             let hash = 0;
             for (let i = 0; i < line.length; i++) hash = line.charCodeAt(i) + ((hash << 5) - hash);
-            lineColors[line] = `hsl(${Math.abs(hash % 360)}, 75%, 45%)`;
+            lineColors[line] = `hsl(${Math.abs(hash % 360)}, 70%, 48%)`;
             return lineColors[line];
+        }
+
+        function togglePanel() {
+            isPanelOpen = !isPanelOpen;
+            const content = document.getElementById('panel-content');
+            const chevron = document.getElementById('panel-chevron');
+            const alertsWrapper = document.getElementById('alerts-wrapper');
+            
+            if (isPanelOpen) {
+                content.style.maxHeight = '500px';
+                content.style.opacity = '1';
+                alertsWrapper.style.opacity = '1';
+                alertsWrapper.style.pointerEvents = 'auto';
+                chevron.style.transform = 'rotate(0deg)';
+            } else {
+                content.style.maxHeight = '0px';
+                content.style.opacity = '0';
+                alertsWrapper.style.opacity = '0';
+                alertsWrapper.style.pointerEvents = 'none';
+                chevron.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        function toggleAlerts() {
+            isAlertsOpen = !isAlertsOpen;
+            const container = document.getElementById('alerts-container');
+            const chevron = document.getElementById('alerts-chevron');
+            
+            if (isAlertsOpen) {
+                container.style.maxHeight = '300px';
+                container.style.opacity = '1';
+                container.style.marginTop = '0.5rem';
+                chevron.style.transform = 'rotate(0deg)';
+            } else {
+                container.style.maxHeight = '0px';
+                container.style.opacity = '0';
+                container.style.marginTop = '0px';
+                chevron.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        function checkZoomLOD() {
+            const mapEl = document.getElementById('map');
+            if (map.getZoom() < 13) {
+                mapEl.classList.add('zoomed-out');
+            } else {
+                mapEl.classList.remove('zoomed-out');
+            }
         }
 
         function init() {
             if (typeof L === 'undefined') return;
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-34.6037, -58.4117], 13);
+            
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-34.6037, -58.3816], 14);
             
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
                 maxZoom: 19 
@@ -200,10 +293,23 @@
             userLayer = L.layerGroup().addTo(map);
 
             lucide.createIcons();
-            document.getElementById('search').addEventListener('input', renderMarkers);
+            
+            document.getElementById('search').addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(renderMarkers, 300);
+            });
+
+            // Re-renderizado solo de lo visible al mover o hacer zoom
+            map.on('moveend', renderMarkers);
+            map.on('zoomend', () => {
+                checkZoomLOD();
+                renderMarkers();
+            });
+            checkZoomLOD();
 
             refreshData();
-            setInterval(refreshData, 30000); 
+            locateUser(); // Auto-localizar al inicio
+            setInterval(refreshData, UPDATE_INTERVAL); 
         }
 
         async function fetchAPI(endpoint) {
@@ -213,15 +319,16 @@
                     ? `${BACKEND_URL}${endpoint}${separator}json=1` 
                     : `${BACKEND_URL}${endpoint}`;
                 
-                const response = await fetch(url);
-                if (!response.ok) {
-                    console.warn(`Endpoint ${endpoint} no disponible (Status ${response.status})`);
-                    return null;
-                }
-                return await response.json();
+                const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+                if (!response.ok) throw new Error(`Status ${response.status}`);
+                
+                const data = await response.json();
+                if (!data || (Array.isArray(data) && data.length === 0) || data.error) throw new Error("Datos vacíos");
+                
+                return { success: true, data };
             } catch (e) { 
-                console.error("Fetch error para " + endpoint, e);
-                return null; 
+                console.warn(`Fetch falló para ${endpoint}:`, e.message);
+                return { success: false, data: null }; 
             }
         }
 
@@ -234,26 +341,42 @@
             btn?.classList.add('animate-spin');
             bar.style.width = '30%';
 
-            // Se corrigió el endpoint de trenes de vehiclePositionsSimple a vehiclePositions
             const requests = [
-                activeTypes.bus ? fetchAPI("/colectivos/vehiclePositionsSimple") : Promise.resolve([]),
-                activeTypes.subte ? fetchAPI("/subtes/forecastGTFS") : Promise.resolve([]),
-                activeTypes.train ? fetchAPI("/trenes/vehiclePositions") : Promise.resolve([]),
-                activeTypes.bike ? fetchAPI("/ecobici/stations") : Promise.resolve(null),
+                activeTypes.bus ? fetchAPI("/colectivos/vehiclePositionsSimple") : Promise.resolve({success: true, data:[]}),
+                activeTypes.subte ? fetchAPI("/subtes/forecastGTFS") : Promise.resolve({success: true, data:[]}),
+                activeTypes.train ? fetchAPI("/trenes/vehiclePositions") : Promise.resolve({success: true, data:[]}),
+                activeTypes.bike ? fetchAPI("/ecobici/stations") : Promise.resolve({success: true, data:null}),
                 fetchAPI("/colectivos/serviceAlerts"),
                 fetchAPI("/subtes/serviceAlerts")
             ];
 
             const results = await Promise.all(requests);
-            const [buses, subtes, trains, bikes, alertC, alertS] = results;
+            bar.style.width = '80%';
+
+            const buses = results[0].data || [];
+            const subtes = results[1].data || [];
+            const trains = results[2].data || [];
+            const bikes = results[3].data?.data?.stations || [];
+            const alertC = results[4].data || {};
+            const alertS = results[5].data || {};
 
             window.cache = { 
                 bus: Array.isArray(buses) ? buses : [], 
                 subte: Array.isArray(subtes) ? subtes : [],
                 train: Array.isArray(trains) ? trains : [],
-                bike: (bikes && bikes.data && bikes.data.stations) ? bikes.data.stations : [],
-                alerts: [...(alertC?.entity || alertC?.Entity || []), ...(alertS?.entity || alertS?.Entity || [])]
+                bike: Array.isArray(bikes) ? bikes : [],
+                alerts: [...(alertC.entity || alertC.Entity || []), ...(alertS.entity || alertS.Entity || [])]
             };
+
+            // Solo mostrar ERROR API si falló una capa explícitamente solicitada
+            const activeErrors = [];
+            if (activeTypes.bus && !results[0].success) activeErrors.push('bus');
+            if (activeTypes.subte && !results[1].success) activeErrors.push('subte');
+            if (activeTypes.train && !results[2].success) activeErrors.push('train');
+            if (activeTypes.bike && !results[3].success) activeErrors.push('bike');
+            
+            const hasError = activeErrors.length > 0;
+            updateStatusIndicator(hasError);
 
             bar.style.width = '100%';
             renderMarkers();
@@ -261,16 +384,44 @@
             
             setTimeout(() => { 
                 bar.style.width = '0%'; 
+                bar.style.transition = 'none';
+                setTimeout(() => bar.style.transition = 'width 0.3s ease-out', 50);
+                
                 btn?.classList.remove('animate-spin');
                 isRefreshing = false;
-                document.getElementById('last-update').innerText = new Date().toLocaleTimeString();
+                
+                // Actualizar la hora solo si los datos principales funcionaron
+                if (!hasError) {
+                    document.getElementById('last-update').innerText = new Date().toLocaleTimeString('es-AR', { hour12: false });
+                }
             }, 500);
         }
 
+        function updateStatusIndicator(hasError) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            const ping = dot.querySelector('div');
+            
+            if (hasError) {
+                dot.className = "flex items-center gap-2 px-3 py-1.5 bg-red-500/10 rounded-full border border-red-500/20";
+                ping.className = "w-2 h-2 rounded-full bg-red-500";
+                text.className = "text-[10px] font-black text-red-600";
+                text.innerText = "ERROR API";
+                ping.classList.remove('animate-pulse');
+            } else {
+                dot.className = "flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20";
+                ping.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                text.className = "text-[10px] font-black text-emerald-600";
+                text.innerText = "LIVE";
+            }
+        }
+
         function renderAlerts() {
+            const wrapper = document.getElementById('alerts-wrapper');
             const container = document.getElementById('alerts-container');
             container.innerHTML = '';
             const seen = new Set();
+            let count = 0;
             
             if (window.cache.alerts && window.cache.alerts.length > 0) {
                 window.cache.alerts.forEach(item => {
@@ -283,12 +434,27 @@
 
                     if (msg && !seen.has(msg) && msg.length > 5) {
                         seen.add(msg);
+                        count++;
                         const el = document.createElement('div');
-                        el.className = 'glass p-4 rounded-2xl border-l-4 border-indigo-500 alert-card shadow-sm mx-1';
-                        el.innerHTML = `<p class="text-[11px] text-slate-600 font-medium leading-relaxed">${msg}</p>`;
+                        el.className = 'glass p-3 rounded-2xl border-l-4 border-indigo-500 alert-card mx-1 mb-2';
+                        el.innerHTML = `
+                            <div class="flex gap-2 items-start">
+                                <i data-lucide="info" class="w-4 h-4 text-indigo-500 mt-0.5 shrink-0"></i>
+                                <p class="text-[11px] text-slate-700 font-medium leading-tight">${msg}</p>
+                            </div>
+                        `;
                         container.appendChild(el);
                     }
                 });
+                lucide.createIcons({ root: container });
+            }
+            
+            // Mostrar u ocultar todo el bloque de alertas dependiendo de si hay datos
+            if (count > 0) {
+                wrapper.style.display = 'block';
+                document.getElementById('alerts-count').innerText = `(${count})`;
+            } else {
+                wrapper.style.display = 'none';
             }
         }
 
@@ -298,7 +464,7 @@
                     className: '',
                     html: `
                         <div class="relative">
-                            <div class="v-marker" style="background:${color}; box-shadow: 0 0 12px ${color}88;"></div>
+                            <div class="v-marker" style="background:${color}; box-shadow: 0 0 10px ${color}88;"></div>
                             <div class="vehicle-label">${label}</div>
                         </div>`,
                     iconSize: [14, 14], iconAnchor: [7, 7]
@@ -307,85 +473,117 @@
         }
 
         function renderMarkers() {
+            if (!map || !window.cache) return;
             Object.values(layers).forEach(l => l.clearLayers());
-            const filter = document.getElementById('search').value.toLowerCase();
+            
+            const filter = document.getElementById('search').value.toLowerCase().trim();
             let total = 0;
+            
+            // Lógica Viewport (Solo renderizar lo visible con un pequeño margen)
+            const mapBounds = map.getBounds().pad(0.1); 
 
-            if (activeTypes.bus) {
+            if (activeTypes.bus && window.cache.bus) {
                 window.cache.bus.forEach(v => {
                     let line = formatLineName(v.route_short_name || v.route_id);
                     if (filter && !line.toLowerCase().includes(filter)) return;
-                    createMarker(v.latitude, v.longitude, line, getColor('bus', line)).addTo(layers.bus);
-                    total++;
-                });
-            }
-
-            if (activeTypes.subte) {
-                const activeLines = new Set();
-                window.cache.subte.forEach(s => {
-                    const line = s.Linea?.Route_Id?.replace("Linea", "") || "";
-                    if (line) activeLines.add(line);
-                });
-                activeLines.forEach(line => {
-                    if (filter && !line.toLowerCase().includes(filter)) return;
-                    const coords = subteNodes[line];
-                    if (coords) {
-                        createMarker(coords[0], coords[1], `LÍNEA ${line}`, getColor('subte', line)).addTo(layers.subte);
+                    
+                    const lat = parseFloat(v.latitude);
+                    const lon = parseFloat(v.longitude);
+                    
+                    // Renderizar solo si está dentro de la pantalla
+                    if(!isNaN(lat) && !isNaN(lon) && mapBounds.contains([lat, lon])) {
+                        createMarker(lat, lon, line, getColor('bus', line)).addTo(layers.bus);
                         total++;
                     }
                 });
             }
 
-            if (activeTypes.train) {
+            if (activeTypes.subte && window.cache.subte) {
+                const activeLines = new Set();
+                window.cache.subte.forEach(s => {
+                    const lineStr = s.Linea?.Route_Id || s.route_id || "";
+                    const line = lineStr.replace("Linea", "").replace("Line", "");
+                    if (line) activeLines.add(line);
+                });
+                
+                activeLines.forEach(line => {
+                    if (filter && !line.toLowerCase().includes(filter)) return;
+                    const coords = subteNodes[line];
+                    if (coords && mapBounds.contains(coords)) {
+                        createMarker(coords[0], coords[1], `SUBTE ${line}`, getColor('subte', line)).addTo(layers.subte);
+                        total++;
+                    }
+                });
+            }
+
+            if (activeTypes.train && window.cache.train) {
                 window.cache.train.forEach(t => {
                     let line = formatLineName(t.route_id || "Tren");
                     if (filter && !line.toLowerCase().includes(filter)) return;
-                    // El formato de trenes puede variar entre lat/latitude
-                    const lat = t.latitude || t.position?.latitude;
-                    const lon = t.longitude || t.position?.longitude;
-                    if (lat && lon) {
+                    
+                    const lat = parseFloat(t.latitude || t.position?.latitude || t.vehicle?.position?.latitude);
+                    const lon = parseFloat(t.longitude || t.position?.longitude || t.vehicle?.position?.longitude);
+                    
+                    if (!isNaN(lat) && !isNaN(lon) && mapBounds.contains([lat, lon])) {
                         createMarker(lat, lon, line, getColor('train', line)).addTo(layers.train);
                         total++;
                     }
                 });
             }
 
-            if (activeTypes.bike) {
+            if (activeTypes.bike && window.cache.bike) {
                 window.cache.bike.forEach(st => {
                     if (filter && !st.name.toLowerCase().includes(filter)) return;
-                    createMarker(st.lat, st.lon, `${st.num_bikes_available} 🚲`, getColor('bike')).addTo(layers.bike);
-                    total++;
+                    
+                    const lat = parseFloat(st.lat);
+                    const lon = parseFloat(st.lon);
+                    const bikes = st.num_bikes_available || 0;
+                    
+                    if (!isNaN(lat) && !isNaN(lon) && mapBounds.contains([lat, lon])) {
+                        createMarker(lat, lon, `${bikes} 🚲`, getColor('bike')).addTo(layers.bike);
+                        total++;
+                    }
                 });
             }
 
-            document.getElementById('unit-count').innerText = `${total} Elementos en mapa`;
+            document.getElementById('unit-count').innerText = `${total} Elementos visibles`;
         }
 
         function toggleType(type) {
             activeTypes[type] = !activeTypes[type];
             document.getElementById(`t-${type}`).classList.toggle('active', activeTypes[type]);
-            refreshData();
+            
+            if (activeTypes[type]) {
+                refreshData();
+            } else {
+                renderMarkers();
+            }
         }
 
         function locateUser() {
             if (!navigator.geolocation) return;
+            
+            const btn = document.querySelector('[title="Mi ubicación"] i');
+            if (btn) btn.classList.add('animate-pulse', 'text-indigo-500');
+
             navigator.geolocation.getCurrentPosition(pos => {
                 const { latitude, longitude } = pos.coords;
                 userLayer.clearLayers();
+                
                 L.circleMarker([latitude, longitude], { 
                     radius: 8, fillColor: '#4f46e5', color: 'white', weight: 3, fillOpacity: 1 
                 }).addTo(userLayer);
-                map.flyTo([latitude, longitude], 15);
-            }, () => console.log("Ubicación denegada"));
+                
+                L.circle([latitude, longitude], { radius: pos.coords.accuracy / 2, color: '#4f46e5', opacity: 0.2, fillOpacity: 0.1 }).addTo(userLayer);
+                
+                map.flyTo([latitude, longitude], 15, { duration: 1.5 });
+                if (btn) btn.classList.remove('animate-pulse', 'text-indigo-500');
+            }, () => {
+                if (btn) btn.classList.remove('animate-pulse', 'text-indigo-500');
+            }, { timeout: 10000 });
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof L !== 'undefined') {
-                init();
-            } else {
-                console.error("Leaflet no cargó correctamente.");
-            }
-        });
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
