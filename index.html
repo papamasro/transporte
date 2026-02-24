@@ -256,8 +256,8 @@
             const [alertsData, busData, bikeInfo, bikeStatus] = await Promise.all([
                 safeFetch("/colectivos/serviceAlerts"),
                 activeTypes.bus ? safeFetch("/colectivos/vehiclePositionsSimple") : Promise.resolve([]),
-                activeTypes.bike ? safeFetch("/ecobici/stationInformation") : Promise.resolve(null),
-                activeTypes.bike ? safeFetch("/ecobici/stationStatus") : Promise.resolve(null)
+                activeTypes.bike ? safeFetch("/ecobici/gbfs/stationInformation") : Promise.resolve(null),
+                activeTypes.bike ? safeFetch("/ecobici/gbfs/stationStatus") : Promise.resolve(null)
             ]);
             
             // Procesar Alertas
@@ -464,3 +464,4 @@
     </script>
 </body>
 </html>
+
