@@ -119,6 +119,12 @@
             box-shadow: none !important;
             padding: 0 !important;
         }
+
+        .custom-tooltip .truncate {
+    white-space: normal !important; /* Permite que el texto use varias líneas si es necesario */
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
     </style>
 </head>
 <body>
@@ -425,47 +431,54 @@
             if (count > 0) document.getElementById('alerts-count').innerText = `(${count})`;
         }
 
-        function createMarker(lat, lng, label, color, type, data = null) {
-            const marker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: '',
-                    html: `<div class="relative"><div class="v-marker" style="background:${color};"></div><div class="vehicle-label">${label}</div></div>`,
-                    iconSize: [12, 12], iconAnchor: [6, 6]
-                })
-            });
+          function createMarker(lat, lng, label, color, type, data = null) {
+    const marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: '',
+            // IMPORTANTE: El contenedor ahora tiene pointer-events: auto para captar el hover
+            html: `<div class="relative" style="pointer-events: auto;">
+                    <div class="v-marker" style="background:${color};"></div>
+                    <div class="vehicle-label">${label}</div>
+                   </div>`,
+            iconSize: [12, 12], 
+            iconAnchor: [6, 6]
+        })
+    });
 
-            let tooltipHtml = '';
-            if (type === 'bus' && data) {
-                const speed = Math.round((data.speed || 0) * 3.6);
-                tooltipHtml = `
-                    <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[160px] max-w-[180px]">
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white" style="background: ${color}">
-                                <i data-lucide="bus" class="w-4 h-4"></i>
-                            </div>
-                            <div class="overflow-hidden">
-                                <h4 class="text-[11px] font-black text-slate-800 leading-none truncate">Línea ${data.route_short_name || label}</h4>
-                                <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${data.agency_name || 'Servicio AMBA'}</span>
-                            </div>
+    let tooltipHtml = '';
+    if (type === 'bus' && data) {
+        const speed = Math.round((data.speed || 0) * 3.6);
+        tooltipHtml = `
+            <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[180px] w-auto">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white flex-shrink-0" style="background: ${color}">
+                        <i data-lucide="bus" class="w-4 h-4"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <h4 class="text-[11px] font-black text-slate-800 leading-none">Línea ${data.route_short_name || label}</h4>
+                        <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${data.agency_name || 'Servicio AMBA'}</span>
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                        <span class="block text-[8px] font-bold text-slate-400 mb-0.5">DESTINO</span>
+                        <span class="text-[9px] font-black text-indigo-600 uppercase leading-tight block">
+                            ${data.trip_headsign || '---'}
+                        </span>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                            <span class="block text-[7px] font-bold text-slate-400">VELOCIDAD</span>
+                            <span class="text-[10px] font-black text-slate-700">${speed} <small class="text-[7px]">km/h</small></span>
                         </div>
-                        <div class="space-y-1.5">
-                            <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                <span class="text-[8px] font-bold text-slate-400">DESTINO</span>
-                                <span class="text-[8px] font-black text-indigo-600 truncate text-right ml-2 uppercase">${data.trip_headsign || '---'}</span>
-                            </div>
-                            <div class="flex gap-1.5">
-                                <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                    <span class="block text-[7px] font-bold text-slate-400">VELOCIDAD</span>
-                                    <span class="text-[10px] font-black text-slate-700">${speed} <small class="text-[7px]">km/h</small></span>
-                                </div>
-                                <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                    <span class="block text-[7px] font-bold text-slate-400">INTERNO</span>
-                                    <span class="text-[10px] font-black text-slate-700">#${data.id || '-'}</span>
-                                </div>
-                            </div>
+                        <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                            <span class="block text-[7px] font-bold text-slate-400">INTERNO</span>
+                            <span class="text-[10px] font-black text-slate-700">#${data.id || '-'}</span>
                         </div>
                     </div>
-                `;
+                </div>
+            </div>
+        `;
             } else if (type === 'bike' && data) {
                 tooltipHtml = `
                     <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[160px]">
@@ -595,6 +608,7 @@
     </script>
 </body>
 </html>
+
 
 
 
