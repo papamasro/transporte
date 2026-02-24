@@ -150,14 +150,15 @@
                 <div class="pt-4">
                     <div class="grid grid-cols-4 gap-1.5 mb-4">
                         <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="bus" class="w-3.5 h-3.5"></i> COLECT
+                            <i data-lucide="bus" class="w-3.5 h-3.5"></i> COLE
                         </button>
-                        <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="train-front" class="w-3.5 h-3.5"></i> SUBTE
-                        </button>
-                        <button onclick="toggleType('train')" id="t-train" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="train-track" class="w-3.5 h-3.5"></i> TREN
-                        </button>
+<button disabled onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">
+    <i data-lucide="train-front" class="w-3.5 h-3.5"></i> SUBTE
+</button>
+
+<button disabled onclick="toggleType('train')" id="t-train" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">
+    <i data-lucide="train-track" class="w-3.5 h-3.5"></i> TREN
+</button>
                         <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
                             <i data-lucide="bike" class="w-3.5 h-3.5"></i> ECO
                         </button>
@@ -591,3 +592,4 @@
     </script>
 </body>
 </html>
+
