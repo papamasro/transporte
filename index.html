@@ -5,15 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Radar AMBA - Dashboard de Movilidad</title>
     
-    <!-- Configuración PWA y Mobile -->
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Radar AMBA">
     
-    <!-- Manifest dinámico mediante Data URI para mantenerlo en un solo archivo -->
     <link rel="manifest" href='data:application/json,{"name":"Radar AMBA","short_name":"RadarAMBA","start_url":".","display":"standalone","background_color":"#f8fafc","theme_color":"#4f46e5","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/854/854878.png","sizes":"512x512","type":"image/png"}]}'>
-
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📍</text></svg>">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -28,6 +25,7 @@
             --bg-light: #f8fafc;
             --panel-glass: rgba(255, 255, 255, 0.9);
             --accent: #4f46e5;
+            --eco-green: #10b981;
         }
 
         body, html { 
@@ -55,16 +53,11 @@
         
         .ui-panel > * { pointer-events: auto; }
 
-        #panel-content, #alerts-container {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
-        }
-
         .v-marker {
-            width: 12px; height: 12px; 
+            width: 14px; height: 14px; 
             border: 2px solid white; 
             border-radius: 50%;
-            transition: transform 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         
         .vehicle-label {
@@ -72,18 +65,14 @@
             border-radius: 5px; font-size: 9px; font-weight: 800;
             white-space: nowrap; border: 1px solid rgba(0,0,0,0.1);
             position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-            pointer-events: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             opacity: 0.9;
+            pointer-events: none;
         }
         
-        .zoomed-out .vehicle-label,
-        .high-density .vehicle-label { display: none !important; }
-        
-        .zoomed-out .v-marker,
-        .high-density .v-marker { 
-            width: 8px !important; 
-            height: 8px !important; 
-            border-width: 1.5px !important; 
+        .marker-container {
+            width: 100%; height: 100%; position: relative;
+            display: flex; align-items: center; justify-content: center;
         }
 
         .loading-bar {
@@ -92,26 +81,9 @@
             position: absolute; top: 0; left: 0; z-index: 2000;
         }
 
-        .btn-transport { 
-            transition: all 0.2s; 
-            border: 1px solid rgba(0,0,0,0.03);
-            cursor: pointer;
-        }
+        .btn-transport { transition: all 0.2s; border: 1px solid rgba(0,0,0,0.03); cursor: pointer; }
         .btn-transport.active { background: var(--accent); color: white; border-color: var(--accent); }
-
-        .btn-action {
-            transition: all 0.2s;
-            background: #f1f5f9;
-            color: #64748b;
-        }
-        .btn-action.active {
-            background: #eef2ff;
-            color: #4f46e5;
-            border-color: #c7d2fe;
-        }
-
-        .custom-scroll { overflow-y: auto; scrollbar-width: none; pointer-events: auto;}
-        .custom-scroll::-webkit-scrollbar { display: none; }
+        .btn-transport.active-eco { background: var(--eco-green); color: white; border-color: var(--eco-green); }
 
         .custom-tooltip {
             background: transparent !important;
@@ -120,11 +92,11 @@
             padding: 0 !important;
         }
 
-        .custom-tooltip .truncate {
-    white-space: normal !important; /* Permite que el texto use varias líneas si es necesario */
-    overflow: visible !important;
-    text-overflow: clip !important;
-}
+        .dest-text {
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            display: block !important;
+        }
     </style>
 </head>
 <body>
@@ -152,45 +124,34 @@
                 </div>
             </div>
 
-            <div id="panel-content" style="max-height: 400px; opacity: 1;">
+            <div id="panel-content" style="max-height: 400px; opacity: 1; transition: all 0.3s;">
                 <div class="pt-4">
                     <div class="grid grid-cols-4 gap-1.5 mb-4">
-         <div class="grid grid-cols-4 gap-1.5 mb-4">
-    <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-        <i data-lucide="bus" class="w-3.5 h-3.5"></i> COLE
-    </button>
-
-    <button disabled id="t-subte" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60">
-        <i data-lucide="train-front" class="w-3.5 h-3.5"></i> SUBTE
-    </button>
-
-    <button disabled id="t-train" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60">
-        <i data-lucide="train-track" class="w-3.5 h-3.5"></i> TREN
-    </button>
-
-    <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-        <i data-lucide="bike" class="w-3.5 h-3.5"></i> ECO
-    </button>
+                        <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
+                            <i data-lucide="bus" class="w-3.5 h-3.5"></i> COLE
+                        </button>
+                        <button disabled class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60">
+                            <i data-lucide="train-front" class="w-3.5 h-3.5"></i> SUBTE
+                        </button>
+                        <button disabled class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60">
+                            <i data-lucide="train-track" class="w-3.5 h-3.5"></i> TREN
+                        </button>
+                        <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
+                            <i data-lucide="bike" class="w-3.5 h-3.5"></i> ECO
+                        </button>
                     </div>
 
                     <div class="space-y-3">
                         <div class="relative">
                             <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"></i>
-                            <input type="text" id="search" placeholder="Buscar línea o tren..." 
-                                   class="w-full bg-slate-100/50 border border-slate-200 rounded-xl pl-10 pr-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all text-slate-700 font-medium">
+                            <input type="text" id="search" placeholder="Buscar línea o estación..." 
+                                   class="w-full bg-slate-100/50 border border-slate-200 rounded-xl pl-10 pr-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
                         </div>
                         <div class="flex justify-between items-center px-1">
                             <div class="flex items-center gap-1">
-                                <button onclick="locateUser()" class="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-500 transition-colors shadow-sm">
-                                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
-                                </button>
-                                <button onclick="refreshData()" class="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-500 transition-colors shadow-sm">
-                                    <i data-lucide="refresh-cw" id="refresh-icon" class="w-3.5 h-3.5"></i>
-                                </button>
-                                <button onclick="toggleAlertsMaster()" id="btn-alerts-master" class="btn-action active p-1.5 rounded-lg border border-transparent shadow-sm">
-                                    <i data-lucide="bell" class="w-3.5 h-3.5"></i>
-                                </button>
-                                <span id="unit-count" class="text-[9px] font-bold text-slate-400 ml-1 uppercase">Cargando...</span>
+                                <button onclick="locateUser()" class="p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i></button>
+                                <button onclick="refreshData()" class="p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="refresh-cw" id="refresh-icon" class="w-3.5 h-3.5"></i></button>
+                                <span id="unit-count" class="text-[9px] font-bold text-slate-400 ml-1 uppercase">Iniciando...</span>
                             </div>
                             <span id="last-update" class="text-[9px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">--:--:--</span>
                         </div>
@@ -199,50 +160,23 @@
             </div>
         </div>
 
-        <div id="alerts-wrapper" class="transition-all duration-300" style="display: none;">
-            <div class="flex justify-between items-center cursor-pointer select-none px-4 py-2 bg-white/80 backdrop-blur rounded-xl border border-white/50 shadow-sm" onclick="toggleAlertsCollapse()">
-                <span class="text-[9px] font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
-                    <i data-lucide="bell-ring" class="w-3 h-3 text-indigo-500"></i> Alertas <span id="alerts-count" class="text-indigo-600"></span>
-                </span>
-                <i data-lucide="chevron-up" id="alerts-chevron" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-300"></i>
-            </div>
-            <div id="alerts-container" class="custom-scroll flex flex-col gap-1.5 mt-1.5 pb-2 transition-all duration-300 overflow-hidden" style="max-height: 200px; opacity: 1;"></div>
+        <div id="alerts-wrapper" style="display: none;">
+            <div id="alerts-container" class="flex flex-col gap-1.5 mt-1.5 max-h-[200px] overflow-y-auto"></div>
         </div>
     </div>
 
     <div id="map"></div>
 
     <script>
-        // SERVICE WORKER PARA PWA (Inline para mantener un solo archivo)
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                const swCode = `
-                    self.addEventListener('install', e => self.skipWaiting());
-                    self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
-                `;
-                const blob = new Blob([swCode], { type: 'text/javascript' });
-                const swUrl = URL.createObjectURL(blob);
-                navigator.serviceWorker.register(swUrl).catch(err => console.log('SW failed', err));
-            });
-        }
-
         const BACKEND_URL = "https://shiny-wood-35ad.papamasro.workers.dev";
         const UPDATE_INTERVAL = 30000; 
         
-        let map, layers = { bus: null, subte: null, train: null, bike: null }, userLayer;
-        let activeTypes = { bus: true, subte: false, train: false, bike: false };
-        let alertsEnabled = true;
+        let map, layers = { bus: null, bike: null }, userLayer;
+        let activeTypes = { bus: true, bike: false };
         let isRefreshing = false;
         let isPanelOpen = true;
-        let isAlertsOpen = true;
-        let searchTimeout;
         const lineColors = {};
-        window.cache = { bus: [], subte: [], train: [], bike: [], alerts: [] };
-
-        const subteNodes = {
-            "A": [-34.6085, -58.3712], "B": [-34.6031, -58.3701], "C": [-34.5916, -58.3744],
-            "D": [-34.5911, -58.3745], "E": [-34.6035, -58.3698], "H": [-34.6357, -58.4054]
-        };
+        window.cache = { bus: [], bike: [], alerts: [] };
 
         function formatLineName(name) {
             if (!name) return "??";
@@ -251,11 +185,6 @@
 
         function getColor(type, line) {
             if (type === 'bike') return '#10b981';
-            if (type === 'train') return '#0284c7';
-            if (type === 'subte') {
-                const colors = { 'A': '#00aed9', 'B': '#ef3b35', 'C': '#0067a7', 'D': '#007e67', 'E': '#6c2e82', 'H': '#ffd400' };
-                return colors[line] || '#fbbf24';
-            }
             if (lineColors[line]) return lineColors[line];
             let hash = 0;
             for (let i = 0; i < line.length; i++) hash = line.charCodeAt(i) + ((hash << 5) - hash);
@@ -267,332 +196,258 @@
             isPanelOpen = !isPanelOpen;
             const content = document.getElementById('panel-content');
             const chevron = document.getElementById('panel-chevron');
-            const alertsWrapper = document.getElementById('alerts-wrapper');
-            
-            if (isPanelOpen) {
-                content.style.maxHeight = '400px';
-                content.style.opacity = '1';
-                if (alertsEnabled) {
-                    alertsWrapper.style.opacity = '1';
-                    alertsWrapper.style.pointerEvents = 'auto';
-                }
-                chevron.style.transform = 'rotate(0deg)';
-            } else {
-                content.style.maxHeight = '0px';
-                content.style.opacity = '0';
-                alertsWrapper.style.opacity = '0';
-                alertsWrapper.style.pointerEvents = 'none';
-                chevron.style.transform = 'rotate(180deg)';
-            }
-        }
-
-        function toggleAlertsMaster() {
-            alertsEnabled = !alertsEnabled;
-            const btn = document.getElementById('btn-alerts-master');
-            const wrapper = document.getElementById('alerts-wrapper');
-            
-            if (alertsEnabled) {
-                btn.classList.add('active');
-                renderAlerts();
-            } else {
-                btn.classList.remove('active');
-                wrapper.style.display = 'none';
-            }
-        }
-
-        function toggleAlertsCollapse() {
-            isAlertsOpen = !isAlertsOpen;
-            const container = document.getElementById('alerts-container');
-            const chevron = document.getElementById('alerts-chevron');
-            if (isAlertsOpen) {
-                container.style.maxHeight = '200px';
-                container.style.opacity = '1';
-                chevron.style.transform = 'rotate(0deg)';
-            } else {
-                container.style.maxHeight = '0px';
-                container.style.opacity = '0';
-                chevron.style.transform = 'rotate(180deg)';
-            }
+            content.style.maxHeight = isPanelOpen ? '400px' : '0px';
+            content.style.opacity = isPanelOpen ? '1' : '0';
+            chevron.style.transform = isPanelOpen ? 'rotate(0deg)' : 'rotate(180deg)';
         }
 
         function init() {
-            if (typeof L === 'undefined') return;
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-34.6037, -58.3816], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
             layers.bus = L.layerGroup().addTo(map);
-            layers.subte = L.layerGroup().addTo(map);
-            layers.train = L.layerGroup().addTo(map);
             layers.bike = L.layerGroup().addTo(map);
             userLayer = L.layerGroup().addTo(map);
 
             lucide.createIcons();
-            document.getElementById('search').addEventListener('input', () => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(renderMarkers, 300);
-            });
+            document.getElementById('search').addEventListener('input', renderMarkers);
 
             map.on('moveend', renderMarkers);
-            map.on('zoomend', () => { 
-                const el = document.getElementById('map');
-                map.getZoom() < 13 ? el.classList.add('zoomed-out') : el.classList.remove('zoomed-out');
-                renderMarkers(); 
-            });
-
             refreshData();
-            locateUser(); 
-            setInterval(refreshData, UPDATE_INTERVAL); 
+            setInterval(refreshData, UPDATE_INTERVAL);
         }
 
         async function fetchAPI(endpoint) {
             try {
-                const sep = endpoint.includes('?') ? '&' : '?';
-                const url = endpoint.includes('serviceAlerts') ? `${BACKEND_URL}${endpoint}${sep}json=1` : `${BACKEND_URL}${endpoint}`;
-                const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+                const url = `${BACKEND_URL}${endpoint}`;
+                const response = await fetch(url, { 
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    signal: AbortSignal.timeout(8000) 
+                });
+                
+                // Si el servidor responde con 500 u otro error, retornamos objeto de falla controlado
+                if (!response.ok) return { success: false, data: null };
+
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    return { success: false, data: null };
+                }
+
                 const data = await response.json();
                 return { success: !!data, data };
-            } catch (e) { return { success: false, data: null }; }
+            } catch (e) { 
+                return { success: false, data: null }; 
+            }
         }
 
         async function refreshData() {
             if (isRefreshing) return;
             isRefreshing = true;
-            const btn = document.getElementById('refresh-icon');
-            const bar = document.getElementById('loading-line');
-            btn?.classList.add('animate-spin');
-            bar.style.width = '30%';
+            document.getElementById('refresh-icon')?.classList.add('animate-spin');
+            document.getElementById('loading-line').style.width = '30%';
 
-            const requests = [
-                activeTypes.bus ? fetchAPI("/colectivos/vehiclePositionsSimple") : Promise.resolve({success: true, data:[]}),
-                activeTypes.subte ? fetchAPI("/subtes/forecastGTFS") : Promise.resolve({success: true, data:[]}),
-                activeTypes.train ? fetchAPI("/trenes/vehiclePositions") : Promise.resolve({success: true, data:[]}),
-                activeTypes.bike ? fetchAPI("/ecobici/gbfs/stationInformation") : Promise.resolve({success: true, data:[]}),
-                activeTypes.bike ? fetchAPI("/ecobici/gbfs/stationStatus") : Promise.resolve({success: true, data:null}),
-                fetchAPI("/colectivos/serviceAlerts"),
-                fetchAPI("/subtes/serviceAlerts")
-            ];
-
-            const res = await Promise.all(requests);
-            bar.style.width = '80%';
-
-            let bikeStations = [];
-            let stationInfo = Array.isArray(res[3].data) ? res[3].data : (res[3].data?.data?.stations || []);
-            let stationStatus = res[4].data?.data?.stations || [];
-
-            if (activeTypes.bike && stationInfo.length > 0) {
-                const statusMap = new Map();
-                stationStatus.forEach(s => statusMap.set(s.station_id, s));
-                bikeStations = stationInfo.map(info => ({
-                    ...info,
-                    ...(statusMap.get(info.station_id) || {})
-                }));
-            }
-
-            window.cache = { 
-                bus: Array.isArray(res[0].data) ? res[0].data : [], 
-                subte: Array.isArray(res[1].data) ? res[1].data : [],
-                train: Array.isArray(res[2].data) ? res[2].data : [],
-                bike: bikeStations,
-                alerts: [...(res[5].data?.entity || []), ...(res[6].data?.entity || [])]
+            // Usamos un patrón de seguridad para que si un fetch falla, el Promise.all no explote
+            const safeFetch = async (endpoint) => {
+                const res = await fetchAPI(endpoint);
+                return res.success ? res.data : null;
             };
 
-            bar.style.width = '100%';
+            const [alertsData, busData, bikeInfo, bikeStatus] = await Promise.all([
+                safeFetch("/colectivos/serviceAlerts"),
+                activeTypes.bus ? safeFetch("/colectivos/vehiclePositionsSimple") : Promise.resolve([]),
+                activeTypes.bike ? safeFetch("/ecobici/stationInformation") : Promise.resolve(null),
+                activeTypes.bike ? safeFetch("/ecobici/stationStatus") : Promise.resolve(null)
+            ]);
+            
+            // Procesar Alertas
+            window.cache.alerts = alertsData?.entity || [];
+            
+            // Procesar Colectivos
+            window.cache.bus = Array.isArray(busData) ? busData : [];
+
+            // Procesar EcoBici
+            if (activeTypes.bike && bikeInfo && bikeStatus) {
+                try {
+                    const infoMap = {};
+                    const stations = bikeInfo.data?.stations || [];
+                    const statusList = bikeStatus.data?.stations || [];
+                    
+                    stations.forEach(s => infoMap[s.station_id] = s);
+                    window.cache.bike = statusList
+                        .filter(s => infoMap[s.station_id])
+                        .map(s => ({ ...infoMap[s.station_id], ...s }));
+                } catch (e) {
+                    console.warn("Error procesando datos EcoBici", e);
+                }
+            } else if (!activeTypes.bike) {
+                window.cache.bike = [];
+            }
+
+            document.getElementById('loading-line').style.width = '100%';
             renderMarkers();
             renderAlerts();
             
             setTimeout(() => { 
-                bar.style.width = '0%'; 
-                btn?.classList.remove('animate-spin');
+                document.getElementById('loading-line').style.width = '0%'; 
+                document.getElementById('refresh-icon')?.classList.remove('animate-spin');
                 isRefreshing = false;
                 document.getElementById('last-update').innerText = new Date().toLocaleTimeString('es-AR', { hour12: false });
             }, 500);
         }
 
-        function renderAlerts() {
-            if (!alertsEnabled) return;
-            const wrapper = document.getElementById('alerts-wrapper');
-            const container = document.getElementById('alerts-container');
-            container.innerHTML = '';
-            const seen = new Set();
-            let count = 0;
-            
-            window.cache.alerts.forEach(item => {
-                const alert = item.alert || item.Alert;
-                const msg = (alert?.header_text || alert?.HeaderText)?.translation?.[0]?.text;
-                if (msg && !seen.has(msg) && msg.length > 5) {
-                    seen.add(msg); count++;
-                    const el = document.createElement('div');
-                    el.className = 'bg-white/90 p-2.5 rounded-xl border-l-2 border-indigo-500 shadow-sm mx-0.5';
-                    el.innerHTML = `<p class="text-[10px] text-slate-600 font-medium leading-tight">${msg}</p>`;
-                    container.appendChild(el);
-                }
+        function createMarker(lat, lng, label, color, type, data = null) {
+            const marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: '',
+                    html: `<div class="marker-container">
+                            <div class="v-marker" style="background:${color};"></div>
+                            <div class="vehicle-label">${label}</div>
+                           </div>`,
+                    iconSize: [24, 24], 
+                    iconAnchor: [12, 12]
+                })
             });
-            wrapper.style.display = (count > 0 && isPanelOpen) ? 'block' : 'none';
-            if (count > 0) document.getElementById('alerts-count').innerText = `(${count})`;
-        }
 
-          function createMarker(lat, lng, label, color, type, data = null) {
-    const marker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: '',
-            // IMPORTANTE: El contenedor ahora tiene pointer-events: auto para captar el hover
-            html: `<div class="relative" style="pointer-events: auto;">
-                    <div class="v-marker" style="background:${color};"></div>
-                    <div class="vehicle-label">${label}</div>
-                   </div>`,
-            iconSize: [12, 12], 
-            iconAnchor: [6, 6]
-        })
-    });
-
-    let tooltipHtml = '';
-    if (type === 'bus' && data) {
-        const speed = Math.round((data.speed || 0) * 3.6);
-        tooltipHtml = `
-            <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[180px] w-auto">
-                <div class="flex items-center gap-2 mb-2">
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white flex-shrink-0" style="background: ${color}">
-                        <i data-lucide="bus" class="w-4 h-4"></i>
-                    </div>
-                    <div class="overflow-hidden">
-                        <h4 class="text-[11px] font-black text-slate-800 leading-none">Línea ${data.route_short_name || label}</h4>
-                        <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${data.agency_name || 'Servicio AMBA'}</span>
-                    </div>
-                </div>
-                <div class="space-y-1.5">
-                    <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                        <span class="block text-[8px] font-bold text-slate-400 mb-0.5">DESTINO</span>
-                        <span class="text-[9px] font-black text-indigo-600 uppercase leading-tight block">
-                            ${data.trip_headsign || '---'}
-                        </span>
-                    </div>
-                    <div class="flex gap-1.5">
-                        <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                            <span class="block text-[7px] font-bold text-slate-400">VELOCIDAD</span>
-                            <span class="text-[10px] font-black text-slate-700">${speed} <small class="text-[7px]">km/h</small></span>
+            let tooltipHtml = '';
+            if (type === 'bus' && data) {
+                const speed = Math.round((data.speed || 0) * 3.6);
+                tooltipHtml = `
+                    <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[180px]">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white" style="background: ${color}">
+                                <i data-lucide="bus" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-[11px] font-black text-slate-800 leading-none">Línea ${data.route_short_name || label}</h4>
+                                <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${data.agency_name || 'Servicio AMBA'}</span>
+                            </div>
                         </div>
-                        <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                            <span class="block text-[7px] font-bold text-slate-400">INTERNO</span>
-                            <span class="text-[10px] font-black text-slate-700">#${data.id || '-'}</span>
+                        <div class="space-y-1.5">
+                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                <span class="block text-[8px] font-bold text-slate-400 mb-0.5 uppercase tracking-tighter">Hacia</span>
+                                <span class="dest-text text-[10px] font-black text-indigo-600 uppercase leading-tight">
+                                    ${data.trip_headsign || 'SIN DESTINO'}
+                                </span>
+                            </div>
+                            <div class="flex gap-1.5">
+                                <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                    <span class="block text-[7px] font-bold text-slate-400">VEL</span>
+                                    <span class="text-[10px] font-black text-slate-700">${speed} km/h</span>
+                                </div>
+                                <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                    <span class="block text-[7px] font-bold text-slate-400">ID</span>
+                                    <span class="text-[10px] font-black text-slate-700">#${data.id || '-'}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+                    </div>`;
             } else if (type === 'bike' && data) {
                 tooltipHtml = `
-                    <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[160px]">
+                    <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[180px]">
                         <div class="flex items-center gap-2 mb-2">
-                            <div class="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center text-white">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white bg-emerald-500">
                                 <i data-lucide="bike" class="w-4 h-4"></i>
                             </div>
-                            <div class="overflow-hidden">
-                                <h4 class="text-[10px] font-black text-slate-800 leading-none truncate">${data.name || 'Estación'}</h4>
-                                <span class="text-[7px] font-bold \${data.status === 'IN_SERVICE' ? 'text-emerald-500' : 'text-red-500'} uppercase tracking-tighter">\${data.status || 'OFFLINE'}</span>
+                            <div>
+                                <h4 class="text-[10px] font-black text-slate-800 leading-none">${data.name}</h4>
+                                <span class="text-[7px] font-bold text-emerald-500 uppercase tracking-tighter">Estación EcoBici</span>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-1.5">
-                            <div class="bg-emerald-50 p-1.5 rounded-lg border border-emerald-100">
-                                <span class="block text-[6px] font-bold text-emerald-600 uppercase">Disponibles</span>
-                                <span class="text-[11px] font-black text-emerald-700">\${data.num_bikes_available || 0}</span>
+                            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 text-center">
+                                <span class="block text-[7px] font-bold text-emerald-600">BICIS</span>
+                                <span class="text-xs font-black text-emerald-700">${data.num_bikes_available}</span>
                             </div>
-                            <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                <span class="block text-[6px] font-bold text-slate-400 uppercase">Anclajes</span>
-                                <span class="text-[11px] font-black text-slate-700">\${data.num_docks_available || 0}</span>
+                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
+                                <span class="block text-[7px] font-bold text-slate-400">BOXES</span>
+                                <span class="text-xs font-black text-slate-700">${data.num_docks_available}</span>
                             </div>
                         </div>
-                    </div>
-                `;
-            } else {
-                tooltipHtml = `<div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[120px]"><div class="flex items-center gap-2"><div class="w-7 h-7 rounded-lg flex items-center justify-center text-white" style="background: \${color}"><i data-lucide="train-front" class="w-4 h-4"></i></div><h4 class="text-[11px] font-black text-slate-800 leading-none">\${label}</h4></div></div>`;
+                    </div>`;
             }
 
             marker.bindTooltip(tooltipHtml, {
-                className: 'custom-tooltip', direction: 'top', offset: [0, -15], sticky: false, opacity: 1
+                className: 'custom-tooltip', 
+                direction: 'top', 
+                offset: [0, -10],
+                opacity: 1
             });
-            marker.on('tooltipopen', () => lucide.createIcons());
             
+            marker.on('tooltipopen', () => lucide.createIcons());
             return marker;
         }
 
         function renderMarkers() {
             if (!map || !window.cache) return;
             const filter = document.getElementById('search').value.toLowerCase();
-            const bounds = map.getBounds().pad(0.05); 
+            const bounds = map.getBounds().pad(0.1);
             
-            Object.values(layers).forEach(l => l.clearLayers());
+            layers.bus.clearLayers();
+            layers.bike.clearLayers();
 
             let visibleCount = 0;
-            const itemsToRender = { bus: [], subte: [], train: [], bike: [] };
 
+            // Render Colectivos
             if (activeTypes.bus) {
                 window.cache.bus.forEach(v => {
                     let line = formatLineName(v.route_short_name || v.route_id);
                     if (filter && !line.toLowerCase().includes(filter)) return;
                     const lat = parseFloat(v.latitude), lon = parseFloat(v.longitude);
                     if(!isNaN(lat) && !isNaN(lon) && bounds.contains([lat, lon])) {
-                        itemsToRender.bus.push({lat, lon, line, v});
+                        createMarker(lat, lon, line, getColor('bus', line), 'bus', v).addTo(layers.bus);
                         visibleCount++;
                     }
                 });
             }
 
-            if (activeTypes.subte) {
-                const lines = new Set();
-                window.cache.subte.forEach(s => lines.add((s.Linea?.Route_Id || s.route_id || "").replace(/Linea|Line/, "")));
-                lines.forEach(line => {
-                    const coords = subteNodes[line];
-                    if (coords && bounds.contains(coords) && (!filter || line.toLowerCase().includes(filter))) {
-                        itemsToRender.subte.push({lat: coords[0], lon: coords[1], line: `S-\${line}`});
-                        visibleCount++;
-                    }
-                });
-            }
-
-            if (activeTypes.train) {
-                window.cache.train.forEach(t => {
-                    let line = formatLineName(t.route_id || "Tren");
-                    if (filter && !line.toLowerCase().includes(filter)) return;
-                    const lat = parseFloat(t.latitude || t.position?.latitude || t.vehicle?.position?.latitude);
-                    const lon = parseFloat(t.longitude || t.position?.longitude || t.vehicle?.position?.longitude);
-                    if (!isNaN(lat) && !isNaN(lon) && bounds.contains([lat, lon])) {
-                        itemsToRender.train.push({lat, lon, line});
-                        visibleCount++;
-                    }
-                });
-            }
-
+            // Render EcoBici
             if (activeTypes.bike) {
-                window.cache.bike.forEach(st => {
-                    const lat = parseFloat(st.lat || st.latitud);
-                    const lon = parseFloat(st.lon || st.longitud);
-                    if (!isNaN(lat) && !isNaN(lon) && bounds.contains([lat, lon]) && (!filter || st.name.toLowerCase().includes(filter))) {
-                        itemsToRender.bike.push({lat, lon, name: st.name, st});
+                window.cache.bike.forEach(s => {
+                    if (filter && !s.name.toLowerCase().includes(filter)) return;
+                    const lat = parseFloat(s.lat), lon = parseFloat(s.lon);
+                    if(!isNaN(lat) && !isNaN(lon) && bounds.contains([lat, lon])) {
+                        createMarker(lat, lon, s.num_bikes_available, '#10b981', 'bike', s).addTo(layers.bike);
                         visibleCount++;
                     }
                 });
             }
 
-            const mapEl = document.getElementById('map');
-            if (visibleCount > 1500) {
-                mapEl.classList.add('high-density');
-            } else {
-                mapEl.classList.remove('high-density');
-            }
+            document.getElementById('unit-count').innerText = `${visibleCount} EN VISTA`;
+        }
 
-            itemsToRender.bus.forEach(i => createMarker(i.lat, i.lon, i.line, getColor('bus', i.line), 'bus', i.v).addTo(layers.bus));
-            itemsToRender.subte.forEach(i => createMarker(i.lat, i.lon, i.line, getColor('subte', i.line.replace('S-', '')), 'subte').addTo(layers.subte));
-            itemsToRender.train.forEach(i => createMarker(i.lat, i.lon, i.line, getColor('train', i.line), 'train').addTo(layers.train));
-            itemsToRender.bike.forEach(i => createMarker(i.lat, i.lon, `\${i.st.num_bikes_available || 0} 🚲`, getColor('bike'), 'bike', i.st).addTo(layers.bike));
+        function renderAlerts() {
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = '';
+            const seen = new Set();
+            let count = 0;
             
-            document.getElementById('unit-count').innerText = `\${visibleCount} EN VISTA`;
+            if (window.cache.alerts && Array.isArray(window.cache.alerts)) {
+                window.cache.alerts.forEach(item => {
+                    const msg = item.alert?.header_text?.translation?.[0]?.text;
+                    if (msg && !seen.has(msg) && msg.length > 5) {
+                        seen.add(msg); count++;
+                        const el = document.createElement('div');
+                        el.className = 'bg-white/90 p-2.5 rounded-xl border-l-2 border-indigo-500 shadow-sm mx-0.5';
+                        el.innerHTML = `<p class="text-[10px] text-slate-600 font-medium leading-tight">${msg}</p>`;
+                        container.appendChild(el);
+                    }
+                });
+            }
+            document.getElementById('alerts-wrapper').style.display = count > 0 ? 'block' : 'none';
         }
 
         function toggleType(type) {
             activeTypes[type] = !activeTypes[type];
-            document.getElementById(`t-\${type}`).classList.toggle('active', activeTypes[type]);
-            activeTypes[type] ? refreshData() : renderMarkers();
+            const btn = document.getElementById(`t-${type}`);
+            
+            if (type === 'bike') {
+                btn.classList.toggle('active-eco', activeTypes[type]);
+            } else {
+                btn.classList.toggle('active', activeTypes[type]);
+            }
+            
+            refreshData();
         }
 
         function locateUser() {
@@ -602,15 +457,10 @@
                 userLayer.clearLayers();
                 L.circleMarker([latitude, longitude], { radius: 6, fillColor: '#4f46e5', color: 'white', weight: 2, fillOpacity: 1 }).addTo(userLayer);
                 map.flyTo([latitude, longitude], 15);
-            }, null, { timeout: 5000 });
+            }, () => {}, { enableHighAccuracy: true });
         }
 
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
-
-
-
-
-
