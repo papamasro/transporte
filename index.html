@@ -2,110 +2,25 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radar AMBA - Dashboard de Movilidad</title>
     
     <meta name="theme-color" content="#4f46e5">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Radar AMBA">
     
-    <!-- CAMBIO 3: Manifest incorporado en Base64 para habilitar la instalación de la PWA -->
-    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiUmFkYXIgQU1CQSIsInNob3J0X25hbWUiOiJSYWRhciBBTUJBIiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmOGZhZmMiLCJ0aGVtZV9jb2xvciI6IiM0ZjQ2ZTUiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLDxzdmcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJyB2aWV3Qm94PScwIDAgMTAwIDEwMCc+PHRleHQgeT0nLjllbScgZm9udC1zaXplPSc5MCc+8J+TjTwvdGV4dD48L3N2Zz4iLCJzaXplcyI6ImFueSIsInR5cGUiOiJpbWFnZS9zdmcreG1sIn1dfQ==">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📍</text></svg>">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/svg+xml" href="./icon.svg">
+    <link rel="apple-touch-icon" href="./icon.svg">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.321.0"></script>
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-
-        :root {
-            --bg-light: #f8fafc;
-            --panel-glass: rgba(255, 255, 255, 0.9);
-            --accent: #4f46e5;
-            --eco-green: #10b981;
-        }
-
-        body, html { 
-            height: 100%; margin: 0; background: var(--bg-light); 
-            color: #1e293b; font-family: 'Outfit', sans-serif; overflow: hidden; 
-        }
-
-        #map { height: 100%; width: 100%; background: #e2e8f0; z-index: 1; }
-        
-        .glass {
-            background: var(--panel-glass);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-        }
-
-        .ui-panel {
-            position: absolute; top: 16px; left: 16px; z-index: 1000; 
-            width: calc(100% - 32px); max-width: 320px;
-            pointer-events: none;
-            max-height: calc(100vh - 32px);
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        
-        .ui-panel > * { pointer-events: auto; }
-
-        .v-marker {
-            width: 14px; height: 14px; 
-            border: 2px solid white; 
-            border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        
-        .vehicle-label {
-            background: white; color: #1e293b; padding: 1px 5px; 
-            border-radius: 5px; font-size: 9px; font-weight: 800;
-            white-space: nowrap; border: 1px solid rgba(0,0,0,0.1);
-            position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            opacity: 0.9;
-            pointer-events: none;
-        }
-
-        .hide-labels .vehicle-label { display: none !important; }
-        
-        .marker-container {
-            width: 100%; height: 100%; position: relative;
-            display: flex; align-items: center; justify-content: center;
-        }
-
-        .loading-bar {
-            height: 3px; width: 0%; background: var(--accent);
-            transition: width 0.3s ease-out;
-            position: absolute; top: 0; left: 0; z-index: 2000;
-        }
-
-        .btn-transport { transition: all 0.2s; border: 1px solid rgba(0,0,0,0.03); cursor: pointer; }
-        .btn-transport.active { background: var(--accent); color: white; border-color: var(--accent); }
-        .btn-transport.active-eco { background: var(--eco-green); color: white; border-color: var(--eco-green); }
-
-        .custom-tooltip {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }
-
-        .dest-text {
-            white-space: normal !important;
-            word-wrap: break-word !important;
-            display: block !important;
-        }
-
-        #alerts-container::-webkit-scrollbar { width: 4px; }
-        #alerts-container::-webkit-scrollbar-track { background: transparent; }
-        #alerts-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    </style>
+    <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
 
@@ -113,7 +28,7 @@
 
     <div class="ui-panel">
         <div class="glass px-4 py-3 rounded-[1.5rem] shadow-xl">
-            <div class="flex justify-between items-center cursor-pointer select-none" onclick="togglePanel()">
+            <button type="button" class="w-full flex justify-between items-center cursor-pointer select-none text-left" onclick="togglePanel()">
                 <div class="flex items-center gap-2.5">
                     <div class="p-2 bg-indigo-600/10 rounded-xl">
                         <i data-lucide="map-pinned" class="text-indigo-600 w-5 h-5"></i>
@@ -131,7 +46,7 @@
                     </div>
                     <i data-lucide="chevron-up" id="panel-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-300"></i>
                 </div>
-            </div>
+            </button>
 
             <div id="panel-content" class="overflow-hidden" style="max-height: 400px; opacity: 1; transition: all 0.3s ease-in-out;">
                 <div class="pt-4">
@@ -139,7 +54,7 @@
                         <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
                             <i data-lucide="bus" class="w-3.5 h-3.5"></i> COLE
                         </button>
-                        <button disabled class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60">
+                        <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
                             <i data-lucide="train-front" class="w-3.5 h-3.5"></i> SUBTE
                         </button>
                         <button disabled class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60">
@@ -162,10 +77,11 @@
                                 <button onclick="locateUser()" title="Mi ubicación" class="p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="navigation" class="w-3.5 h-3.5"></i></button>
                                 <button onclick="forceRefresh()" title="Refrescar" class="p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="refresh-cw" id="refresh-icon" class="w-3.5 h-3.5"></i></button>
                                 <button onclick="toggleAlertPanel()" title="Alertas" class="p-1.5 bg-slate-100 hover:bg-amber-50 rounded-lg text-slate-500 hover:text-amber-600 transition-colors"><i data-lucide="bell" class="w-3.5 h-3.5"></i></button>
+                                <button onclick="installApp()" id="install-app-btn" title="Instalar app" class="hidden p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="download" class="w-3.5 h-3.5"></i></button>
                                 
                                 <span id="unit-count" class="text-[9px] font-bold text-slate-400 ml-1 uppercase">Iniciando...</span>
                             </div>
-                            <span id="last-update" class="text-[9px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Última act: --:--:--</span>
+                            <span id="last-update" class="text-[9px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Última actualización: --:--:--</span>
                         </div>
                     </div>
                 </div>
@@ -186,408 +102,11 @@
 
     <div id="map"></div>
 
-    <script>
-        const BACKEND_URL = "https://transporte-be.papamasro.workers.dev";
-        const UPDATE_INTERVAL = 30000; 
-        
-        let map, layers = { bus: null, bike: null }, userLayer;
-        let activeTypes = { bus: true, bike: false };
-        let isRefreshing = false;
-        let isPanelOpen = true;
-        let isAlertsOpen = false;
-        let refreshTimeout;
-        const lineColors = {};
-        window.cache = { bus: [], bike: [] };
-
-        function formatLineName(name) {
-            if (!name) return "??";
-            return name.toString().replace(/^0+/, '') || name;
-        }
-
-        function getColor(type, line) {
-            if (type === 'bike') return '#10b981';
-            if (lineColors[line]) return lineColors[line];
-            let hash = 0;
-            for (let i = 0; i < line.length; i++) hash = line.charCodeAt(i) + ((hash << 5) - hash);
-            lineColors[line] = `hsl(${Math.abs(hash % 360)}, 65%, 45%)`;
-            return lineColors[line];
-        }
-
-        function togglePanel() {
-            isPanelOpen = !isPanelOpen;
-            const content = document.getElementById('panel-content');
-            const chevron = document.getElementById('panel-chevron');
-            content.style.maxHeight = isPanelOpen ? '400px' : '0px';
-            content.style.opacity = isPanelOpen ? '1' : '0';
-            chevron.style.transform = isPanelOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-        }
-
-        function setStatus(state) {
-            const dot = document.getElementById('status-dot');
-            const text = document.getElementById('status-text');
-            const pulse = document.getElementById('status-pulse');
-            
-            if (state === 'ERROR') {
-                dot.className = 'flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded-full border border-red-500/10';
-                text.className = 'text-[9px] font-black text-red-600';
-                text.innerText = 'ERROR';
-                pulse.className = 'w-1.5 h-1.5 rounded-full bg-red-500';
-            } else {
-                dot.className = 'flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/10';
-                text.className = 'text-[9px] font-black text-emerald-600';
-                text.innerText = 'LIVE';
-                pulse.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
-            }
-        }
-
-        function init() {
-            map = L.map('map', { 
-                zoomControl: false, 
-                attributionControl: false,
-                tap: false 
-            }).setView([-34.6037, -58.3816], 14);
-
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 19
-            }).addTo(map);
-
-            layers.bus = L.layerGroup().addTo(map);
-            layers.bike = L.layerGroup().addTo(map);
-            userLayer = L.layerGroup().addTo(map);
-
-            lucide.createIcons();
-            
-            document.getElementById('search').addEventListener('input', renderMarkers);
-            map.on('moveend', renderMarkers);
-            
-            // CAMBIO 4: Auto-ubicar al usuario cuando termina de inicializar
-            locateUser();
-            forceRefresh();
-
-            // CAMBIO 3: Registro de un Service Worker mínimo para habilitar PWA
-            if ('serviceWorker' in navigator) {
-                try {
-                    const swCode = `self.addEventListener('install', () => self.skipWaiting()); self.addEventListener('fetch', (e) => {});`;
-                    const blob = new Blob([swCode], {type: 'application/javascript'});
-                    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(err => console.log('SW setup skipped:', err));
-                } catch(e) {}
-            }
-        }
-
-        async function fetchAPI(endpoint) {
-            try {
-                const url = `${BACKEND_URL}${endpoint}`;
-                const response = await fetch(url, { 
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' },
-                    signal: AbortSignal.timeout(10000) 
-                });
-                
-                if (!response.ok) return { success: false, data: null };
-
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    return { success: false, data: null };
-                }
-
-                const data = await response.json();
-                return { success: !!data, data };
-            } catch (e) { 
-                return { success: false, data: null }; 
-            }
-        }
-
-        async function fetchWithRetry(endpoint) {
-            while (true) {
-                const res = await fetchAPI(endpoint);
-                if (res.success) {
-                    setStatus('LIVE');
-                    return res.data;
-                }
-                setStatus('ERROR');
-                console.warn(`Falló fetch a ${endpoint}, reintentando en 3s...`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-        }
-
-        function forceRefresh() {
-            if (!isRefreshing) refreshLoop();
-        }
-
-        async function refreshLoop() {
-            if (isRefreshing) return;
-            isRefreshing = true;
-            clearTimeout(refreshTimeout);
-            
-            const refreshIcon = document.getElementById('refresh-icon');
-            const loadingLine = document.getElementById('loading-line');
-            
-            refreshIcon?.classList.add('animate-spin');
-            loadingLine.style.width = '30%';
-
-            try {
-                const busPromise = activeTypes.bus ? fetchWithRetry("/colectivos/vehiclePositionsSimple") : Promise.resolve([]);
-                const bikeInfoPromise = activeTypes.bike ? fetchWithRetry("/ecobici/gbfs/stationInformation") : Promise.resolve(null);
-                const bikeStatusPromise = activeTypes.bike ? fetchWithRetry("/ecobici/gbfs/stationStatus") : Promise.resolve(null);
-
-                const [busData, bikeInfo, bikeStatus] = await Promise.all([busPromise, bikeInfoPromise, bikeStatusPromise]);
-                
-                if (activeTypes.bus) {
-                    window.cache.bus = Array.isArray(busData) ? busData : [];
-                    document.getElementById('last-update').innerText = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
-                }
-
-                if (activeTypes.bike && bikeInfo && bikeStatus) {
-                    const infoMap = {};
-                    (bikeInfo.data?.stations || []).forEach(s => infoMap[s.station_id] = s);
-                    window.cache.bike = (bikeStatus.data?.stations || [])
-                        .filter(s => infoMap[s.station_id])
-                        .map(s => ({ ...infoMap[s.station_id], ...s }));
-                } else if (!activeTypes.bike) {
-                    window.cache.bike = [];
-                }
-
-                loadingLine.style.width = '100%';
-                renderMarkers();
-                setStatus('LIVE'); 
-
-            } catch (err) {
-                console.error("Error crítico en refreshLoop", err);
-            } finally {
-                setTimeout(() => { 
-                    loadingLine.style.width = '0%'; 
-                    refreshIcon?.classList.remove('animate-spin');
-                    isRefreshing = false;
-                }, 500);
-                
-                refreshTimeout = setTimeout(refreshLoop, UPDATE_INTERVAL);
-            }
-        }
-
-        async function toggleAlertPanel() {
-            isAlertsOpen = !isAlertsOpen;
-            const panel = document.getElementById('alerts-panel');
-            const container = document.getElementById('alerts-container');
-            
-            if (isAlertsOpen) {
-                panel.style.display = 'flex';
-                container.innerHTML = `
-                    <div class="text-[10px] text-slate-500 text-center py-4 flex flex-col items-center gap-1">
-                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-500"></i>
-                        Cargando alertas...
-                    </div>`;
-                lucide.createIcons();
-                
-                try {
-                    // CAMBIO 2: Fetch crudo del endpoint y parseo con Expresiones Regulares
-                    const res = await fetch(`${BACKEND_URL}/subtes/serviceAlerts`);
-                    const rawText = await res.text();
-                    
-                    let allAlerts = [];
-                    // Extraer los mensajes en el bloque de string devuelto por el subte
-                    const regex = /=([^=]+?)(?:\x12\x02es|\u0012\u0002es)/g;
-                    let match;
-                    while ((match = regex.exec(rawText)) !== null) {
-                        const cleanMessage = match[1].trim();
-                        if (cleanMessage) {
-                            allAlerts.push({ text: cleanMessage });
-                        }
-                    }
-                    
-                    renderAlertsContent(allAlerts);
-                } catch (e) {
-                    container.innerHTML = '<div class="text-[10px] text-red-500 font-bold text-center py-2">Error al cargar alertas</div>';
-                }
-            } else {
-                panel.style.display = 'none';
-            }
-        }
-
-        // CAMBIO 2: Lógica adaptada a la nueva estructura parseada
-        function renderAlertsContent(alertsData) {
-            const container = document.getElementById('alerts-container');
-            container.innerHTML = '';
-            const seen = new Set();
-            let count = 0;
-            
-            alertsData.forEach(item => {
-                const msg = item.text;
-                if (msg && !seen.has(msg) && msg.length > 5) {
-                    seen.add(msg); count++;
-                    const el = document.createElement('div');
-                    el.className = 'bg-amber-50/50 p-2.5 rounded-xl border-l-4 border-amber-400 shadow-sm mx-0.5 mt-1';
-                    el.innerHTML = `<p class="text-[10px] text-slate-700 font-medium leading-tight">${msg}</p>`;
-                    container.appendChild(el);
-                }
-            });
-            
-            if (count === 0) {
-                container.innerHTML = '<div class="text-[10px] text-slate-500 text-center py-4 font-medium">No hay alertas reportadas en este momento.</div>';
-            }
-        }
-
-        function createMarker(lat, lng, label, color, type, data = null) {
-            const marker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: '',
-                    html: `<div class="marker-container">
-                            <div class="v-marker" style="background:${color};"></div>
-                            <div class="vehicle-label">${label}</div>
-                           </div>`,
-                    iconSize: [24, 24], 
-                    iconAnchor: [12, 12]
-                })
-            });
-
-            let tooltipHtml = '';
-            if (type === 'bus' && data) {
-                const speed = Math.round((data.speed || 0) * 3.6);
-                tooltipHtml = `
-                    <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[180px]">
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white" style="background: ${color}">
-                                <i data-lucide="bus" class="w-4 h-4"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-[11px] font-black text-slate-800 leading-none">Línea ${data.route_short_name || label}</h4>
-                                <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${data.agency_name || 'Servicio AMBA'}</span>
-                            </div>
-                        </div>
-                        <div class="space-y-1.5">
-                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                <span class="block text-[8px] font-bold text-slate-400 mb-0.5 uppercase tracking-tighter">Hacia</span>
-                                <span class="dest-text text-[10px] font-black text-indigo-600 uppercase leading-tight">
-                                    ${data.trip_headsign || 'SIN DESTINO'}
-                                </span>
-                            </div>
-                            <div class="flex gap-1.5">
-                                <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                    <span class="block text-[7px] font-bold text-slate-400">VEL</span>
-                                    <span class="text-[10px] font-black text-slate-700">${speed} km/h</span>
-                                </div>
-                                <div class="flex-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                    <span class="block text-[7px] font-bold text-slate-400">ID</span>
-                                    <span class="text-[10px] font-black text-slate-700">#${data.id?.toString().slice(-4) || '-'}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-            } else if (type === 'bike' && data) {
-                tooltipHtml = `
-                    <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[180px]">
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white" style="background: ${color}">
-                                <i data-lucide="bike" class="w-4 h-4"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-[10px] font-black text-slate-800 leading-none">${data.name}</h4>
-                                <span class="text-[7px] font-bold" style="color: ${color}; text-transform: uppercase; letter-spacing: -0.05em;">Estación EcoBici</span>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-1.5">
-                            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 text-center" style="border-color: ${color}40; background-color: ${color}10;">
-                                <span class="block text-[7px] font-bold" style="color: ${color}">BICIS</span>
-                                <span class="text-xs font-black" style="color: ${color}">${data.num_bikes_available}</span>
-                            </div>
-                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
-                                <span class="block text-[7px] font-bold text-slate-400">BOXES</span>
-                                <span class="text-xs font-black text-slate-700">${data.num_docks_available}</span>
-                            </div>
-                        </div>
-                    </div>`;
-            }
-
-            marker.bindTooltip(tooltipHtml, {
-                className: 'custom-tooltip', 
-                direction: 'top', 
-                offset: [0, -10],
-                opacity: 1
-            });
-            
-            marker.on('tooltipopen', () => lucide.createIcons());
-            return marker;
-        }
-
-        function renderMarkers() {
-            if (!map || !window.cache) return;
-            const filter = document.getElementById('search').value.toLowerCase();
-            const bounds = map.getBounds().pad(0.1);
-            
-            layers.bus.clearLayers();
-            layers.bike.clearLayers();
-
-            let visibleCount = 0;
-
-            if (activeTypes.bus) {
-                window.cache.bus.forEach(v => {
-                    let line = formatLineName(v.route_short_name || v.route_id);
-                    if (filter && !line.toLowerCase().includes(filter)) return;
-                    const lat = parseFloat(v.latitude), lon = parseFloat(v.longitude);
-                    if(!isNaN(lat) && !isNaN(lon) && bounds.contains([lat, lon])) {
-                        createMarker(lat, lon, line, getColor('bus', line), 'bus', v).addTo(layers.bus);
-                        visibleCount++;
-                    }
-                });
-            }
-
-            if (activeTypes.bike) {
-                window.cache.bike.forEach(s => {
-                    if (filter && !s.name.toLowerCase().includes(filter)) return;
-                    const lat = parseFloat(s.lat), lon = parseFloat(s.lon);
-                    if(!isNaN(lat) && !isNaN(lon) && bounds.contains([lat, lon])) {
-                        // CAMBIO 1: Configurar color rojo si 0 y agregar palabra "bicis"
-                        const bikesCount = s.num_bikes_available;
-                        const markerColor = bikesCount === 0 ? '#ef4444' : '#10b981';
-                        const labelText = `${bikesCount} bicis`;
-                        
-                        createMarker(lat, lon, labelText, markerColor, 'bike', s).addTo(layers.bike);
-                        visibleCount++;
-                    }
-                });
-            }
-
-            const mapContainer = document.getElementById('map');
-            if (visibleCount > 1500) {
-                mapContainer.classList.add('hide-labels');
-            } else {
-                mapContainer.classList.remove('hide-labels');
-            }
-
-            document.getElementById('unit-count').innerText = `${visibleCount} EN VISTA`;
-        }
-
-        function toggleType(type) {
-            activeTypes[type] = !activeTypes[type];
-            const btn = document.getElementById(`t-${type}`);
-            
-            if (type === 'bike') {
-                btn.classList.toggle('active-eco', activeTypes[type]);
-            } else {
-                btn.classList.toggle('active', activeTypes[type]);
-            }
-            
-            forceRefresh();
-        }
-
-        function locateUser() {
-            if (!navigator.geolocation) return;
-            navigator.geolocation.getCurrentPosition(pos => {
-                const { latitude, longitude } = pos.coords;
-                userLayer.clearLayers();
-                L.circleMarker([latitude, longitude], { 
-                    radius: 8, 
-                    fillColor: '#4f46e5', 
-                    color: 'white', 
-                    weight: 3, 
-                    fillOpacity: 0.8 
-                }).addTo(userLayer);
-                map.flyTo([latitude, longitude], 15);
-            }, (err) => {
-                console.warn("Geolocation error", err);
-            }, { enableHighAccuracy: true });
-        }
-
-        document.addEventListener('DOMContentLoaded', init);
-    </script>
+    <script src="./js/data/subte-static.js"></script>
+    <script src="./js/core/utils.js"></script>
+    <script src="./js/modules/subte.js"></script>
+    <script src="./js/modules/markers.js"></script>
+    <script src="./js/modules/alerts.js"></script>
+    <script src="./js/core/app.js"></script>
 </body>
 </html>
