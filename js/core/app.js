@@ -126,7 +126,6 @@
                     startupWarmupPromise = prefetchInitialCache();
                 }
                 await startupWarmupPromise;
-                renderMarkers();
             } catch (e) {
                 console.warn('Warmup inicial incompleto', e);
             } finally {
@@ -136,27 +135,34 @@
 
         async function prefetchInitialCache() {
             try {
-                const [busRes, subteRes, bikeInfoRes, bikeStatusRes] = await Promise.all([
-                    fetchAPI("/colectivos/vehiclePositionsSimple"),
+                const busRes = await fetchAPI("/colectivos/vehiclePositionsSimple");
+
+                if (busRes.success && Array.isArray(busRes.data)) {
+                    globalThis.cache.bus = busRes.data;
+                    document.getElementById('last-update').innerText = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
+                    renderMarkers();
+                }
+
+                const [subteRes, bikeInfoRes, bikeStatusRes] = await Promise.allSettled([
                     fetchAPI("/subtes/forecastGTFS"),
                     fetchAPI("/ecobici/gbfs/stationInformation"),
                     fetchAPI("/ecobici/gbfs/stationStatus")
                 ]);
 
-                if (busRes.success && Array.isArray(busRes.data)) {
-                    globalThis.cache.bus = busRes.data;
+                const resolvedSubte = subteRes.status === 'fulfilled' ? subteRes.value : { success: false, data: null };
+                const resolvedBikeInfo = bikeInfoRes.status === 'fulfilled' ? bikeInfoRes.value : { success: false, data: null };
+                const resolvedBikeStatus = bikeStatusRes.status === 'fulfilled' ? bikeStatusRes.value : { success: false, data: null };
+
+                if (resolvedSubte.success && resolvedSubte.data) {
+                    globalThis.cache.subteForecast = resolvedSubte.data?.Entity || [];
+                    globalThis.cache.subteTimestamp = resolvedSubte.data?.Header?.timestamp || Math.floor(Date.now() / 1000);
+                    buildSubteForecastIndex(resolvedSubte.data);
                 }
 
-                if (subteRes.success && subteRes.data) {
-                    globalThis.cache.subteForecast = subteRes.data?.Entity || [];
-                    globalThis.cache.subteTimestamp = subteRes.data?.Header?.timestamp || Math.floor(Date.now() / 1000);
-                    buildSubteForecastIndex(subteRes.data);
-                }
-
-                if (bikeInfoRes.success && bikeStatusRes.success) {
+                if (resolvedBikeInfo.success && resolvedBikeStatus.success) {
                     const infoMap = {};
-                    (bikeInfoRes.data?.data?.stations || []).forEach(s => infoMap[s.station_id] = s);
-                    globalThis.cache.bike = (bikeStatusRes.data?.data?.stations || [])
+                    (resolvedBikeInfo.data?.data?.stations || []).forEach(s => infoMap[s.station_id] = s);
+                    globalThis.cache.bike = (resolvedBikeStatus.data?.data?.stations || [])
                         .filter(s => infoMap[s.station_id])
                         .map(s => ({ ...infoMap[s.station_id], ...s }));
                 }
@@ -171,7 +177,7 @@
                 const response = await fetch(url, { 
                     method: 'GET',
                     headers: { 'Accept': 'application/json' },
-                    signal: AbortSignal.timeout(10000) 
+                    signal: AbortSignal.timeout(7000) 
                 });
                 
                 if (!response.ok) return { success: false, data: null };
