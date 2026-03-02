@@ -229,8 +229,8 @@
                     return res.data;
                 }
                 setStatus('ERROR');
-                console.warn(`Falló fetch a ${endpoint}, reintentando en 3s...`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                console.warn(`Falló fetch a ${endpoint}, reintentando en 1s...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
@@ -377,3 +377,4 @@
         }
 
         document.addEventListener('DOMContentLoaded', init);
+
