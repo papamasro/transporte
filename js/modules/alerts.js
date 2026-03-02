@@ -47,6 +47,11 @@
         }
 
         function parseColectivoAlerts(rawText) {
+            const readableAlerts = parseServiceAlerts(rawText, 'Colectivo');
+            if (readableAlerts.length > 0) {
+                return readableAlerts;
+            }
+
             const codes = Array.from(new Set((rawText.match(/\b\d{5,10}\b/g) || [])));
             if (codes.length === 0) {
                 return [{
@@ -57,7 +62,7 @@
 
             return [{
                 source: 'Colectivo',
-                text: `La API reporta ${codes.length} alertas activas, pero no publica texto legible del detalle.`
+                text: `Hay ${codes.length} alertas activas de colectivos, pero el feed llega en formato binario y no trae detalle textual legible en esta fuente.`
             }];
         }
 

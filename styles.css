@@ -57,6 +57,43 @@
             display: flex; align-items: center; justify-content: center;
         }
 
+        .user-location-icon {
+            background: transparent;
+            border: none;
+        }
+
+        .user-person-marker {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            background: rgba(79, 70, 229, 0.15);
+            border: 2px solid rgba(79, 70, 229, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 6px 14px rgba(79, 70, 229, 0.25);
+        }
+
+        .user-person-body {
+            font-size: 22px;
+            line-height: 1;
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+        }
+
+        .user-person-pulse {
+            position: absolute;
+            inset: -6px;
+            border-radius: 999px;
+            border: 2px solid rgba(79, 70, 229, 0.28);
+            animation: user-pulse 1.8s ease-out infinite;
+        }
+
+        @keyframes user-pulse {
+            0% { transform: scale(0.8); opacity: 0.85; }
+            100% { transform: scale(1.25); opacity: 0; }
+        }
+
         .loading-bar {
             height: 3px; width: 0%; background: var(--accent);
             transition: width 0.3s ease-out;

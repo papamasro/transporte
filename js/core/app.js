@@ -1,8 +1,8 @@
         const BACKEND_URL = "https://transporte-be.papamasro.workers.dev";
         const UPDATE_INTERVAL = 30000; 
         
-        let map, layers = { bus: null, bike: null, subteLines: null, subteStations: null }, userLayer;
-        let activeTypes = { bus: true, subte: false, bike: false };
+        let map, layers = { bus: null, bike: null, subteLines: null, subteStations: null, trainLines: null, trainStations: null, busRoute: null, busStops: null }, userLayer;
+        let activeTypes = { bus: true, subte: false, train: false, bike: false };
         let isRefreshing = false;
         let isPanelOpen = true;
         let isAlertsOpen = false;
@@ -10,7 +10,7 @@
         let refreshTimeout;
         let startupWarmupPromise = null;
         const lineColors = {};
-        globalThis.cache = { bus: [], bike: [], subteForecast: [], subteForecastByStop: {}, subteForecastByBaseStop: {}, subteForecastByName: {}, subteTimestamp: null };
+        globalThis.cache = { bus: [], bike: [], subteForecast: [], subteForecastByStop: {}, subteForecastByBaseStop: {}, subteForecastByName: {}, subteTimestamp: null, trainStatic: globalThis.TRAIN_STATIC || null };
 
         const SUBTE_STATIC = globalThis.SUBTE_STATIC;
         const SUBTE_STATIC_TIMETABLE = globalThis.SUBTE_STATIC_TIMETABLE;
@@ -27,8 +27,14 @@
         function setupInstallPrompt() {
             const installBtn = document.getElementById('install-app-btn');
             if (!installBtn) return;
+            const isSupportedOrigin = globalThis.location.protocol === 'http:' || globalThis.location.protocol === 'https:';
+            if (!isSupportedOrigin) {
+                installBtn.classList.add('hidden');
+                return;
+            }
 
             const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+            const isAndroid = /android/i.test(navigator.userAgent);
             const isStandalone = globalThis.matchMedia('(display-mode: standalone)').matches || globalThis.navigator.standalone;
 
             globalThis.addEventListener('beforeinstallprompt', (event) => {
@@ -45,10 +51,21 @@
             if (isIos && !isStandalone) {
                 installBtn.classList.remove('hidden');
             }
+
+            if (isAndroid && !isStandalone) {
+                installBtn.classList.remove('hidden');
+            }
         }
 
         async function installApp() {
+            const isSupportedOrigin = globalThis.location.protocol === 'http:' || globalThis.location.protocol === 'https:';
+            if (!isSupportedOrigin) {
+                alert('Para instalar la app, abrila desde un servidor local o HTTPS (no file://).');
+                return;
+            }
+
             const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+            const isAndroid = /android/i.test(navigator.userAgent);
             const isStandalone = globalThis.matchMedia('(display-mode: standalone)').matches || globalThis.navigator.standalone;
 
             if (deferredInstallPrompt) {
@@ -61,6 +78,11 @@
 
             if (isIos && !isStandalone) {
                 alert('Para instalar: tocá Compartir y luego “Agregar a pantalla de inicio”.');
+                return;
+            }
+
+            if (isAndroid && !isStandalone) {
+                alert('Para instalar en Android: abrí el menú del navegador (⋮) y elegí “Instalar app” o “Agregar a pantalla principal”.');
             }
         }
 
@@ -102,6 +124,10 @@
             layers.bike = L.layerGroup().addTo(map);
             layers.subteLines = L.layerGroup().addTo(map);
             layers.subteStations = L.layerGroup().addTo(map);
+            layers.trainLines = L.layerGroup().addTo(map);
+            layers.trainStations = L.layerGroup().addTo(map);
+            layers.busRoute = L.layerGroup().addTo(map);
+            layers.busStops = L.layerGroup().addTo(map);
             userLayer = L.layerGroup().addTo(map);
 
             lucide.createIcons();
@@ -115,7 +141,8 @@
             warmupInitialData();
             forceRefresh();
 
-            if ('serviceWorker' in navigator) {
+            const isSupportedOrigin = globalThis.location.protocol === 'http:' || globalThis.location.protocol === 'https:';
+            if ('serviceWorker' in navigator && isSupportedOrigin) {
                 navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW setup skipped:', err));
             }
         }
@@ -211,6 +238,44 @@
             if (!isRefreshing) refreshLoop();
         }
 
+        function updateBusCache(busData) {
+            if (!activeTypes.bus) return;
+            globalThis.cache.bus = Array.isArray(busData) ? busData : [];
+            document.getElementById('last-update').innerText = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
+        }
+
+        function updateBikeCache(bikeInfo, bikeStatus) {
+            if (activeTypes.bike && bikeInfo && bikeStatus) {
+                const infoMap = {};
+                (bikeInfo.data?.stations || []).forEach(s => infoMap[s.station_id] = s);
+                globalThis.cache.bike = (bikeStatus.data?.stations || [])
+                    .filter(s => infoMap[s.station_id])
+                    .map(s => ({ ...infoMap[s.station_id], ...s }));
+                return;
+            }
+
+            if (!activeTypes.bike) {
+                globalThis.cache.bike = [];
+            }
+        }
+
+        function updateSubteCache(subteData) {
+            if (activeTypes.subte && subteData) {
+                globalThis.cache.subteForecast = subteData?.Entity || [];
+                globalThis.cache.subteTimestamp = subteData?.Header?.timestamp || Math.floor(Date.now() / 1000);
+                buildSubteForecastIndex(subteData);
+                return;
+            }
+
+            if (!activeTypes.subte) {
+                globalThis.cache.subteForecast = [];
+                globalThis.cache.subteForecastByStop = {};
+                globalThis.cache.subteForecastByBaseStop = {};
+                globalThis.cache.subteForecastByName = {};
+                globalThis.cache.subteTimestamp = null;
+            }
+        }
+
         async function refreshLoop() {
             if (isRefreshing) return;
             isRefreshing = true;
@@ -229,34 +294,10 @@
                 const bikeStatusPromise = activeTypes.bike ? fetchWithRetry("/ecobici/gbfs/stationStatus") : Promise.resolve(null);
 
                 const [busData, subteData, bikeInfo, bikeStatus] = await Promise.all([busPromise, subtePromise, bikeInfoPromise, bikeStatusPromise]);
-                
-                if (activeTypes.bus) {
-                    globalThis.cache.bus = Array.isArray(busData) ? busData : [];
-                    document.getElementById('last-update').innerText = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
-                }
 
-                if (activeTypes.bike && bikeInfo && bikeStatus) {
-                    const infoMap = {};
-                    (bikeInfo.data?.stations || []).forEach(s => infoMap[s.station_id] = s);
-                    globalThis.cache.bike = (bikeStatus.data?.stations || [])
-                        .filter(s => infoMap[s.station_id])
-                        .map(s => ({ ...infoMap[s.station_id], ...s }));
-                } else if (!activeTypes.bike) {
-                    globalThis.cache.bike = [];
-                }
-
-                if (activeTypes.subte && subteData) {
-                    globalThis.cache.subteForecast = subteData?.Entity || [];
-                    globalThis.cache.subteTimestamp = subteData?.Header?.timestamp || Math.floor(Date.now() / 1000);
-                    buildSubteForecastIndex(subteData);
-                } else if (!activeTypes.subte) {
-                    globalThis.cache.subteForecast = [];
-                    globalThis.cache.subteForecastByStop = {};
-                    globalThis.cache.subteForecastByBaseStop = {};
-                    globalThis.cache.subteForecastByName = {};
-                    globalThis.cache.subteTimestamp = null;
-                }
-
+                updateBusCache(busData);
+                updateBikeCache(bikeInfo, bikeStatus);
+                updateSubteCache(subteData);
                 loadingLine.style.width = '100%';
                 renderMarkers();
                 setStatus('LIVE'); 
@@ -276,7 +317,7 @@
 
 
 
-        function toggleType(type) {
+        async function toggleType(type) {
             activeTypes[type] = !activeTypes[type];
             const btn = document.getElementById(`t-${type}`);
             
@@ -285,8 +326,27 @@
             } else {
                 btn.classList.toggle('active', activeTypes[type]);
             }
+
+            if (type === 'train' && activeTypes[type] && !globalThis.cache.trainStatic) {
+                globalThis.cache.trainStatic = globalThis.TRAIN_STATIC || null;
+                renderMarkers();
+            }
             
             forceRefresh();
+        }
+
+        function buildUserLocationTooltip(position) {
+            const coords = position?.coords || {};
+            const latitude = Number(coords.latitude || 0);
+            const longitude = Number(coords.longitude || 0);
+            const latFixed = latitude.toFixed(6);
+            const lonFixed = longitude.toFixed(6);
+
+            return `
+                <div class="glass p-2.5 rounded-2xl shadow-xl border border-white/50 min-w-[210px]">
+                    <div class="text-[9px] font-black text-indigo-700 uppercase tracking-wide mb-1">Tu ubicación</div>
+                    <div class="text-[10px] font-black text-slate-800 leading-tight">${latFixed}, ${lonFixed}</div>
+                </div>`;
         }
 
         function locateUser() {
@@ -294,13 +354,22 @@
             navigator.geolocation.getCurrentPosition(pos => {
                 const { latitude, longitude } = pos.coords;
                 userLayer.clearLayers();
-                L.circleMarker([latitude, longitude], { 
-                    radius: 8, 
-                    fillColor: '#4f46e5', 
-                    color: 'white', 
-                    weight: 3, 
-                    fillOpacity: 0.8 
+                const userMarker = L.marker([latitude, longitude], {
+                    icon: L.divIcon({
+                        className: 'user-location-icon',
+                        html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
+                        iconSize: [38, 38],
+                        iconAnchor: [19, 19]
+                    })
                 }).addTo(userLayer);
+
+                userMarker.bindTooltip(buildUserLocationTooltip(pos), {
+                    className: 'custom-tooltip',
+                    direction: 'top',
+                    offset: [0, -20],
+                    opacity: 1
+                });
+
                 map.flyTo([latitude, longitude], 15);
             }, (err) => {
                 console.warn("Geolocation error", err);
