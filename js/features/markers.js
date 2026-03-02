@@ -610,12 +610,15 @@ function getStationIconSize(zoom) {
             }
 
             if (activeTypes.subte) {
-                Object.entries(SUBTE_STATIC.lines).forEach(([routeId, line]) => {
+                const subteLines = globalThis.cache.subteStatic?.lines || {};
+                const subteStations = globalThis.cache.subteStatic?.stations || {};
+
+                Object.entries(subteLines).forEach(([routeId, line]) => {
                     const routeFilterMatch = !filter || normalizeText(routeId) === filter || normalizeText(line.short) === filter;
 
                     const stationItems = line.stations
                         .map(stopId => {
-                            const station = SUBTE_STATIC.stations[stopId];
+                            const station = subteStations[stopId];
                             if (!station) return null;
                             return { id: stopId, ...station, lineShort: line.short, routeId };
                         })
@@ -653,7 +656,7 @@ function getStationIconSize(zoom) {
             }
 
             if (activeTypes.train) {
-                const trainStatic = globalThis.cache.trainStatic || globalThis.TRAIN_STATIC;
+                const trainStatic = globalThis.cache.trainStatic || {};
                 const trainLines = trainStatic?.lines || {};
                 const trainStations = trainStatic?.stations || {};
 

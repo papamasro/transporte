@@ -1,3 +1,5 @@
+        let isAlertsOpen = false;
+
         async function toggleAlertPanel() {
             isAlertsOpen = !isAlertsOpen;
             const panel = document.getElementById('alerts-panel');
@@ -5,6 +7,7 @@
             
             if (isAlertsOpen) {
                 panel.style.display = 'flex';
+                if (typeof setStatus === 'function') setStatus('CARGANDO');
                 container.innerHTML = `
                     <div class="text-[10px] text-slate-500 text-center py-4 flex flex-col items-center gap-1">
                         <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-500"></i>
@@ -27,7 +30,9 @@
                     }
 
                     renderAlertsContent(allAlerts);
+                    if (typeof setStatus === 'function') setStatus('LIVE');
                 } catch (e) {
+                    if (typeof setStatus === 'function') setStatus('ERROR');
                     container.innerHTML = '<div class="text-[10px] text-red-500 font-bold text-center py-2">Error al cargar alertas</div>';
                 }
             } else {

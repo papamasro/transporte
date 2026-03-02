@@ -22,17 +22,17 @@
             }
         })();
     </script>
-    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
-    <link rel="icon" type="image/svg+xml" href="./icon.svg">
-    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="./assets/icons/icon-512.png">
+    <link rel="icon" type="image/svg+xml" href="./assets/icons/icon.svg">
+    <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.321.0"></script>
 
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./assets/styles/main.css" />
 </head>
 <body>
 
@@ -114,12 +114,12 @@
 
     <div id="map"></div>
 
-    <script src="./js/data/subte-static.js"></script>
-    <script src="./js/data/train-static.js"></script>
-    <script src="./js/core/utils.js"></script>
-    <script src="./js/modules/subte.js"></script>
-    <script src="./js/modules/markers.js"></script>
-    <script src="./js/modules/alerts.js"></script>
-    <script src="./js/core/app.js"></script>
+    <script src="./js/shared/utils.js"></script>
+    <script src="./js/features/subte.js"></script>
+    <script src="./js/features/markers.js"></script>
+    <script src="./js/features/alerts.js"></script>
+    <script src="./js/app/ui.js"></script>
+    <script src="./js/app/services.js"></script>
+    <script src="./js/app/bootstrap.js"></script>
 </body>
 </html>
