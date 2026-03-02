@@ -1,26 +1,32 @@
 # Estructura del proyecto
 
+> Para explicación funcional y arquitectura completa, ver [README.md](README.md).
+
 ## Raíz
-- `index.html`: entrada principal de la app.
+- `index.html`: entrypoint del frontend.
 - `manifest.webmanifest`: configuración PWA.
 - `sw.js`: service worker.
-- `scripts/`: utilidades auxiliares (por ejemplo ETL/carga de datos).
+- `README.md`: documentación general del proyecto.
+- `STRUCTURE.md`: mapa rápido de carpetas y módulos.
+- `scripts/`: utilidades de soporte (ej: carga/transformación de datos).
 
 ## Assets
-- `assets/icons/`: todos los íconos (`icon-192.png`, `icon-512.png`, `icon.svg`).
-- `assets/styles/main.css`: estilos globales de la UI.
+- `assets/icons/`: íconos de app (`icon-192.png`, `icon-512.png`, `icon.svg`).
+- `assets/styles/main.css`: estilos globales.
 
 ## JavaScript
-- `js/app/ui.js`: funciones de interfaz (panel, badge de estado, instalación, geolocalización).
-- `js/app/services.js`: llamadas HTTP, reintentos y carga de datos (colectivos/KV/subte/ecobici).
-- `js/app/bootstrap.js`: estado/config global + inicialización de mapa y orquestación principal.
-- `js/shared/utils.js`: funciones utilitarias reutilizables (formatos, colores, helpers).
-- `js/features/markers.js`: render de capas y marcadores.
-- `js/features/subte.js`: lógica de pronósticos/subte.
-- `js/features/alerts.js`: panel y parseo de alertas.
+- `js/app/bootstrap.js`: estado global + inicialización + orquestación.
+- `js/app/services.js`: fetch/retry + carga de datos backend/KV.
+- `js/app/ui.js`: interacciones UI (panel, status, instalación, geolocalización).
+- `js/shared/utils.js`: helpers reutilizables.
+- `js/features/subte.js`: helpers/indexación de pronóstico subte.
+- `js/features/alerts.js`: carga y render de alertas.
+- `js/features/markers-bus-overlay.js`: overlay de recorridos de colectivos.
+- `js/features/markers-ui.js`: tooltips y creación de marcadores.
+- `js/features/markers.js`: render de capas visibles (bus/subte/tren/bici).
 
-## Convención rápida
-- `app/` = arranque y coordinación.
-- `features/` = módulos de negocio/funcionalidad.
-- `shared/` = helpers transversales.
-- `assets/` = recursos estáticos.
+## Convenciones
+- `app/`: coordinación general de la aplicación.
+- `features/`: lógica funcional por dominio.
+- `shared/`: utilidades comunes.
+- `assets/`: recursos estáticos.
