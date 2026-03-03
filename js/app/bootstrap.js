@@ -1,4 +1,17 @@
         const BACKEND_URL = "https://transporte-be.papamasro.workers.dev";
+        const SOFSE_API_BASE = "https://ariedro.dev/api-trenes";
+        const TRAIN_ARRIVALS_TTL_MS = 20000;
+        globalThis.NETWORK_CONFIG = {
+            retryMax: 3,
+            retryDelayMs: 1000,
+            sofse403DelayMs: 2800,
+            busRouteMaxTripCandidates: 3,
+            busRouteMaxFallbackVehicles: 3,
+            busRouteMaxCallsPerSelection: 3,
+            busRouteNoResultTtlMs: 30000,
+            busRouteMaxShapeDistanceMeters: 4000,
+            busRouteMinShapePoints: 20
+        };
         const KV_ENDPOINT = "/obtener-kv";
         const KV_KEYS = {
             subteLines: 'subte-lines',
@@ -35,6 +48,10 @@
             subteTimestamp: null,
             subteStatic: { lines: null, stations: null },
             trainStatic: { lines: null, stations: null },
+            trainArrivalsByStation: {},
+            trainSofseResolveByStationKey: {},
+            trainSofseResolveByName: {},
+            trainSofseResolvePromiseByStationKey: {},
             subteStaticPromise: null,
             trainStaticPromise: null
         };
@@ -99,8 +116,13 @@
             loadingLine.style.width = '30%';
 
             try {
-                const busData = await fetchWithRetry("/colectivos/vehiclePositionsSimple", 1000);
-                updateBusCache(busData);
+                if (activeTypes.bus) {
+                    const busData = await fetchWithRetry("/colectivos/vehiclePositionsSimple");
+                    updateBusCache(busData);
+                } else {
+                    globalThis.cache.bus = [];
+                    clearBusRouteOverlay();
+                }
 
                 if (activeTypes.subte) await refreshSubteNow();
                 if (activeTypes.bike) await refreshBikeNow();
@@ -156,6 +178,12 @@
         }
 
         function deactivateType(type) {
+            if (type === 'bus') {
+                globalThis.cache.bus = [];
+                clearBusRouteOverlay();
+                return;
+            }
+
             if (type === 'subte') {
                 globalThis.cache.subteForecast = [];
                 globalThis.cache.subteForecastByStop = {};

@@ -161,13 +161,58 @@ function buildSubteTooltip(data, color) {
         </div>`;
 }
 
-function buildTrainTooltip(data, color) {
+function formatTrainEta(etaSeconds) {
+    if (etaSeconds === null || etaSeconds === undefined) return 'Sin ETA';
+    const minutes = Math.round(etaSeconds / 60);
+    if (minutes <= 0) return 'Ahora';
+    if (minutes === 1) return 'En 1 min';
+    return `En ${minutes} min`;
+}
+
+function buildTrainArrivalsRows(arrivals) {
+    if (!Array.isArray(arrivals) || arrivals.length === 0) {
+        return '<div class="text-[9px] font-medium text-slate-500 py-1">Sin arribos reportados.</div>';
+    }
+
+    return arrivals
+        .slice(0, 4)
+        .map(arrival => {
+            const eta = formatTrainEta(arrival.etaSeconds);
+            const etaTsText = arrival.estimatedArrivalTs ? formatTimestamp(arrival.estimatedArrivalTs) : '--:--';
+            const platform = arrival.plataforma || '-';
+            const destination = arrival.destino || 'Sin destino';
+            return `
+                <div class="py-1 border-b border-slate-100 last:border-b-0">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[9px] font-black text-slate-700 truncate">${destination}</span>
+                        <span class="text-[8px] font-bold text-indigo-600">${eta}</span>
+                    </div>
+                    <div class="text-[8px] font-mono text-slate-500">${etaTsText} · Andén ${platform}</div>
+                </div>`;
+        })
+        .join('');
+}
+
+function buildTrainTooltip(data, color, realtimeState = null) {
     const lineName = data.lineName || data.lineShort || 'Tren';
-    const description = data.description || 'Sin descripción';
-    const concession = data.concession || 'Sin dato';
-    const gauge = data.gauge || 'Sin dato';
     const latText = Number(data.lat).toFixed(5);
     const lonText = Number(data.lon).toFixed(5);
+    const sofseStation = data.sofseStationId ? `ID SOFSE ${data.sofseStationId}` : 'Sin ID SOFSE';
+
+    let realtimeBlock = '<div class="text-[9px] font-medium text-slate-500 py-1">Sin datos en vivo.</div>';
+    let realtimeFooter = 'SOFSE en tiempo real no disponible';
+
+    if (realtimeState?.loading) {
+        realtimeBlock = '<div class="text-[9px] font-medium text-slate-500 py-1">Consultando arribos...</div>';
+        realtimeFooter = 'Consultando API SOFSE';
+    } else if (realtimeState?.error) {
+        realtimeBlock = '<div class="text-[9px] font-medium text-rose-600 py-1">No se pudo obtener arribos.</div>';
+        realtimeFooter = 'Error consultando API SOFSE';
+    } else if (realtimeState?.arrivals) {
+        realtimeBlock = buildTrainArrivalsRows(realtimeState.arrivals.arrivals || []);
+        const ts = realtimeState.arrivals.timestamp || Math.floor(Date.now() / 1000);
+        realtimeFooter = `Última actualización: ${new Date(ts * 1000).toLocaleTimeString('es-AR', { hour12: false })}`;
+    }
 
     return `
         <div class="glass p-3 rounded-2xl shadow-xl border border-white/50 min-w-[230px]">
@@ -181,17 +226,12 @@ function buildTrainTooltip(data, color) {
                 </div>
             </div>
             <div class="space-y-1.5">
-                <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[9px] font-semibold text-slate-700">${description}</div>
-                <div class="grid grid-cols-2 gap-1.5 text-[8px]">
-                    <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                        <span class="block font-bold text-slate-400 uppercase">Concesión</span>
-                        <span class="font-black text-slate-700">${concession}</span>
-                    </div>
-                    <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                        <span class="block font-bold text-slate-400 uppercase">Trocha</span>
-                        <span class="font-black text-slate-700">${gauge}</span>
-                    </div>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <span class="block text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">Próximos arribos</span>
+                    ${realtimeBlock}
                 </div>
+                <div class="text-[8px] font-semibold text-slate-500">${sofseStation}</div>
+                <div class="text-[8px] font-semibold text-slate-500">${realtimeFooter}</div>
                 <div class="text-[8px] font-mono text-slate-500">${latText}, ${lonText}</div>
             </div>
         </div>`;
@@ -221,7 +261,9 @@ function createMarker(lat, lng, label, color, type, data = null) {
         })
     });
 
-    const tooltipHtml = buildTooltipHtml(type, data, color, label);
+    const tooltipHtml = type === 'train'
+        ? buildTrainTooltip(data || {}, color, { loading: false })
+        : buildTooltipHtml(type, data, color, label);
 
     marker.bindTooltip(tooltipHtml, {
         className: 'custom-tooltip',
@@ -233,7 +275,61 @@ function createMarker(lat, lng, label, color, type, data = null) {
     if (type === 'bus' && data) {
         marker.on('click', () => {
             globalThis.markerState.selectedBusVehicleKey = getVehicleUniqueKey(data);
+            if (typeof updateSelectedBusOverlay === 'function') {
+                updateSelectedBusOverlay(data).catch(() => {
+                    updateBusRouteOverlay('').catch(() => {});
+                });
+                return;
+            }
+
             updateBusRouteOverlay('').catch(() => {});
+        });
+    }
+
+    if (type === 'train' && data) {
+        const HOVER_FETCH_DELAY_MS = 280;
+        let hoverFetchTimer = null;
+        let hoverFetchRequestId = 0;
+
+        const runTrainArrivalsFetch = async (requestId) => {
+            if (!marker.isTooltipOpen() || requestId !== hoverFetchRequestId) return;
+
+            marker.setTooltipContent(buildTrainTooltip(data, color, { loading: true }));
+            lucide.createIcons();
+
+            const result = await getTrainArrivalsForStation(data);
+            if (!marker.isTooltipOpen() || requestId !== hoverFetchRequestId) return;
+
+            if (!result?.success) {
+                marker.setTooltipContent(buildTrainTooltip(data, color, { error: true }));
+                lucide.createIcons();
+                return;
+            }
+
+            marker.setTooltipContent(buildTrainTooltip(data, color, { arrivals: result.data }));
+            lucide.createIcons();
+        };
+
+        marker.on('tooltipopen', async () => {
+            hoverFetchRequestId += 1;
+            const requestId = hoverFetchRequestId;
+
+            if (hoverFetchTimer) clearTimeout(hoverFetchTimer);
+            hoverFetchTimer = setTimeout(() => {
+                runTrainArrivalsFetch(requestId).catch(() => {});
+            }, HOVER_FETCH_DELAY_MS);
+        });
+
+        marker.on('tooltipclose', () => {
+            hoverFetchRequestId += 1;
+            if (hoverFetchTimer) {
+                clearTimeout(hoverFetchTimer);
+                hoverFetchTimer = null;
+            }
+        });
+
+        marker.on('click', async () => {
+            marker.openTooltip();
         });
     }
 

@@ -1,23 +1,48 @@
+function extractDigits(value) {
+    return (value || '').toString().replaceAll(/\D+/g, '');
+}
+
+function isBusNumericMatch(query, lineFields) {
+    const queryDigits = extractDigits(query);
+    if (!queryDigits) return false;
+
+    return lineFields.some(field => {
+        const fieldDigits = extractDigits(field);
+        if (!fieldDigits) return false;
+        return fieldDigits === queryDigits || fieldDigits.startsWith(queryDigits);
+    });
+}
+
 function renderBusLayer(filter, bounds) {
     let visibleCount = 0;
     if (!activeTypes.bus) return visibleCount;
 
     globalThis.cache.bus.forEach(v => {
         const line = getBusDisplayLine(v);
+        const shortName = v?.route_short_name || '';
+        const searchFields = [
+            line,
+            shortName,
+            getVehicleRouteId(v),
+            getVehicleTripId(v),
+            v?.id || v?.vehicle?.id || '',
+            v?.agency_name || '',
+            v?.trip_headsign || ''
+        ];
+        const lineFields = [line, shortName];
+
+        const isNumericOnlyQuery = /^\d+$/.test(filter);
 
         const matchesFilter = !filter || (
-            normalizeText(line) === filter
-            || normalizeText(v?.route_short_name || '') === filter
-            || normalizeText(getVehicleRouteId(v)) === filter
-            || normalizeText(getVehicleTripId(v)) === filter
-            || normalizeText(v?.id || v?.vehicle?.id || '') === filter
-            || normalizeText(v?.agency_name || '') === filter
-            || normalizeText(v?.trip_headsign || '') === filter
+            isNumericOnlyQuery
+                ? isBusNumericMatch(filter, lineFields)
+                : searchFields.some(field => normalizeText(field).includes(filter))
         );
         if (!matchesFilter) return;
 
         const coords = getVehicleCoordinates(v);
-        if (coords && bounds.contains([coords.lat, coords.lon])) {
+        const shouldRenderByBounds = !filter;
+        if (coords && (!shouldRenderByBounds || bounds.contains([coords.lat, coords.lon]))) {
             createMarker(coords.lat, coords.lon, line, getColor('bus', line), 'bus', v).addTo(layers.bus);
             visibleCount++;
         }
@@ -31,7 +56,7 @@ function renderBikeLayer(filter, bounds) {
     if (!activeTypes.bike) return visibleCount;
 
     globalThis.cache.bike.forEach(s => {
-        if (filter && normalizeText(s.name) !== filter) return;
+        if (filter && !normalizeText(s.name).includes(filter)) return;
         const lat = Number.parseFloat(s.lat);
         const lon = Number.parseFloat(s.lon);
         if (!Number.isNaN(lat) && !Number.isNaN(lon) && bounds.contains([lat, lon])) {
@@ -55,7 +80,9 @@ function renderSubteLayer(filter, bounds) {
     const subteStations = globalThis.cache.subteStatic?.stations || {};
 
     Object.entries(subteLines).forEach(([routeId, line]) => {
-        const routeFilterMatch = !filter || normalizeText(routeId) === filter || normalizeText(line.short) === filter;
+        const routeFilterMatch = !filter
+            || normalizeText(routeId).includes(filter)
+            || normalizeText(line.short).includes(filter);
 
         const stationItems = line.stations
             .map(stopId => {
@@ -65,7 +92,7 @@ function renderSubteLayer(filter, bounds) {
             })
             .filter(Boolean);
 
-        const hasStationMatch = stationItems.some(s => normalizeText(s.name) === filter);
+        const hasStationMatch = stationItems.some(s => normalizeText(s.name).includes(filter));
         if (!routeFilterMatch && !hasStationMatch) return;
 
         const polyCoords = stationItems.map(s => [s.lat, s.lon]);
@@ -80,7 +107,7 @@ function renderSubteLayer(filter, bounds) {
         }
 
         stationItems.forEach(station => {
-            if (filter && normalizeText(station.name) !== filter && !routeFilterMatch && !hasStationMatch) return;
+            if (filter && !normalizeText(station.name).includes(filter) && !routeFilterMatch && !hasStationMatch) return;
             if (!bounds.contains([station.lat, station.lon])) return;
 
             createMarker(
@@ -108,19 +135,26 @@ function renderTrainLayer(filter, bounds) {
 
     Object.entries(trainLines).forEach(([lineId, line]) => {
         const routeFilterMatch = !filter
-            || normalizeText(lineId) === filter
-            || normalizeText(line.short || '') === filter
-            || normalizeText(line.name || '') === filter
-            || normalizeText(line.concession || '') === filter;
+            || normalizeText(lineId).includes(filter)
+            || normalizeText(line.short || '').includes(filter)
+            || normalizeText(line.name || '').includes(filter);
 
         const stationItems = (line.stations || [])
-            .map(stopId => trainStations[stopId])
+            .map(stopId => {
+                const station = trainStations[stopId];
+                if (!station) return null;
+                return {
+                    ...station,
+                    id: station.id || stopId,
+                    lineId,
+                    lineShort: station.lineShort || line.short,
+                    lineName: station.lineName || line.name,
+                    color: line.color || '#0ea5e9'
+                };
+            })
             .filter(Boolean);
 
-        const hasStationMatch = stationItems.some(s =>
-            normalizeText(s.name) === filter
-            || normalizeText(s.concession || '') === filter
-        );
+        const hasStationMatch = stationItems.some(s => normalizeText(s.name).includes(filter));
         if (!routeFilterMatch && !hasStationMatch) return;
 
         const polyCoords = stationItems.map(s => [s.lat, s.lon]);
@@ -135,14 +169,14 @@ function renderTrainLayer(filter, bounds) {
         }
 
         stationItems.forEach(station => {
-            if (filter && normalizeText(station.name) !== filter && !routeFilterMatch && !hasStationMatch) return;
+            if (filter && !normalizeText(station.name).includes(filter) && !routeFilterMatch && !hasStationMatch) return;
             if (!bounds.contains([station.lat, station.lon])) return;
 
             createMarker(
                 station.lat,
                 station.lon,
                 station.name,
-                line.color || '#0ea5e9',
+                station.color || '#0ea5e9',
                 'train',
                 station
             ).addTo(layers.trainStations);

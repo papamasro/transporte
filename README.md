@@ -2,7 +2,7 @@
 
 Dashboard web para visualizar transporte en tiempo real en AMBA:
 - Colectivos en mapa (con búsqueda y overlay de recorrido).
-- Subte y tren con datos estáticos en Cloudflare KV.
+- Subte con pronóstico GTFS y tren con estaciones estáticas + arribos SOFSE en vivo al abrir tooltip.
 - EcoBici y panel de alertas.
 - UI tipo PWA (instalable en mobile/escritorio).
 
@@ -23,7 +23,9 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
 - `js/app/services.js`
   - HTTP helper (`fetchAPI`).
   - Retry de requests (`fetchWithRetry`).
-  - Carga de datasets en KV (`subte-lines`, `subte-stations`, `train-lines`, `train-stations`).
+  - Carga de datasets en KV (`subte-lines`, `subte-stations`, `train-lines`, `train-stations`) con normalización legacy/v2.
+  - Sincronización de catálogo SOFSE (gerencias, ramales, estaciones) y matching de estaciones locales.
+  - Fetch de arribos SOFSE por estación con cache TTL.
   - Refresh de subte/ecobici bajo demanda.
 
 - `js/app/ui.js`
@@ -33,7 +35,7 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
   - `subte.js`: indexación y helpers de pronóstico subte.
   - `alerts.js`: carga y render de alertas.
   - `markers-bus-overlay.js`: búsqueda de colectivos y overlay de recorridos.
-  - `markers-ui.js`: factory de markers y tooltips.
+  - `markers-ui.js`: factory de markers y tooltips (incluye arribos SOFSE en hover/click para tren).
   - `markers.js`: render principal de capas por tipo.
 
 - `js/shared/utils.js`
@@ -44,9 +46,10 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
 2. Colectivos se consulta primero con retry (1s entre intentos) y refresco periódico (`UPDATE_INTERVAL`).
 3. Subte/Tren/EcoBici se cargan al activar cada botón:
    - Subte: KV + pronóstico GTFS.
-   - Tren: KV.
+  - Tren: KV + catálogo SOFSE para resolver IDs de estación.
    - EcoBici: station info + station status.
-4. `renderMarkers()` dibuja capas según filtros, viewport y tipos activos.
+4. En tren, al abrir el tooltip de una estación se consulta `/arribos/estacion/{id}` y se muestra ETA en vivo.
+5. `renderMarkers()` dibuja capas según filtros, viewport y tipos activos.
 
 ## Endpoints usados
 Base: `https://transporte-be.papamasro.workers.dev`
@@ -67,6 +70,11 @@ Base: `https://transporte-be.papamasro.workers.dev`
   - `/obtener-kv?clave=subte-stations`
   - `/obtener-kv?clave=train-lines`
   - `/obtener-kv?clave=train-stations`
+- SOFSE proxy público
+  - `https://ariedro.dev/api-trenes/infraestructura/gerencias?idEmpresa=1`
+  - `https://ariedro.dev/api-trenes/infraestructura/ramales?idGerencia=...`
+  - `https://ariedro.dev/api-trenes/infraestructura/estaciones?idRamal=...`
+  - `https://ariedro.dev/api-trenes/arribos/estacion/{id}?cantidad=6&paraApp=true`
 
 ## Estructura del proyecto
 Resumen rápido (detalle en `STRUCTURE.md`):
@@ -95,3 +103,10 @@ Resumen rápido (detalle en `STRUCTURE.md`):
   - fetch en `services.js`
   - estado/orquestación en `bootstrap.js`
   - render en `features/markers.js` + `markers-ui.js`.
+
+## Optimizar Redis (train v2)
+Para eliminar duplicación y agregar `sofseStationId` en estaciones:
+
+`node scripts/optimizeTrainRedis.mjs --lines ./train-lines.json --stations ./train-stations.json --out-lines ./train-lines-v2.json --out-stations ./train-stations-v2.json --out-report ./train-sofse-compare-report.json`
+
+Opcional: `--no-sofse` para generar v2 sin consultar API SOFSE.

@@ -1,6 +1,7 @@
 if (!globalThis.markerState) {
     globalThis.markerState = {
         busRouteCache: new Map(),
+        busRouteNoResultCache: new Map(),
         busLineSearchCache: new Map(),
         currentBusRouteKey: '',
         currentLineOverlayQuery: '',
@@ -81,14 +82,131 @@ function getVehicleCoordinates(vehicle) {
     return { lat, lon };
 }
 
+function getBusRouteConfig() {
+    const cfg = globalThis.NETWORK_CONFIG || {};
+    return {
+        maxTripCandidates: Math.max(1, Number(cfg.busRouteMaxTripCandidates ?? 3)),
+        maxFallbackVehicles: Math.max(1, Number(cfg.busRouteMaxFallbackVehicles ?? 3)),
+        maxCallsPerSelection: Math.max(1, Number(cfg.busRouteMaxCallsPerSelection ?? 3)),
+        noResultTtlMs: Math.max(0, Number(cfg.busRouteNoResultTtlMs ?? 30000)),
+        maxShapeDistanceMeters: Math.max(100, Number(cfg.busRouteMaxShapeDistanceMeters ?? 1500)),
+        minShapePoints: Math.max(2, Number(cfg.busRouteMinShapePoints ?? 20)),
+        retryMax: Math.max(1, Number(cfg.retryMax ?? 3)),
+        retryDelayMs: Math.max(0, Number(cfg.retryDelayMs ?? 1000))
+    };
+}
+
+function toRadians(value) {
+    return (value * Math.PI) / 180;
+}
+
+function parseLatLon(point) {
+    if (!point) return null;
+
+    if (Array.isArray(point) && point.length >= 2) {
+        const latFromArray = Number(point[0]);
+        const lonFromArray = Number(point[1]);
+        if (Number.isFinite(latFromArray) && Number.isFinite(lonFromArray)) {
+            return { lat: latFromArray, lon: lonFromArray };
+        }
+    }
+
+    const lat = Number(point?.lat ?? point?.latitude);
+    const lon = Number(point?.lon ?? point?.lng ?? point?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+    const earthRadius = 6371000;
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function getMinDistanceToShapeMeters(shape, anchorCoordinates) {
+    if (!Array.isArray(shape) || !anchorCoordinates) return Number.POSITIVE_INFINITY;
+    let minDistance = Number.POSITIVE_INFINITY;
+
+    shape.forEach(point => {
+        const parsedPoint = parseLatLon(point);
+        if (!parsedPoint) return;
+        const distance = haversineMeters(
+            anchorCoordinates.lat,
+            anchorCoordinates.lon,
+            parsedPoint.lat,
+            parsedPoint.lon
+        );
+        if (distance < minDistance) minDistance = distance;
+    });
+
+    return minDistance;
+}
+
+function isBusRouteRecentlyMissed(routeKey) {
+    const missCache = globalThis.markerState.busRouteNoResultCache;
+    const ts = Number(missCache.get(routeKey) || 0);
+    if (!ts) return false;
+
+    const { noResultTtlMs } = getBusRouteConfig();
+    if ((Date.now() - ts) <= noResultTtlMs) return true;
+
+    missCache.delete(routeKey);
+    return false;
+}
+
+function markBusRouteMiss(routeKey) {
+    globalThis.markerState.busRouteNoResultCache.set(routeKey, Date.now());
+}
+
+function clearBusRouteMiss(routeKey) {
+    globalThis.markerState.busRouteNoResultCache.delete(routeKey);
+}
+
 function findVehicleByKey(vehicleKey, vehicles) {
     if (!vehicleKey || !Array.isArray(vehicles)) return null;
     return vehicles.find(vehicle => getVehicleUniqueKey(vehicle) === vehicleKey) || null;
 }
 
+function getVehiclesBySameRoute(selectedVehicle, vehicles) {
+    if (!selectedVehicle || !Array.isArray(vehicles) || vehicles.length === 0) return [];
+
+    const selectedKey = getVehicleUniqueKey(selectedVehicle);
+    const selectedRouteId = normalizeText(getVehicleRouteId(selectedVehicle));
+    const selectedShortName = normalizeText(selectedVehicle?.route_short_name || '');
+
+    const selectedDirection = Number(selectedVehicle?.direction);
+
+    const matches = vehicles.filter(vehicle => {
+        const vehicleKey = getVehicleUniqueKey(vehicle);
+        if (!vehicleKey || vehicleKey === selectedKey) return false;
+
+        const sameShortName = selectedShortName
+            && normalizeText(vehicle?.route_short_name || '') === selectedShortName;
+        if (sameShortName) return true;
+
+        const sameRouteId = selectedRouteId
+            && normalizeText(getVehicleRouteId(vehicle)) === selectedRouteId;
+        return !!sameRouteId;
+    });
+
+    return matches.sort((left, right) => {
+        const leftDirection = Number(left?.direction);
+        const rightDirection = Number(right?.direction);
+        const leftSameDirection = Number.isFinite(selectedDirection) && leftDirection === selectedDirection ? 1 : 0;
+        const rightSameDirection = Number.isFinite(selectedDirection) && rightDirection === selectedDirection ? 1 : 0;
+        return rightSameDirection - leftSameDirection;
+    });
+}
+
 function findVehicleForBusSearch(query, vehicles) {
     const normalizedQuery = normalizeText(query);
     if (!normalizedQuery || !Array.isArray(vehicles) || vehicles.length === 0) return null;
+
+    const queryDigits = normalizedQuery.replaceAll(/\D+/g, '');
+    const isNumericOnlyQuery = /^\d+$/.test(normalizedQuery);
 
     const exactTripMatch = vehicles.find(vehicle => normalizeText(getVehicleTripId(vehicle)) === normalizedQuery);
     if (exactTripMatch) return exactTripMatch;
@@ -112,26 +230,176 @@ function findVehicleForBusSearch(query, vehicles) {
     });
     if (exactMatch) return exactMatch;
 
+    const partialMatch = vehicles.find(vehicle => {
+        const line = normalizeText(getBusDisplayLine(vehicle));
+        const shortName = normalizeText(vehicle?.route_short_name || '');
+        const routeId = normalizeText(getVehicleRouteId(vehicle));
+        const agencyName = normalizeText(vehicle?.agency_name || '');
+        const headsign = normalizeText(vehicle?.trip_headsign || '');
+        return (
+            line.includes(normalizedQuery)
+            || shortName.includes(normalizedQuery)
+            || routeId.includes(normalizedQuery)
+            || agencyName.includes(normalizedQuery)
+            || headsign.includes(normalizedQuery)
+        );
+    });
+    if (partialMatch) return partialMatch;
+
+    if (isNumericOnlyQuery && queryDigits) {
+        const numericMatch = vehicles.find(vehicle => {
+            const candidates = [
+                getBusDisplayLine(vehicle),
+                vehicle?.route_short_name || ''
+            ];
+
+            return candidates.some(candidate => {
+                const candidateDigits = normalizeText(candidate).replaceAll(/\D+/g, '');
+                if (!candidateDigits) return false;
+                return candidateDigits === queryDigits || candidateDigits.startsWith(queryDigits);
+            });
+        });
+
+        if (numericMatch) return numericMatch;
+    }
+
     return null;
 }
 
-async function fetchRouteInfo(routeId, tipId, direction) {
-    if (!routeId) return null;
-    const routeKey = `${routeId}::${tipId || ''}`;
+function getVehicleRouteContext(vehicle) {
+    const routeId = getVehicleRouteId(vehicle);
+    const lineShortName = (vehicle?.route_short_name || routeId || '').toString().trim();
+    const tripCandidates = getVehicleTripCandidates(vehicle);
+    const direction = vehicle?.direction;
+
+    return {
+        routeId,
+        lineShortName,
+        tripCandidates,
+        direction
+    };
+}
+
+function buildSelectedRouteKey(selectedContext) {
+    if (!selectedContext) return '';
+    const routeId = (selectedContext.routeId || '').toString().trim();
+    const lineShortName = (selectedContext.lineShortName || '').toString().trim();
+    const tripKey = Array.isArray(selectedContext.tripCandidates)
+        ? selectedContext.tripCandidates.map(value => (value || '').toString().trim()).filter(Boolean).join('|')
+        : '';
+    const direction = selectedContext.direction ?? '';
+    return `${routeId}::${lineShortName}::${tripKey}::${direction}`;
+}
+
+function renderBusRouteInfo(routeInfo) {
+    layers.busRoute?.clearLayers();
+    layers.busStops?.clearLayers();
+
+    const rawShape = Array.isArray(routeInfo?.shape) ? routeInfo.shape : [];
+    const shapeCoords = rawShape
+        .map(point => parseLatLon(point))
+        .filter(Boolean)
+        .map(point => [point.lat, point.lon]);
+
+    if (shapeCoords.length >= 2) {
+        L.polyline(shapeCoords, {
+            color: '#2563eb',
+            weight: 5,
+            opacity: 0.85,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(layers.busRoute);
+    }
+
+    const rawStops = Array.isArray(routeInfo?.stops) ? routeInfo.stops : [];
+    rawStops.forEach(stop => {
+        const parsedStop = parseLatLon(stop);
+        if (!parsedStop) return;
+
+        L.circleMarker([parsedStop.lat, parsedStop.lon], {
+            radius: 4,
+            color: '#1d4ed8',
+            fillColor: '#60a5fa',
+            fillOpacity: 0.95,
+            weight: 1
+        })
+            .bindTooltip((stop?.name || stop?.nombre || 'Parada').toString(), {
+                className: 'custom-tooltip',
+                direction: 'top',
+                offset: [0, -6],
+                opacity: 0.95
+            })
+            .addTo(layers.busStops);
+    });
+}
+
+async function fetchRouteInfo(routeId, lineShortName, tripCandidates, direction, requestBudget, anchorCoordinates) {
+    const tripKey = Array.isArray(tripCandidates) ? tripCandidates.join('|') : '';
+    const routeKey = `${routeId || ''}::${lineShortName || ''}::${tripKey}::${direction ?? ''}`;
     if (globalThis.markerState.busRouteCache.has(routeKey)) return globalThis.markerState.busRouteCache.get(routeKey);
 
-    const params = new URLSearchParams({ route_id: routeId });
-    if (tipId) params.set('tip_id', tipId);
+    const queryCandidates = buildRouteQueryCandidates(routeId, lineShortName, tripCandidates);
+    if (queryCandidates.length === 0) return null;
+
+    const cfg = getBusRouteConfig();
+
+    for (const candidate of queryCandidates) {
+        if (requestBudget && requestBudget.remaining <= 0) break;
+        const params = buildInfoTrayectoParams(candidate, direction);
+        if (requestBudget) requestBudget.remaining -= 1;
+
+        const response = await fetchAPI(`/info-trayecto?${params.toString()}`, {
+            retryMax: cfg.retryMax,
+            retryDelayMs: cfg.retryDelayMs
+        });
+        if (!shouldAcceptRouteCandidate(response, candidate, anchorCoordinates)) continue;
+
+        globalThis.markerState.busRouteCache.set(routeKey, response.data);
+        return response.data;
+    }
+
+    return null;
+}
+
+function shouldAcceptRouteCandidate(response, candidate, anchorCoordinates) {
+    if (!response?.success || !response?.data) return false;
+    if (!hasRenderableRouteShape(response.data)) return false;
+
+    const hasStrongTripHint = Boolean(candidate?.trip_id || candidate?.tip_id);
+    if (hasStrongTripHint) return true;
+
+    return hasValidRouteShape(response.data, anchorCoordinates);
+}
+
+function buildRouteQueryCandidates(routeId, lineShortName, tripCandidates) {
+    const cfg = getBusRouteConfig();
+    const candidates = [];
+    const normalizedTripCandidates = Array.from(new Set((tripCandidates || [])
+        .map(value => (value || '').toString().trim())
+        .filter(Boolean))).slice(0, cfg.maxTripCandidates);
+
+    normalizedTripCandidates.forEach(candidateTrip => {
+        candidates.push({ trip_id: candidateTrip, tip_id: candidateTrip, linea: lineShortName || '' });
+        if (candidateTrip.includes('-')) {
+            candidates.push({ trip_id: candidateTrip.replaceAll('-', ''), linea: lineShortName || '' });
+        }
+    });
+
+    if (candidates.length === 0) {
+        if (lineShortName) candidates.push({ linea: lineShortName });
+        else if (routeId) candidates.push({ linea: routeId });
+    }
+
+    return candidates;
+}
+
+function buildInfoTrayectoParams(candidate, direction) {
+    const params = new URLSearchParams();
+    if (candidate.trip_id) params.set('trip_id', candidate.trip_id);
+    if (candidate.tip_id) params.set('tip_id', candidate.tip_id);
+    if (candidate.linea) params.set('linea', candidate.linea);
     if (direction !== undefined && direction !== null) params.set('direction', direction);
-
-    const response = await fetchAPI(`/info-trayecto?${params.toString()}`);
-    if (!response.success || !response.data) return null;
-
-    const shapeSize = Array.isArray(response.data?.shape) ? response.data.shape.length : 0;
-    if (shapeSize < 2) return null;
-
-    globalThis.markerState.busRouteCache.set(routeKey, response.data);
-    return response.data;
+    return params;
 }
 
 async function fetchLineSearchInfo(numero) {
@@ -142,8 +410,17 @@ async function fetchLineSearchInfo(numero) {
     const response = await fetchAPI(`/buscar-linea?numero=${encodeURIComponent(numero)}`);
     if (!response.success || !response.data) return null;
 
-    globalThis.markerState.busLineSearchCache.set(normalizedNumero, response.data);
-    return response.data;
+    let normalizedData = null;
+    if (Array.isArray(response.data)) {
+        normalizedData = { recorridos: response.data };
+    } else if (Array.isArray(response.data?.recorridos)) {
+        normalizedData = response.data;
+    }
+
+    if (!normalizedData) return null;
+
+    globalThis.markerState.busLineSearchCache.set(normalizedNumero, normalizedData);
+    return normalizedData;
 }
 
 function getShapePointsFromRecorrido(recorrido) {
@@ -155,8 +432,9 @@ function getShapePointsFromRecorrido(recorrido) {
     }
 
     return shape
-        .map(point => [Number(point.lat), Number(point.lon)])
-        .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+        .map(point => parseLatLon(point))
+        .filter(Boolean)
+        .map(point => [point.lat, point.lon]);
 }
 
 function renderLineSearchOverlay(lineSearchData) {
@@ -179,79 +457,225 @@ function renderLineSearchOverlay(lineSearchData) {
     });
 }
 
-function renderBusRouteInfo(routeInfo) {
-    layers.busRoute?.clearLayers();
-    layers.busStops?.clearLayers();
+function hasValidRouteShape(routeData, anchorCoordinates) {
+    const cfg = getBusRouteConfig();
+    const shape = Array.isArray(routeData?.shape) ? routeData.shape : [];
+    const shapeSize = shape.length;
+    if (shapeSize < cfg.minShapePoints) return false;
 
-    const shapeCoords = (routeInfo?.shape || [])
-        .map(point => [Number(point.lat), Number(point.lon)])
-        .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+    if (!anchorCoordinates) return true;
+    const minDistance = getMinDistanceToShapeMeters(shape, anchorCoordinates);
+    if (!Number.isFinite(minDistance)) return false;
 
-    if (shapeCoords.length >= 2) {
-        L.polyline(shapeCoords, {
-            color: '#ef4444',
-            weight: 5,
-            opacity: 0.9,
-            lineCap: 'round',
-            lineJoin: 'round'
-        }).addTo(layers.busRoute);
+    return minDistance <= cfg.maxShapeDistanceMeters;
+}
+
+function hasRenderableRouteShape(routeData) {
+    const shape = Array.isArray(routeData?.shape) ? routeData.shape : [];
+    let validPoints = 0;
+    for (const point of shape) {
+        if (parseLatLon(point)) validPoints += 1;
+        if (validPoints >= 2) return true;
+    }
+    return false;
+}
+
+function getRouteAnchorCoordinates(selectedVehicle) {
+    return getVehicleCoordinates(selectedVehicle);
+}
+
+function normalizeHeadsign(value) {
+    return normalizeText(value || '').replaceAll(/\s+/g, ' ').trim();
+}
+
+function shapeFromRecorrido(recorrido) {
+    if (Array.isArray(recorrido?.shape)) return recorrido.shape;
+    if (Array.isArray(recorrido?.points)) return recorrido.points;
+    return [];
+}
+
+function scoreRecorridoForVehicle(recorrido, selectedVehicle, anchorCoordinates) {
+    const shape = shapeFromRecorrido(recorrido);
+    const cfg = getBusRouteConfig();
+    if (shape.length < cfg.minShapePoints) return Number.POSITIVE_INFINITY;
+
+    const distance = getMinDistanceToShapeMeters(shape, anchorCoordinates);
+    if (!Number.isFinite(distance)) return Number.POSITIVE_INFINITY;
+
+    const selectedHeadsign = normalizeHeadsign(selectedVehicle?.trip_headsign);
+    const recorridoHeadsign = normalizeHeadsign(recorrido?.trip_headsign);
+
+    let score = distance;
+    if (selectedHeadsign && recorridoHeadsign) {
+        if (selectedHeadsign === recorridoHeadsign) score -= 300;
+        else if (selectedHeadsign.includes(recorridoHeadsign) || recorridoHeadsign.includes(selectedHeadsign)) score -= 120;
     }
 
-    (routeInfo?.stops || []).forEach(stop => {
-        const lat = Number(stop.lat);
-        const lon = Number(stop.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    return score;
+}
 
-        const marker = L.marker([lat, lon], {
-            icon: L.divIcon({
-                className: '',
-                html: '<div style="font-size:16px; line-height:1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));">🚏</div>',
-                iconSize: [18, 18],
-                iconAnchor: [9, 9]
-            })
-        });
+function pickBestRecorridoForVehicle(recorridos, selectedVehicle, anchorCoordinates) {
+    let best = null;
+    let bestScore = Number.POSITIVE_INFINITY;
 
-        marker.bindTooltip(`
-            <div class="glass p-2 rounded-xl shadow-lg border border-white/50 min-w-[170px]">
-                <div class="text-[8px] font-black text-rose-600 uppercase tracking-wide">Parada ${stop.stop_sequence || '-'}</div>
-                <div class="text-[10px] font-bold text-slate-700 leading-tight mt-0.5">${stop.stop_name || 'Parada sin nombre'}</div>
-            </div>
-        `, {
-            className: 'custom-tooltip',
-            direction: 'top',
-            offset: [0, -8],
-            opacity: 1
-        });
-
-        marker.addTo(layers.busStops);
+    recorridos.forEach(recorrido => {
+        const score = scoreRecorridoForVehicle(recorrido, selectedVehicle, anchorCoordinates);
+        if (score < bestScore) {
+            best = recorrido;
+            bestScore = score;
+        }
     });
+
+    if (!best) return null;
+
+    const shape = shapeFromRecorrido(best);
+    const minDistance = getMinDistanceToShapeMeters(shape, anchorCoordinates);
+    const cfg = getBusRouteConfig();
+    if (Number.isFinite(minDistance) && minDistance > cfg.maxShapeDistanceMeters) return null;
+
+    return {
+        info: {
+            route_short_name: best?.route_short_name || selectedVehicle?.route_short_name || '',
+            trip_headsign: best?.trip_headsign || selectedVehicle?.trip_headsign || '',
+            source: 'buscar-linea'
+        },
+        shape,
+        stops: []
+    };
+}
+
+async function fetchRouteInfoFromLineSearch(selectedVehicle, requestBudget, anchorCoordinates) {
+    if (!requestBudget || requestBudget.remaining <= 0) return null;
+
+    const lineQuery = (selectedVehicle?.route_short_name || selectedVehicle?.route_id || '').toString().trim();
+    if (!lineQuery) return null;
+
+    requestBudget.remaining -= 1;
+    const lineInfo = await fetchLineSearchInfo(lineQuery);
+    const recorridos = Array.isArray(lineInfo?.recorridos) ? lineInfo.recorridos : [];
+    if (recorridos.length === 0) return null;
+
+    return pickBestRecorridoForVehicle(recorridos, selectedVehicle, anchorCoordinates);
+}
+
+function canUseRouteForSelection(routeData, selectedVehicle) {
+    const anchorCoordinates = getRouteAnchorCoordinates(selectedVehicle);
+    return hasValidRouteShape(routeData, anchorCoordinates);
+}
+
+function getSelectedRouteState(selectedVehicle, selectedContext) {
+    const anchorCoordinates = getRouteAnchorCoordinates(selectedVehicle);
+    return {
+        routeKey: buildSelectedRouteKey(selectedContext),
+        anchorCoordinates
+    };
+}
+
+function shouldSkipSelectedRoute(routeState) {
+    const hasRenderedRoute = (layers.busRoute?.getLayers()?.length || 0) > 0;
+    if (routeState.routeKey === globalThis.markerState.currentBusRouteKey && hasRenderedRoute) return true;
+    if (isBusRouteRecentlyMissed(routeState.routeKey)) return true;
+    return false;
+}
+
+function handleRouteNotFound(routeState) {
+    markBusRouteMiss(routeState.routeKey);
+    clearBusRouteLayers();
+}
+
+function handleRouteFound(routeInfo, routeState) {
+    renderBusRouteInfo(routeInfo);
+    clearBusRouteMiss(routeState.routeKey);
+    globalThis.markerState.currentBusRouteKey = routeState.routeKey;
+    globalThis.markerState.currentLineOverlayQuery = '';
+}
+
+function isRouteInfoUsable(routeInfo, selectedVehicle) {
+    if (!routeInfo) return false;
+    if (!hasRenderableRouteShape(routeInfo)) return false;
+
+    const source = (routeInfo?.info?.source || '').toString().trim();
+    if (source === 'buscar-linea') return canUseRouteForSelection(routeInfo, selectedVehicle);
+
+    return true;
+}
+
+async function fetchPrimaryRouteInfo(selectedContext, requestBudget, anchorCoordinates) {
+    return fetchRouteInfo(
+        selectedContext.routeId,
+        selectedContext.lineShortName,
+        selectedContext.tripCandidates,
+        selectedContext.direction,
+        requestBudget,
+        anchorCoordinates
+    );
+}
+
+async function fetchFallbackRouteInfo(selectedVehicle, cfg, requestBudget, anchorCoordinates) {
+    if (requestBudget.remaining <= 0) return null;
+
+    const fallbackVehicles = getVehiclesBySameRoute(selectedVehicle, globalThis.cache.bus)
+        .slice(0, cfg.maxFallbackVehicles);
+
+    for (const fallbackVehicle of fallbackVehicles) {
+        if (requestBudget.remaining <= 0) break;
+        const fallbackContext = getVehicleRouteContext(fallbackVehicle);
+        const routeInfo = await fetchRouteInfo(
+            fallbackContext.routeId,
+            fallbackContext.lineShortName,
+            fallbackContext.tripCandidates,
+            fallbackContext.direction,
+            requestBudget,
+            anchorCoordinates
+        );
+        if (routeInfo) return routeInfo;
+    }
+
+    return null;
+}
+
+async function resolveRouteInfoWithFallback(selectedVehicle, selectedContext, cfg, requestBudget, anchorCoordinates) {
+    let routeInfo = await fetchPrimaryRouteInfo(selectedContext, requestBudget, anchorCoordinates);
+    if (routeInfo) return routeInfo;
+
+    routeInfo = await fetchFallbackRouteInfo(selectedVehicle, cfg, requestBudget, anchorCoordinates);
+    if (routeInfo) return routeInfo;
+
+    routeInfo = await fetchRouteInfoFromLineSearch(selectedVehicle, requestBudget, anchorCoordinates);
+    return routeInfo;
 }
 
 async function updateSelectedBusOverlay(selectedVehicle) {
-    const routeId = selectedVehicle?.route_id;
-    const tipId = selectedVehicle?.tip_id;
-    const direction = selectedVehicle?.direction;
+    const selectedContext = getVehicleRouteContext(selectedVehicle);
+    const { routeId, lineShortName, tripCandidates } = selectedContext;
 
-    if (!routeId || !tipId) {
+    if (!routeId && !lineShortName && tripCandidates.length === 0) {
         clearBusRouteLayers();
         return;
     }
 
-    const routeKey = `${routeId}::${tipId}`;
-    if (routeKey === globalThis.markerState.currentBusRouteKey && (layers.busRoute?.getLayers()?.length || 0) > 0) return;
+    const routeState = getSelectedRouteState(selectedVehicle, selectedContext);
+    if (shouldSkipSelectedRoute(routeState)) return;
 
     const requestToken = ++globalThis.markerState.busRouteRequestToken;
     try {
-        const routeInfo = await fetchRouteInfo(routeId, tipId, direction);
+        const cfg = getBusRouteConfig();
+        const requestBudget = { remaining: cfg.maxCallsPerSelection };
+        const routeInfo = await resolveRouteInfoWithFallback(
+            selectedVehicle,
+            selectedContext,
+            cfg,
+            requestBudget,
+            routeState.anchorCoordinates
+        );
+
         if (requestToken !== globalThis.markerState.busRouteRequestToken) return;
-        if (!routeInfo) {
-            clearBusRouteLayers();
+        if (!isRouteInfoUsable(routeInfo, selectedVehicle)) {
+            handleRouteNotFound(routeState);
             return;
         }
 
-        renderBusRouteInfo(routeInfo);
-        globalThis.markerState.currentBusRouteKey = `${routeId}::${tipId}`;
-        globalThis.markerState.currentLineOverlayQuery = '';
+        handleRouteFound(routeInfo, routeState);
     } catch {
         if (requestToken !== globalThis.markerState.busRouteRequestToken) return;
         clearBusRouteLayers();
