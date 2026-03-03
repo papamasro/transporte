@@ -287,7 +287,7 @@ function createMarker(lat, lng, label, color, type, data = null) {
     }
 
     if (type === 'train' && data) {
-        const HOVER_FETCH_DELAY_MS = 280;
+        const HOVER_FETCH_DELAY_MS = Math.max(0, Number(globalThis.APP_CONFIG?.TIMEOUTS?.trainTooltipFetchDelayMs ?? 280));
         let hoverFetchTimer = null;
         let hoverFetchRequestId = 0;
 

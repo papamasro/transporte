@@ -1,25 +1,53 @@
-        const BACKEND_URL = "https://transporte-be.papamasro.workers.dev";
-        const SOFSE_API_BASE = "https://ariedro.dev/api-trenes";
-        const TRAIN_ARRIVALS_TTL_MS = 20000;
-        globalThis.NETWORK_CONFIG = {
-            retryMax: 3,
-            retryDelayMs: 1000,
-            sofse403DelayMs: 2800,
-            busRouteMaxTripCandidates: 3,
-            busRouteMaxFallbackVehicles: 3,
-            busRouteMaxCallsPerSelection: 3,
-            busRouteNoResultTtlMs: 30000,
-            busRouteMaxShapeDistanceMeters: 4000,
-            busRouteMinShapePoints: 20
+        const DEFAULT_APP_CONFIG = {
+            API: {
+                backendBaseUrl: 'https://transporte-be.papamasro.workers.dev',
+                sofseBaseUrl: 'https://transporte-be.papamasro.workers.dev/trenes'
+            },
+            PATHS: {
+                kvGet: '/obtener-kv',
+                busVehiclePositions: '/colectivos/vehiclePositionsSimple'
+            },
+            KV_KEYS: {
+                subteLines: 'subte-lines',
+                subteStations: 'subte-stations',
+                trainLines: 'train-lines',
+                trainStations: 'train-stations'
+            },
+            TIMEOUTS: {
+                updateIntervalMs: 30000,
+                trainArrivalsTtlMs: 20000
+            },
+            NETWORK: {
+                retryMax: 3,
+                retryDelayMs: 1000,
+                sofse403DelayMs: 2800,
+                busRouteMaxTripCandidates: 3,
+                busRouteMaxFallbackVehicles: 3,
+                busRouteMaxCallsPerSelection: 3,
+                busRouteNoResultTtlMs: 30000,
+                busRouteMaxShapeDistanceMeters: 4000,
+                busRouteMinShapePoints: 20
+            }
         };
-        const KV_ENDPOINT = "/obtener-kv";
-        const KV_KEYS = {
-            subteLines: 'subte-lines',
-            subteStations: 'subte-stations',
-            trainLines: 'train-lines',
-            trainStations: 'train-stations'
-        };
-        const UPDATE_INTERVAL = 30000;
+
+        const appConfig = globalThis.APP_CONFIG || DEFAULT_APP_CONFIG;
+        const BACKEND_URL = (appConfig.API?.backendBaseUrl || DEFAULT_APP_CONFIG.API.backendBaseUrl)
+            .toString()
+            .replace(/\/+$/, '');
+        const SOFSE_API_BASE = (appConfig.API?.sofseBaseUrl || DEFAULT_APP_CONFIG.API.sofseBaseUrl)
+            .toString()
+            .replace(/\/+$/, '');
+        const TRAIN_ARRIVALS_TTL_MS = Math.max(0, Number(appConfig.TIMEOUTS?.trainArrivalsTtlMs ?? DEFAULT_APP_CONFIG.TIMEOUTS.trainArrivalsTtlMs));
+        const networkOverrides = appConfig.NETWORK;
+        globalThis.NETWORK_CONFIG = (networkOverrides && typeof networkOverrides === 'object')
+            ? { ...DEFAULT_APP_CONFIG.NETWORK, ...networkOverrides }
+            : { ...DEFAULT_APP_CONFIG.NETWORK };
+        const KV_ENDPOINT = appConfig.PATHS?.kvGet || DEFAULT_APP_CONFIG.PATHS.kvGet;
+        const kvKeyOverrides = appConfig.KV_KEYS;
+        const KV_KEYS = (kvKeyOverrides && typeof kvKeyOverrides === 'object')
+            ? { ...DEFAULT_APP_CONFIG.KV_KEYS, ...kvKeyOverrides }
+            : { ...DEFAULT_APP_CONFIG.KV_KEYS };
+        const UPDATE_INTERVAL = Math.max(1000, Number(appConfig.TIMEOUTS?.updateIntervalMs ?? DEFAULT_APP_CONFIG.TIMEOUTS.updateIntervalMs));
 
         let map;
         let layers = {
@@ -117,7 +145,8 @@
 
             try {
                 if (activeTypes.bus) {
-                    const busData = await fetchWithRetry("/colectivos/vehiclePositionsSimple");
+                    const busVehiclePositionsPath = appConfig.PATHS?.busVehiclePositions || DEFAULT_APP_CONFIG.PATHS.busVehiclePositions;
+                    const busData = await fetchWithRetry(busVehiclePositionsPath);
                     updateBusCache(busData);
                 } else {
                     globalThis.cache.bus = [];

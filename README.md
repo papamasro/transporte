@@ -17,8 +17,12 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
 
 - `js/app/bootstrap.js`
   - Estado/config global (`BACKEND_URL`, `KV_KEYS`, `cache`, `layers`, etc.).
+  - Consume configuración central desde `js/app/config.js`.
   - Inicialización de mapa y loop principal de refresco.
   - Orquestación de activación/desactivación de tipos (`bus/subte/train/bike`).
+
+- `js/app/config.js`
+  - Única fuente de configuración: URLs base, endpoints (`PATHS`), `KV_KEYS`, `NETWORK` (retry/limits), `TIMEOUTS`.
 
 - `js/app/services.js`
   - HTTP helper (`fetchAPI`).
@@ -70,11 +74,14 @@ Base: `https://transporte-be.papamasro.workers.dev`
   - `/obtener-kv?clave=subte-stations`
   - `/obtener-kv?clave=train-lines`
   - `/obtener-kv?clave=train-stations`
-- SOFSE proxy público
-  - `https://ariedro.dev/api-trenes/infraestructura/gerencias?idEmpresa=1`
-  - `https://ariedro.dev/api-trenes/infraestructura/ramales?idGerencia=...`
-  - `https://ariedro.dev/api-trenes/infraestructura/estaciones?idRamal=...`
-  - `https://ariedro.dev/api-trenes/arribos/estacion/{id}?cantidad=6&paraApp=true`
+- SOFSE vía Worker (configurable)
+  - Base default: `https://transporte-be.papamasro.workers.dev/trenes`
+  - `.../infraestructura/ramales?idGerencia=...`
+  - `.../infraestructura/estaciones?nombre=...`
+  - `.../arribos/estacion/{id}?ramal=...&cantidad=6&paraApp=true`
+
+## Configuración
+Toda la configuración está en `js/app/config.js`.
 
 ## Estructura del proyecto
 Resumen rápido (detalle en `STRUCTURE.md`):

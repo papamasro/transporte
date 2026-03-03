@@ -1,5 +1,9 @@
         let isAlertsOpen = false;
 
+        function getAlertPath(pathKey, fallback) {
+            return (globalThis.APP_CONFIG?.PATHS?.[pathKey] || fallback || '').toString();
+        }
+
         async function toggleAlertPanel() {
             isAlertsOpen = !isAlertsOpen;
             const panel = document.getElementById('alerts-panel');
@@ -16,9 +20,11 @@
                 lucide.createIcons();
                 
                 try {
+                    const subteServiceAlertsPath = getAlertPath('subteServiceAlerts', '/subtes/serviceAlerts');
+                    const busServiceAlertsPath = getAlertPath('busServiceAlerts', '/colectivos/serviceAlerts');
                     const [subteRes, coleRes] = await Promise.allSettled([
-                        fetch(`${BACKEND_URL}/subtes/serviceAlerts`).then(r => r.text()),
-                        fetch(`${BACKEND_URL}/colectivos/serviceAlerts`).then(r => r.text())
+                        fetch(`${BACKEND_URL}${subteServiceAlertsPath}`).then(r => r.text()),
+                        fetch(`${BACKEND_URL}${busServiceAlertsPath}`).then(r => r.text())
                     ]);
 
                     const allAlerts = [];
@@ -31,7 +37,7 @@
 
                     renderAlertsContent(allAlerts);
                     if (typeof setStatus === 'function') setStatus('LIVE');
-                } catch (e) {
+                } catch {
                     if (typeof setStatus === 'function') setStatus('ERROR');
                     container.innerHTML = '<div class="text-[10px] text-red-500 font-bold text-center py-2">Error al cargar alertas</div>';
                 }
@@ -42,10 +48,10 @@
 
         function parseServiceAlerts(rawText, source) {
             const alerts = [];
-            const regex = /=([^=]+?)(?:\x12\x02es|\u0012\u0002es)/g;
-            let match;
-            while ((match = regex.exec(rawText)) !== null) {
-                const cleanMessage = match[1].trim();
+            const marker = `${String.fromCodePoint(0x12)}${String.fromCodePoint(0x02)}es`;
+            const chunks = String(rawText || '').split(marker);
+            for (let i = 0; i < chunks.length - 1; i += 1) {
+                const cleanMessage = (chunks[i].split('=').pop() || '').trim();
                 if (cleanMessage) alerts.push({ text: cleanMessage, source });
             }
             return alerts;

@@ -11,11 +11,19 @@ if (!globalThis.markerState) {
     };
 }
 
+function getConfiguredPath(pathKey, fallback) {
+    return (globalThis.APP_CONFIG?.PATHS?.[pathKey] || fallback || '').toString();
+}
+
 function clearBusRouteLayers() {
     layers.busRoute?.clearLayers();
     layers.busStops?.clearLayers();
     globalThis.markerState.currentBusRouteKey = '';
     globalThis.markerState.currentLineOverlayQuery = '';
+}
+
+function clearBusRouteOverlay() {
+    clearBusRouteLayers();
 }
 
 function getVehicleRouteId(vehicle) {
@@ -348,7 +356,8 @@ async function fetchRouteInfo(routeId, lineShortName, tripCandidates, direction,
         const params = buildInfoTrayectoParams(candidate, direction);
         if (requestBudget) requestBudget.remaining -= 1;
 
-        const response = await fetchAPI(`/info-trayecto?${params.toString()}`, {
+        const infoTrayectoPath = getConfiguredPath('busInfoTrayecto', '/info-trayecto');
+        const response = await fetchAPI(`${infoTrayectoPath}?${params.toString()}`, {
             retryMax: cfg.retryMax,
             retryDelayMs: cfg.retryDelayMs
         });
@@ -407,7 +416,8 @@ async function fetchLineSearchInfo(numero) {
     if (!normalizedNumero) return null;
     if (globalThis.markerState.busLineSearchCache.has(normalizedNumero)) return globalThis.markerState.busLineSearchCache.get(normalizedNumero);
 
-    const response = await fetchAPI(`/buscar-linea?numero=${encodeURIComponent(numero)}`);
+    const searchLinePath = getConfiguredPath('busSearchLine', '/buscar-linea');
+    const response = await fetchAPI(`${searchLinePath}?numero=${encodeURIComponent(numero)}`);
     if (!response.success || !response.data) return null;
 
     let normalizedData = null;

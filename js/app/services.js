@@ -12,6 +12,11 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function getAppPath(pathKey, fallback) {
+    const path = globalThis.APP_CONFIG?.PATHS?.[pathKey];
+    return (path || fallback || '').toString();
+}
+
 async function fetchAPISingleAttempt(endpoint) {
     const url = `${BACKEND_URL}${endpoint}`;
     const response = await fetch(url, {
@@ -333,7 +338,31 @@ function stationNameSimilarity(leftName, rightName) {
 
 function resolveSofseStationId(localStation) {
     const directId = toFiniteNumber(localStation?.sofseStationId);
-    return directId || null;
+    if (directId) {
+        return {
+            id: directId,
+            ramalId: toFiniteNumber(localStation?.sofseRamalId)
+        };
+    }
+
+    return null;
+}
+
+function normalizeSofseStationRef(value) {
+    const stationId = toFiniteNumber(value?.id || value?.stationId || value?.sofseStationId || value);
+    if (!stationId) return null;
+
+    const ramalId = toFiniteNumber(
+        value?.ramalId
+        || value?.idRamal
+        || value?.ramal?.id
+        || value?.ramal?.idRamal
+    );
+
+    return {
+        id: stationId,
+        ramalId: ramalId || null
+    };
 }
 
 function getStationLineHint(localStation) {
@@ -359,10 +388,10 @@ async function resolveSofseStationIdFromAPI(localStation) {
 
     const stationKey = localStation.id || localStation.stationId || stationName;
     const nameKey = canonicalStationKey(stationName);
-    const byStationKey = globalThis.cache.trainSofseResolveByStationKey?.[stationKey];
+    const byStationKey = normalizeSofseStationRef(globalThis.cache.trainSofseResolveByStationKey?.[stationKey]);
     if (byStationKey) return byStationKey;
 
-    const byName = globalThis.cache.trainSofseResolveByName?.[nameKey];
+    const byName = normalizeSofseStationRef(globalThis.cache.trainSofseResolveByName?.[nameKey]);
     if (byName) {
         globalThis.cache.trainSofseResolveByStationKey[stationKey] = byName;
         return byName;
@@ -373,13 +402,15 @@ async function resolveSofseStationIdFromAPI(localStation) {
     }
 
     globalThis.cache.trainSofseResolvePromiseByStationKey[stationKey] = (async () => {
-        const searchRes = await fetchSofseAPI('/infraestructura/estaciones', { nombre: stationName });
+        const searchPath = getAppPath('sofseStations', '/infraestructura/estaciones');
+        const searchRes = await fetchSofseAPI(searchPath, { nombre: stationName });
         if (!searchRes.success) return null;
 
         const candidates = getNestedArray(searchRes.data)
             .map(item => ({
                 ...item,
-                id: toFiniteNumber(item?.id || item?.idEstacion || item?.id_estacion)
+                id: toFiniteNumber(item?.id || item?.idEstacion || item?.id_estacion),
+                ramalId: toFiniteNumber(item?.ramal?.id || item?.idRamal || item?.id_ramal)
             }))
             .filter(item => !!item.id);
 
@@ -387,7 +418,10 @@ async function resolveSofseStationIdFromAPI(localStation) {
 
         const scored = candidates
             .map(item => ({
-                id: item.id,
+                stationRef: {
+                    id: item.id,
+                    ramalId: item.ramalId || null
+                },
                 score: scoreSofseStationCandidate(localStation, item)
             }))
             .sort((left, right) => right.score - left.score);
@@ -395,9 +429,9 @@ async function resolveSofseStationIdFromAPI(localStation) {
         const winner = scored[0];
         if (!winner || winner.score < 0.55) return null;
 
-        globalThis.cache.trainSofseResolveByStationKey[stationKey] = winner.id;
-        globalThis.cache.trainSofseResolveByName[nameKey] = winner.id;
-        return winner.id;
+        globalThis.cache.trainSofseResolveByStationKey[stationKey] = winner.stationRef;
+        globalThis.cache.trainSofseResolveByName[nameKey] = winner.stationRef;
+        return winner.stationRef;
     })();
 
     const resolvedId = await globalThis.cache.trainSofseResolvePromiseByStationKey[stationKey];
@@ -491,18 +525,21 @@ async function getTrainArrivalsForStation(stationData) {
         return { success: true, data: cacheItem.data, cached: true };
     }
 
-    let sofseStationId = resolveSofseStationId(stationData);
-    if (!sofseStationId) {
-        sofseStationId = await resolveSofseStationIdFromAPI(stationData);
+    let sofseStationRef = resolveSofseStationId(stationData);
+    if (!sofseStationRef) {
+        sofseStationRef = await resolveSofseStationIdFromAPI(stationData);
     }
 
-    if (!sofseStationId) {
+    if (!sofseStationRef?.id) {
         return { success: false, reason: 'station-not-mapped' };
     }
 
-    stationData.sofseStationId = sofseStationId;
+    stationData.sofseStationId = sofseStationRef.id;
+    stationData.sofseRamalId = sofseStationRef.ramalId || null;
 
-    const arrivalsRes = await fetchSofseAPI(`/arribos/estacion/${sofseStationId}`, {
+    const arrivalsBasePath = getAppPath('sofseArrivalsByStation', '/arribos/estacion').replace(/\/+$/, '');
+    const arrivalsRes = await fetchSofseAPI(`${arrivalsBasePath}/${sofseStationRef.id}`, {
+        ramal: sofseStationRef.ramalId,
         cantidad: 6,
         paraApp: true
     });
@@ -514,7 +551,8 @@ async function getTrainArrivalsForStation(stationData) {
     const normalized = normalizeSofseArribosPayload(arrivalsRes.data);
     const result = {
         ...normalized,
-        stationId: sofseStationId
+        stationId: sofseStationRef.id,
+        ramalId: sofseStationRef.ramalId || null
     };
 
     globalThis.cache.trainArrivalsByStation[stationKey] = {
@@ -527,7 +565,8 @@ async function getTrainArrivalsForStation(stationData) {
 
 async function refreshSubteNow() {
     if (!activeTypes.subte) return;
-    const subteRes = await fetchAPI("/subtes/forecastGTFS");
+    const subteForecastPath = getAppPath('subteForecast', '/subtes/forecastGTFS');
+    const subteRes = await fetchAPI(subteForecastPath);
     if (!subteRes.success || !subteRes.data) return false;
     globalThis.cache.subteForecast = subteRes.data?.Entity || [];
     globalThis.cache.subteTimestamp = subteRes.data?.Header?.timestamp || Math.floor(Date.now() / 1000);
@@ -537,9 +576,11 @@ async function refreshSubteNow() {
 
 async function refreshBikeNow() {
     if (!activeTypes.bike) return;
+    const bikeInfoPath = getAppPath('bikeStationInformation', '/ecobici/gbfs/stationInformation');
+    const bikeStatusPath = getAppPath('bikeStationStatus', '/ecobici/gbfs/stationStatus');
     const [bikeInfoRes, bikeStatusRes] = await Promise.all([
-        fetchAPI("/ecobici/gbfs/stationInformation"),
-        fetchAPI("/ecobici/gbfs/stationStatus")
+        fetchAPI(bikeInfoPath),
+        fetchAPI(bikeStatusPath)
     ]);
 
     if (!bikeInfoRes.success || !bikeStatusRes.success) return false;
