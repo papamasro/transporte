@@ -1,0 +1,6425 @@
+{
+  "generatedAt": "2026-03-03T02:16:25.775501+00:00",
+  "baseUrl": "https://ariedro.dev/api-trenes",
+  "seed": {
+    "query": "A",
+    "stationIds": []
+  },
+  "stats": {
+    "totalStations": 222,
+    "pending": 0,
+    "processed": 222,
+    "arribosCalls": 222,
+    "searchCalls": 1,
+    "gerenciaCalls": 0,
+    "ramalCalls": 12,
+    "ramalesSeen": 12,
+    "ramalesExpanded": 12
+  },
+  "processedOrder": [
+    368,
+    215,
+    329,
+    30,
+    238,
+    8,
+    49,
+    239,
+    165,
+    13,
+    370,
+    418,
+    39,
+    133,
+    38,
+    420,
+    328,
+    197,
+    324,
+    85,
+    102,
+    138,
+    435,
+    399,
+    235,
+    277,
+    125,
+    132,
+    309,
+    303,
+    419,
+    392,
+    217,
+    248,
+    233,
+    198,
+    222,
+    358,
+    319,
+    258,
+    356,
+    58,
+    104,
+    50,
+    140,
+    423,
+    84,
+    327,
+    169,
+    70,
+    186,
+    347,
+    300,
+    272,
+    91,
+    35,
+    236,
+    150,
+    360,
+    353,
+    249,
+    412,
+    79,
+    190,
+    90,
+    346,
+    200,
+    141,
+    119,
+    229,
+    34,
+    337,
+    212,
+    262,
+    5,
+    357,
+    32,
+    409,
+    355,
+    65,
+    525,
+    121,
+    427,
+    313,
+    422,
+    424,
+    260,
+    385,
+    181,
+    321,
+    209,
+    256,
+    178,
+    154,
+    12,
+    354,
+    203,
+    184,
+    325,
+    232,
+    259,
+    117,
+    86,
+    17,
+    146,
+    78,
+    60,
+    402,
+    129,
+    396,
+    407,
+    333,
+    8653,
+    214,
+    3,
+    18272,
+    400,
+    64,
+    265,
+    14,
+    21,
+    3700,
+    4226,
+    25,
+    179,
+    267,
+    113,
+    5976,
+    5977,
+    5978,
+    5979,
+    137,
+    257,
+    4601,
+    254,
+    432,
+    225,
+    381,
+    433,
+    218,
+    134,
+    310,
+    226,
+    163,
+    210,
+    231,
+    401,
+    247,
+    188,
+    290,
+    155,
+    297,
+    414,
+    216,
+    415,
+    348,
+    369,
+    67,
+    127,
+    177,
+    431,
+    36,
+    361,
+    194,
+    411,
+    306,
+    252,
+    51,
+    367,
+    174,
+    365,
+    201,
+    9,
+    383,
+    359,
+    182,
+    128,
+    240,
+    147,
+    253,
+    264,
+    436,
+    243,
+    61,
+    29,
+    296,
+    37,
+    263,
+    130,
+    335,
+    294,
+    55,
+    434,
+    152,
+    386,
+    151,
+    172,
+    93,
+    246,
+    293,
+    139,
+    234,
+    279,
+    269,
+    278,
+    332,
+    1,
+    318,
+    271,
+    270,
+    195,
+    237,
+    173,
+    464,
+    268,
+    106,
+    378,
+    283,
+    112,
+    463,
+    118,
+    204
+  ],
+  "stations": {
+    "1": {
+      "id": 1,
+      "name": "3 de Febrero",
+      "lat": -34.5718528,
+      "lon": -58.42516,
+      "includedRamales": [
+        7,
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        7,
+        9
+      ],
+      "neighbors": [],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "3": {
+      "id": 3,
+      "name": "Abbott",
+      "lat": -35.2814201,
+      "lon": -58.8029392,
+      "includedRamales": [
+        49,
+        181
+      ],
+      "operativeRamales": [
+        49,
+        181
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "5": {
+      "id": 5,
+      "name": "Acassuso",
+      "lat": -34.4799498,
+      "lon": -58.5040028,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "8": {
+      "id": 8,
+      "name": "Adrogué",
+      "lat": -34.7978483,
+      "lon": -58.3942737,
+      "includedRamales": [
+        17,
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        17,
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [
+        13,
+        30,
+        49,
+        93,
+        151,
+        152,
+        165,
+        172,
+        215,
+        238,
+        239,
+        329,
+        368,
+        386
+      ],
+      "seenInArribos": 24,
+      "processed": true
+    },
+    "9": {
+      "id": 9,
+      "name": "Agustín de Elía",
+      "lat": -34.7099772,
+      "lon": -58.5059186,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "12": {
+      "id": 12,
+      "name": "Aldo Bonzi",
+      "lat": -34.7107066,
+      "lon": -58.5143488,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        121,
+        184,
+        195,
+        203,
+        232,
+        259,
+        260,
+        270,
+        313,
+        325,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "13": {
+      "id": 13,
+      "name": "Alejandro Korn",
+      "lat": -34.980769,
+      "lon": -58.3737744,
+      "includedRamales": [
+        17,
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        17,
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [],
+      "seenInArribos": 24,
+      "processed": true
+    },
+    "14": {
+      "id": 14,
+      "name": "Alejandro Petión",
+      "lat": -34.9775385,
+      "lon": -58.6743571,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "17": {
+      "id": 17,
+      "name": "Altamirano",
+      "lat": -35.3611696,
+      "lon": -58.1512081,
+      "includedRamales": [
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "21": {
+      "id": 21,
+      "name": "Apeadero Kloosterman",
+      "lat": -34.986459,
+      "lon": -58.6897619,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        14,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "25": {
+      "id": 25,
+      "name": "Arquitectura",
+      "lat": -34.9050119,
+      "lon": -57.9433437,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "29": {
+      "id": 29,
+      "name": "Bancalari",
+      "lat": -34.4798228,
+      "lon": -58.6028139,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        37,
+        55,
+        79,
+        130,
+        204,
+        263,
+        294,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "30": {
+      "id": 30,
+      "name": "Banfield",
+      "lat": -34.7439703,
+      "lon": -58.3954618,
+      "includedRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        49,
+        93,
+        125,
+        132,
+        151,
+        152,
+        165,
+        172,
+        215,
+        235,
+        238,
+        239,
+        246,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "32": {
+      "id": 32,
+      "name": "Beccar",
+      "lat": -34.4608043,
+      "lon": -58.5265437,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "34": {
+      "id": 34,
+      "name": "Belgrano C",
+      "lat": -34.5584914,
+      "lon": -58.4494807,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "35": {
+      "id": 35,
+      "name": "Belgrano R",
+      "lat": -34.5678249,
+      "lon": -58.4624028,
+      "includedRamales": [
+        7,
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        7,
+        9,
+        141
+      ],
+      "neighbors": [
+        1,
+        79,
+        91,
+        150,
+        190,
+        236,
+        249,
+        271,
+        272,
+        318,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "36": {
+      "id": 36,
+      "name": "Bella Vista",
+      "lat": -34.5638352,
+      "lon": -58.6845919,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "37": {
+      "id": 37,
+      "name": "Benavídez",
+      "lat": -34.4092816,
+      "lon": -58.6845898,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        55,
+        79,
+        130,
+        204,
+        263,
+        294,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "38": {
+      "id": 38,
+      "name": "Berazategui",
+      "lat": -34.7639154,
+      "lon": -58.2088198,
+      "includedRamales": [
+        11,
+        13
+      ],
+      "operativeRamales": [
+        11,
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "39": {
+      "id": 39,
+      "name": "Bernal",
+      "lat": -34.7093395,
+      "lon": -58.2803725,
+      "includedRamales": [
+        11,
+        13
+      ],
+      "operativeRamales": [
+        11,
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "49": {
+      "id": 49,
+      "name": "Burzaco",
+      "lat": -34.8251482,
+      "lon": -58.3913722,
+      "includedRamales": [
+        17,
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        17,
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        93,
+        151,
+        152,
+        165,
+        172,
+        215,
+        238,
+        239,
+        329,
+        368,
+        386
+      ],
+      "seenInArribos": 24,
+      "processed": true
+    },
+    "50": {
+      "id": 50,
+      "name": "Caballito",
+      "lat": -34.6192442,
+      "lon": -58.4436522,
+      "includedRamales": [
+        1,
+        111
+      ],
+      "operativeRamales": [
+        1,
+        111
+      ],
+      "neighbors": [
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "51": {
+      "id": 51,
+      "name": "Dr. Cabred",
+      "lat": -34.4878244,
+      "lon": -59.075658,
+      "includedRamales": [
+        59,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        59,
+        65,
+        131
+      ],
+      "neighbors": [],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "55": {
+      "id": 55,
+      "name": "Campana",
+      "lat": -34.1567628,
+      "lon": -58.9584056,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        37,
+        79,
+        130,
+        204,
+        263,
+        294,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "58": {
+      "id": 58,
+      "name": "Canal San Fernando",
+      "lat": -34.4299116,
+      "lon": -58.5629211,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "60": {
+      "id": 60,
+      "name": "Cañuelas",
+      "lat": -35.0593556,
+      "lon": -58.7543291,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "neighbors": [],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "61": {
+      "id": 61,
+      "name": "Capilla del Señor",
+      "lat": -34.2863605,
+      "lon": -59.1024923,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "64": {
+      "id": 64,
+      "name": "Carlos Spegazzini",
+      "lat": -34.9100305,
+      "lon": -58.5944238,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "65": {
+      "id": 65,
+      "name": "Carupá",
+      "lat": -34.4381545,
+      "lon": -58.5666484,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "67": {
+      "id": 67,
+      "name": "Caseros",
+      "lat": -34.6045943,
+      "lon": -58.5647095,
+      "includedRamales": [
+        31,
+        65,
+        75,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        75,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "70": {
+      "id": 70,
+      "name": "Castelar",
+      "lat": -34.6519632,
+      "lon": -58.6419153,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1,
+        111
+      ],
+      "neighbors": [
+        50,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "78": {
+      "id": 78,
+      "name": "Chascomús",
+      "lat": -35.5790842,
+      "lon": -57.9823866,
+      "includedRamales": [
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "79": {
+      "id": 79,
+      "name": "Chilavert",
+      "lat": -34.542232,
+      "lon": -58.566917,
+      "includedRamales": [
+        9,
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        35
+      ],
+      "neighbors": [
+        1,
+        35,
+        91,
+        150,
+        190,
+        236,
+        249,
+        271,
+        272,
+        318,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 35,
+      "processed": true
+    },
+    "84": {
+      "id": 84,
+      "name": "Ciudadela",
+      "lat": -34.6399227,
+      "lon": -58.5411225,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "85": {
+      "id": 85,
+      "name": "Claypole",
+      "lat": -34.80118,
+      "lon": -58.3382367,
+      "includedRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "86": {
+      "id": 86,
+      "name": "Cnel Brandsen",
+      "lat": -35.1680647,
+      "lon": -58.2318305,
+      "includedRamales": [
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "90": {
+      "id": 90,
+      "name": "Coghlan",
+      "lat": -34.5654176,
+      "lon": -58.4749559,
+      "includedRamales": [
+        7
+      ],
+      "operativeRamales": [
+        7
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "91": {
+      "id": 91,
+      "name": "Colegiales",
+      "lat": -34.5729746,
+      "lon": -58.448253,
+      "includedRamales": [
+        7,
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        7,
+        9,
+        141
+      ],
+      "neighbors": [],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "93": {
+      "id": 93,
+      "name": "Plaza C.",
+      "lat": -34.6303512,
+      "lon": -58.3805802,
+      "includedRamales": [
+        11,
+        13,
+        15,
+        17,
+        19,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        11,
+        13,
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "102": {
+      "id": 102,
+      "name": "Dante Ardigó",
+      "lat": -34.8088901,
+      "lon": -58.3025039,
+      "includedRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "104": {
+      "id": 104,
+      "name": "Delta",
+      "lat": -34.4188877,
+      "lon": -58.5763625,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "106": {
+      "id": 106,
+      "name": "Derqui",
+      "lat": -34.4908888,
+      "lon": -58.8386488,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "112": {
+      "id": 112,
+      "name": "Devoto",
+      "lat": -34.6026704,
+      "lon": -58.5128663,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "113": {
+      "id": 113,
+      "name": "Diagonal 73",
+      "lat": -34.9201456,
+      "lon": -57.9190388,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "117": {
+      "id": 117,
+      "name": "Domselaar",
+      "lat": -35.0701752,
+      "lon": -58.2906247,
+      "includedRamales": [
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "118": {
+      "id": 118,
+      "name": "Dr. A. Schweitzer",
+      "lat": -34.4720989,
+      "lon": -58.5744514,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        128,
+        147,
+        240,
+        243,
+        253,
+        264,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "119": {
+      "id": 119,
+      "name": "Dr. Cetrángolo",
+      "lat": -34.5232688,
+      "lon": -58.4941393,
+      "includedRamales": [
+        7
+      ],
+      "operativeRamales": [
+        7
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "121": {
+      "id": 121,
+      "name": "Dr. A. Sáenz  Prov.",
+      "lat": -34.6484899,
+      "lon": -58.4189585,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "125": {
+      "id": 125,
+      "name": "El Jagüel",
+      "lat": -34.8332274,
+      "lon": -58.4961652,
+      "includedRamales": [
+        19,
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        19,
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        30,
+        93,
+        132,
+        151,
+        172,
+        215,
+        235,
+        238,
+        246,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 46,
+      "processed": true
+    },
+    "127": {
+      "id": 127,
+      "name": "El Palomar",
+      "lat": -34.604924,
+      "lon": -58.5958736,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "128": {
+      "id": 128,
+      "name": "El Talar",
+      "lat": -34.4627922,
+      "lon": -58.6460044,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        147,
+        240,
+        243,
+        253,
+        264,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "129": {
+      "id": 129,
+      "name": "Empalme Lobos",
+      "lat": -35.1515057,
+      "lon": -59.0908028,
+      "includedRamales": [
+        53,
+        55,
+        601
+      ],
+      "operativeRamales": [
+        53,
+        55,
+        601
+      ],
+      "neighbors": [],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "130": {
+      "id": 130,
+      "name": "Escobar",
+      "lat": -34.3496547,
+      "lon": -58.7950265,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        37,
+        55,
+        79,
+        204,
+        263,
+        294,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "132": {
+      "id": 132,
+      "name": "Ezeiza",
+      "lat": -34.8540842,
+      "lon": -58.5228154,
+      "includedRamales": [
+        19,
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        19,
+        37,
+        43,
+        49,
+        181,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 46,
+      "processed": true
+    },
+    "133": {
+      "id": 133,
+      "name": "Ezpeleta",
+      "lat": -34.7518509,
+      "lon": -58.2341863,
+      "includedRamales": [
+        11,
+        13
+      ],
+      "operativeRamales": [
+        11,
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "134": {
+      "id": 134,
+      "name": "Fco. Álvarez",
+      "lat": -34.6322048,
+      "lon": -58.8553185,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [
+        155,
+        163,
+        188,
+        210,
+        218,
+        226,
+        231,
+        247,
+        268,
+        278,
+        290,
+        310,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "137": {
+      "id": 137,
+      "name": "A. Ferrari",
+      "lat": -34.706078,
+      "lon": -58.7794327,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        173,
+        225,
+        237,
+        254,
+        257,
+        269,
+        381,
+        432,
+        433,
+        464,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "138": {
+      "id": 138,
+      "name": "Florencio Varela",
+      "lat": -34.8111227,
+      "lon": -58.2742679,
+      "includedRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "139": {
+      "id": 139,
+      "name": "Flores",
+      "lat": -34.6277298,
+      "lon": -58.4657649,
+      "includedRamales": [
+        1,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "140": {
+      "id": 140,
+      "name": "Floresta",
+      "lat": -34.6323755,
+      "lon": -58.4808913,
+      "includedRamales": [
+        1,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "141": {
+      "id": 141,
+      "name": "Florida",
+      "lat": -34.5304745,
+      "lon": -58.4944563,
+      "includedRamales": [
+        7
+      ],
+      "operativeRamales": [
+        7
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "146": {
+      "id": 146,
+      "name": "Gándara",
+      "lat": -35.4494698,
+      "lon": -58.0939374,
+      "includedRamales": [
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "147": {
+      "id": 147,
+      "name": "Garín",
+      "lat": -34.421623,
+      "lon": -58.7365407,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        128,
+        240,
+        243,
+        253,
+        264,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "150": {
+      "id": 150,
+      "name": "General Urquiza",
+      "lat": -34.574712,
+      "lon": -58.4878391,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        141
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        190,
+        236,
+        249,
+        271,
+        272,
+        318,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "151": {
+      "id": 151,
+      "name": "Gerli",
+      "lat": -34.6857287,
+      "lon": -58.3826371,
+      "includedRamales": [
+        15,
+        17,
+        19,
+        27,
+        37,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        125,
+        132,
+        152,
+        165,
+        172,
+        215,
+        235,
+        238,
+        239,
+        246,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "152": {
+      "id": 152,
+      "name": "Glew",
+      "lat": -34.8886501,
+      "lon": -58.3837029,
+      "includedRamales": [
+        17,
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        17,
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        151,
+        165,
+        172,
+        215,
+        238,
+        239,
+        329,
+        368,
+        386
+      ],
+      "seenInArribos": 24,
+      "processed": true
+    },
+    "154": {
+      "id": 154,
+      "name": "González Catán",
+      "lat": -34.7717022,
+      "lon": -58.6468732,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 2,
+      "processed": true
+    },
+    "155": {
+      "id": 155,
+      "name": "Gowland",
+      "lat": -34.6478196,
+      "lon": -59.352839,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "163": {
+      "id": 163,
+      "name": "Gral. Rodríguez",
+      "lat": -34.6087241,
+      "lon": -58.9535544,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [
+        134,
+        155,
+        188,
+        210,
+        218,
+        226,
+        231,
+        247,
+        268,
+        278,
+        290,
+        310,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "165": {
+      "id": 165,
+      "name": "Guernica",
+      "lat": -34.9179155,
+      "lon": -58.3805605,
+      "includedRamales": [
+        17,
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        17,
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        151,
+        152,
+        172,
+        215,
+        238,
+        239,
+        329,
+        368,
+        386
+      ],
+      "seenInArribos": 24,
+      "processed": true
+    },
+    "169": {
+      "id": 169,
+      "name": "Haedo",
+      "lat": -34.6449656,
+      "lon": -58.5922159,
+      "includedRamales": [
+        1,
+        27,
+        51,
+        53,
+        75,
+        111,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        1,
+        27,
+        75,
+        111,
+        607,
+        609
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "172": {
+      "id": 172,
+      "name": "H. Yrigoyen",
+      "lat": -34.6536422,
+      "lon": -58.3788878,
+      "includedRamales": [
+        11,
+        13,
+        15,
+        17,
+        19,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "173": {
+      "id": 173,
+      "name": "Hornos",
+      "lat": -34.8923029,
+      "lon": -58.917861,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        225,
+        237,
+        254,
+        257,
+        269,
+        381,
+        432,
+        433,
+        464,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "174": {
+      "id": 174,
+      "name": "Hospital Español",
+      "lat": -34.7862792,
+      "lon": -58.4072878,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "177": {
+      "id": 177,
+      "name": "Hurlingham",
+      "lat": -34.5911517,
+      "lon": -58.6322349,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "178": {
+      "id": 178,
+      "name": "Independencia",
+      "lat": -34.7609176,
+      "lon": -58.6177546,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 2,
+      "processed": true
+    },
+    "179": {
+      "id": 179,
+      "name": "Informática",
+      "lat": -34.9032506,
+      "lon": -57.9380775,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "181": {
+      "id": 181,
+      "name": "Dr. Ing. Castello",
+      "lat": -34.7102867,
+      "lon": -58.5060412,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 2,
+      "processed": true
+    },
+    "182": {
+      "id": 182,
+      "name": "Ingeniero S. Brian",
+      "lat": -34.6580457,
+      "lon": -58.5730377,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "184": {
+      "id": 184,
+      "name": "Isidro Casanova",
+      "lat": -34.7045467,
+      "lon": -58.5873422,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        195,
+        203,
+        232,
+        259,
+        260,
+        270,
+        313,
+        325,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "186": {
+      "id": 186,
+      "name": "Ituzaingó",
+      "lat": -34.6595863,
+      "lon": -58.6661833,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "188": {
+      "id": 188,
+      "name": "Jáuregui",
+      "lat": -34.6006948,
+      "lon": -59.1736895,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "190": {
+      "id": 190,
+      "name": "J.L. Suárez",
+      "lat": -34.5347444,
+      "lon": -58.5759721,
+      "includedRamales": [
+        9
+      ],
+      "operativeRamales": [
+        9
+      ],
+      "neighbors": [],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "194": {
+      "id": 194,
+      "name": "José C. Paz",
+      "lat": -34.5190115,
+      "lon": -58.7504431,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "195": {
+      "id": 195,
+      "name": "José Ingenieros",
+      "lat": -34.710762,
+      "lon": -58.537256,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        184,
+        203,
+        232,
+        259,
+        260,
+        270,
+        313,
+        325,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "197": {
+      "id": 197,
+      "name": "José Mármol",
+      "lat": -34.7919121,
+      "lon": -58.3811522,
+      "includedRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "198": {
+      "id": 198,
+      "name": "Juan Anchorena",
+      "lat": -34.4891115,
+      "lon": -58.4812172,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "200": {
+      "id": 200,
+      "name": "Juan B. Justo",
+      "lat": -34.5425501,
+      "lon": -58.494657,
+      "includedRamales": [
+        7
+      ],
+      "operativeRamales": [
+        7
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "201": {
+      "id": 201,
+      "name": "Juan XXIII",
+      "lat": -34.7713636,
+      "lon": -58.4441098,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "203": {
+      "id": 203,
+      "name": "Justo Villegas",
+      "lat": -34.708965,
+      "lon": -58.5519393,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        184,
+        195,
+        232,
+        259,
+        260,
+        270,
+        313,
+        325,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "204": {
+      "id": 204,
+      "name": "Kilómetro 83",
+      "lat": -34.1602209,
+      "lon": -58.977169,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35
+      ],
+      "neighbors": [
+        29,
+        37,
+        55,
+        79,
+        130,
+        263,
+        294,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "209": {
+      "id": 209,
+      "name": "Laferrere",
+      "lat": -34.7507523,
+      "lon": -58.5844338,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 2,
+      "processed": true
+    },
+    "210": {
+      "id": 210,
+      "name": "La Fraternidad",
+      "lat": -34.5984984,
+      "lon": -58.9974242,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51
+      ],
+      "neighbors": [
+        134,
+        155,
+        163,
+        188,
+        218,
+        226,
+        231,
+        247,
+        268,
+        278,
+        290,
+        310,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "212": {
+      "id": 212,
+      "name": "La Lucila",
+      "lat": -34.4974813,
+      "lon": -58.4886129,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "214": {
+      "id": 214,
+      "name": "La Noria",
+      "lat": -35.1651382,
+      "lon": -58.7881853,
+      "includedRamales": [
+        49,
+        181
+      ],
+      "operativeRamales": [
+        49,
+        181
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "215": {
+      "id": 215,
+      "name": "Lanús",
+      "lat": -34.7074543,
+      "lon": -58.390637,
+      "includedRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        125,
+        132,
+        151,
+        152,
+        165,
+        172,
+        235,
+        238,
+        239,
+        246,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "216": {
+      "id": 216,
+      "name": "La Paternal",
+      "lat": -34.5969831,
+      "lon": -58.467118,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "217": {
+      "id": 217,
+      "name": "La Plata",
+      "lat": -34.9032966,
+      "lon": -57.9509918,
+      "includedRamales": [
+        11,
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        11,
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "218": {
+      "id": 218,
+      "name": "La Reja",
+      "lat": -34.6399483,
+      "lon": -58.8276318,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51
+      ],
+      "neighbors": [
+        134,
+        155,
+        163,
+        188,
+        210,
+        226,
+        231,
+        247,
+        268,
+        278,
+        290,
+        310,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "222": {
+      "id": 222,
+      "name": "Las Barrancas",
+      "lat": -34.4723359,
+      "lon": -58.4930118,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "225": {
+      "id": 225,
+      "name": "Las Heras",
+      "lat": -34.9280932,
+      "lon": -58.9445443,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        173,
+        237,
+        254,
+        257,
+        269,
+        381,
+        432,
+        433,
+        464,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "226": {
+      "id": 226,
+      "name": "Las Malvinas",
+      "lat": -34.616121,
+      "lon": -58.9218744,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51
+      ],
+      "neighbors": [
+        134,
+        155,
+        163,
+        188,
+        210,
+        218,
+        231,
+        247,
+        268,
+        278,
+        290,
+        310,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "229": {
+      "id": 229,
+      "name": "Lisandro de la Torre",
+      "lat": -34.5625299,
+      "lon": -58.4367116,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "231": {
+      "id": 231,
+      "name": "Lezica y Torrezuri",
+      "lat": -34.5847033,
+      "lon": -59.056365,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51
+      ],
+      "neighbors": [
+        134,
+        155,
+        163,
+        188,
+        210,
+        218,
+        226,
+        247,
+        268,
+        278,
+        290,
+        310,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "232": {
+      "id": 232,
+      "name": "Libertad",
+      "lat": -34.692147,
+      "lon": -58.686403,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        184,
+        195,
+        203,
+        259,
+        260,
+        270,
+        313,
+        325,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "233": {
+      "id": 233,
+      "name": "Libertador",
+      "lat": -34.5027276,
+      "lon": -58.4821262,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "234": {
+      "id": 234,
+      "name": "Liniers",
+      "lat": -34.6387919,
+      "lon": -58.5252548,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1,
+        111
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "235": {
+      "id": 235,
+      "name": "Llavallol",
+      "lat": -34.7971317,
+      "lon": -58.4300258,
+      "includedRamales": [
+        19,
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        19,
+        37,
+        43,
+        49,
+        181,
+        601
+      ],
+      "neighbors": [
+        30,
+        93,
+        125,
+        132,
+        151,
+        172,
+        215,
+        238,
+        246,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 46,
+      "processed": true
+    },
+    "236": {
+      "id": 236,
+      "name": "L.M.Drago",
+      "lat": -34.5684173,
+      "lon": -58.4789912,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        141
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        249,
+        271,
+        272,
+        318,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "237": {
+      "id": 237,
+      "name": "Lobos",
+      "lat": -35.1848403,
+      "lon": -59.0927904,
+      "includedRamales": [
+        53,
+        55,
+        601
+      ],
+      "operativeRamales": [
+        53,
+        55,
+        601
+      ],
+      "neighbors": [],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "238": {
+      "id": 238,
+      "name": "Lomas de Zamora",
+      "lat": -34.7612113,
+      "lon": -58.3973326,
+      "includedRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        125,
+        132,
+        151,
+        152,
+        165,
+        172,
+        215,
+        235,
+        239,
+        246,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "239": {
+      "id": 239,
+      "name": "Longchamps",
+      "lat": -34.8595879,
+      "lon": -58.3871987,
+      "includedRamales": [
+        17,
+        57,
+        76,
+        101,
+        103,
+        105,
+        605
+      ],
+      "operativeRamales": [
+        17,
+        57,
+        101,
+        103,
+        605
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        151,
+        152,
+        165,
+        172,
+        215,
+        238,
+        329,
+        368,
+        386
+      ],
+      "seenInArribos": 24,
+      "processed": true
+    },
+    "240": {
+      "id": 240,
+      "name": "López Camelo",
+      "lat": -34.4468958,
+      "lon": -58.6773897,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        128,
+        147,
+        243,
+        253,
+        264,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "243": {
+      "id": 243,
+      "name": "Los Cardales",
+      "lat": -34.3309008,
+      "lon": -58.9874005,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        128,
+        147,
+        240,
+        253,
+        264,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "246": {
+      "id": 246,
+      "name": "L. Guillón",
+      "lat": -34.8032178,
+      "lon": -58.4485504,
+      "includedRamales": [
+        19,
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        19,
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        30,
+        93,
+        125,
+        132,
+        151,
+        172,
+        215,
+        235,
+        238,
+        277,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 46,
+      "processed": true
+    },
+    "247": {
+      "id": 247,
+      "name": "Luján",
+      "lat": -34.5777553,
+      "lon": -59.1052941,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "248": {
+      "id": 248,
+      "name": "Maipú",
+      "lat": -34.5136639,
+      "lon": -58.4881058,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "249": {
+      "id": 249,
+      "name": "Malaver",
+      "lat": -34.5573725,
+      "lon": -58.5479328,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        141
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        236,
+        271,
+        272,
+        318,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "252": {
+      "id": 252,
+      "name": "Manzanares",
+      "lat": -34.4522459,
+      "lon": -59.0067549,
+      "includedRamales": [
+        59,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        59,
+        65,
+        131
+      ],
+      "neighbors": [],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "253": {
+      "id": 253,
+      "name": "Maq. Savio",
+      "lat": -34.4069132,
+      "lon": -58.771933,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        128,
+        147,
+        240,
+        243,
+        264,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "254": {
+      "id": 254,
+      "name": "Marcos Paz",
+      "lat": -34.7832092,
+      "lon": -58.8366592,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        173,
+        225,
+        237,
+        257,
+        269,
+        381,
+        432,
+        433,
+        464,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "256": {
+      "id": 256,
+      "name": "María Eva Duarte",
+      "lat": -34.7561325,
+      "lon": -58.6008057,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 2,
+      "processed": true
+    },
+    "257": {
+      "id": 257,
+      "name": "Mariano Acosta",
+      "lat": -34.7244791,
+      "lon": -58.7930682,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        173,
+        225,
+        237,
+        254,
+        269,
+        381,
+        432,
+        433,
+        464,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "258": {
+      "id": 258,
+      "name": "Marina Nueva",
+      "lat": -34.4445522,
+      "lon": -58.5390515,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "259": {
+      "id": 259,
+      "name": "Marinos C. G Belgrano",
+      "lat": -34.7089204,
+      "lon": -58.7312927,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        63
+      ],
+      "neighbors": [],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "260": {
+      "id": 260,
+      "name": "Marinos del Fournier",
+      "lat": -34.6901777,
+      "lon": -58.5076299,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "262": {
+      "id": 262,
+      "name": "Martínez",
+      "lat": -34.4881444,
+      "lon": -58.4970405,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "263": {
+      "id": 263,
+      "name": "Ing. Maschwitz",
+      "lat": -34.3830219,
+      "lon": -58.7362697,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        37,
+        55,
+        79,
+        130,
+        204,
+        294,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "264": {
+      "id": 264,
+      "name": "Matheu",
+      "lat": -34.3828607,
+      "lon": -58.8296505,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        128,
+        147,
+        240,
+        243,
+        253,
+        409,
+        436
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "265": {
+      "id": 265,
+      "name": "Máximo Paz",
+      "lat": -34.9362878,
+      "lon": -58.6205451,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "267": {
+      "id": 267,
+      "name": "Medicina",
+      "lat": -34.9090514,
+      "lon": -57.9278447,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "268": {
+      "id": 268,
+      "name": "Mercedes",
+      "lat": -34.657799,
+      "lon": -59.432222,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "269": {
+      "id": 269,
+      "name": "Merlo",
+      "lat": -34.6644017,
+      "lon": -58.7281142,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1,
+        53,
+        111
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 59,
+      "processed": true
+    },
+    "270": {
+      "id": 270,
+      "name": "Merlo Gómez",
+      "lat": -34.697041,
+      "lon": -58.647345,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        184,
+        195,
+        203,
+        232,
+        259,
+        260,
+        313,
+        325,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "271": {
+      "id": 271,
+      "name": "Miguelete",
+      "lat": -34.5811313,
+      "lon": -58.5166476,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        236,
+        249,
+        272,
+        318,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "272": {
+      "id": 272,
+      "name": "Ministro Carranza",
+      "lat": -34.5754325,
+      "lon": -58.4343684,
+      "includedRamales": [
+        7,
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        7,
+        9,
+        141
+      ],
+      "neighbors": [],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "277": {
+      "id": 277,
+      "name": "Monte Grande",
+      "lat": -34.8144339,
+      "lon": -58.4696989,
+      "includedRamales": [
+        19,
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        19,
+        37,
+        43,
+        49,
+        601
+      ],
+      "neighbors": [
+        30,
+        93,
+        125,
+        132,
+        151,
+        172,
+        215,
+        235,
+        238,
+        246,
+        329,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 46,
+      "processed": true
+    },
+    "278": {
+      "id": 278,
+      "name": "Moreno",
+      "lat": -34.6503755,
+      "lon": -58.7902146,
+      "includedRamales": [
+        1,
+        51,
+        111
+      ],
+      "operativeRamales": [
+        1,
+        51,
+        111
+      ],
+      "neighbors": [],
+      "seenInArribos": 57,
+      "processed": true
+    },
+    "279": {
+      "id": 279,
+      "name": "Morón",
+      "lat": -34.6482256,
+      "lon": -58.6195948,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        293,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "283": {
+      "id": 283,
+      "name": "Muñiz",
+      "lat": -34.5512323,
+      "lon": -58.7034606,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "290": {
+      "id": 290,
+      "name": "Olivera",
+      "lat": -34.6279272,
+      "lon": -59.2553985,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51,
+        111
+      ],
+      "neighbors": [],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "293": {
+      "id": 293,
+      "name": "Once",
+      "lat": -34.6085914,
+      "lon": -58.407559,
+      "includedRamales": [
+        1,
+        111
+      ],
+      "operativeRamales": [
+        1,
+        111
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        300,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "294": {
+      "id": 294,
+      "name": "Otamendi",
+      "lat": -34.2222066,
+      "lon": -58.8965515,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        37,
+        55,
+        79,
+        130,
+        204,
+        263,
+        296,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "296": {
+      "id": 296,
+      "name": "Gral. Pacheco",
+      "lat": -34.4558335,
+      "lon": -58.6201168,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        37,
+        55,
+        79,
+        130,
+        204,
+        263,
+        294,
+        335,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "297": {
+      "id": 297,
+      "name": "Palermo",
+      "lat": -34.5789111,
+      "lon": -58.426813,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "300": {
+      "id": 300,
+      "name": "Paso del Rey",
+      "lat": -34.6582078,
+      "lon": -58.7621474,
+      "includedRamales": [
+        1,
+        51,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        327,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "303": {
+      "id": 303,
+      "name": "Pereyra",
+      "lat": -34.8366304,
+      "lon": -58.0945403,
+      "includedRamales": [
+        11
+      ],
+      "operativeRamales": [
+        11
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "306": {
+      "id": 306,
+      "name": "Pilar",
+      "lat": -34.4686135,
+      "lon": -58.9083124,
+      "includedRamales": [
+        31,
+        59,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        59,
+        65,
+        131
+      ],
+      "neighbors": [],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "309": {
+      "id": 309,
+      "name": "Plátanos",
+      "lat": -34.7823359,
+      "lon": -58.1707596,
+      "includedRamales": [
+        11
+      ],
+      "operativeRamales": [
+        11
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "310": {
+      "id": 310,
+      "name": "Ing. PP. Marín",
+      "lat": -34.6227343,
+      "lon": -58.893542,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51
+      ],
+      "neighbors": [
+        134,
+        155,
+        163,
+        188,
+        210,
+        218,
+        226,
+        231,
+        247,
+        268,
+        278,
+        290,
+        401
+      ],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "313": {
+      "id": 313,
+      "name": "Pte. Arturo Illia",
+      "lat": -34.6656436,
+      "lon": -58.4490599,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [
+        121,
+        154,
+        178,
+        181,
+        209,
+        256,
+        260,
+        321,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "318": {
+      "id": 318,
+      "name": "Pueyrredón",
+      "lat": -34.5804962,
+      "lon": -58.501898,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        141
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        236,
+        249,
+        271,
+        272,
+        332,
+        353,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "319": {
+      "id": 319,
+      "name": "Punta Chica",
+      "lat": -34.4506585,
+      "lon": -58.5236988,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "321": {
+      "id": 321,
+      "name": "Querandí",
+      "lat": -34.7224666,
+      "lon": -58.5309116,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 2,
+      "processed": true
+    },
+    "324": {
+      "id": 324,
+      "name": "Rafael Calzada",
+      "lat": -34.7966735,
+      "lon": -58.3591724,
+      "includedRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "325": {
+      "id": 325,
+      "name": "Rafael Castillo",
+      "lat": -34.6996678,
+      "lon": -58.6264089,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        184,
+        195,
+        203,
+        232,
+        259,
+        260,
+        270,
+        313,
+        354,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "327": {
+      "id": 327,
+      "name": "Ramos Mejía",
+      "lat": -34.6404544,
+      "lon": -58.5643758,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        347,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "328": {
+      "id": 328,
+      "name": "Ranelagh",
+      "lat": -34.7893721,
+      "lon": -58.2031929,
+      "includedRamales": [
+        13
+      ],
+      "operativeRamales": [
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "329": {
+      "id": 329,
+      "name": "Remedios de Escalada",
+      "lat": -34.7269127,
+      "lon": -58.3936412,
+      "includedRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        57,
+        101,
+        103,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        125,
+        132,
+        151,
+        152,
+        165,
+        172,
+        215,
+        235,
+        238,
+        239,
+        246,
+        277,
+        368,
+        386,
+        399
+      ],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "332": {
+      "id": 332,
+      "name": "Retiro (LGM)",
+      "lat": -34.5909122,
+      "lon": -58.3750538,
+      "includedRamales": [
+        5,
+        7,
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        5,
+        7,
+        9,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "333": {
+      "id": 333,
+      "name": "Ricardo Levene",
+      "lat": -35.0217509,
+      "lon": -58.7239218,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        49,
+        181,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "335": {
+      "id": 335,
+      "name": "Río Luján",
+      "lat": -34.2780361,
+      "lon": -58.8903187,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        29,
+        37,
+        55,
+        79,
+        130,
+        204,
+        263,
+        294,
+        296,
+        412,
+        434
+      ],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "337": {
+      "id": 337,
+      "name": "Rivadavia",
+      "lat": -34.5365204,
+      "lon": -58.4680326,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "346": {
+      "id": 346,
+      "name": "Saavedra",
+      "lat": -34.5545422,
+      "lon": -58.4867373,
+      "includedRamales": [
+        7
+      ],
+      "operativeRamales": [
+        7
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "347": {
+      "id": 347,
+      "name": "S.A. de Padua",
+      "lat": -34.6655136,
+      "lon": -58.6986426,
+      "includedRamales": [
+        1,
+        51,
+        53,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        423
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "348": {
+      "id": 348,
+      "name": "Saenz Peña",
+      "lat": -34.6031708,
+      "lon": -58.5278989,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "353": {
+      "id": 353,
+      "name": "San Andrés",
+      "lat": -34.5637151,
+      "lon": -58.540541,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        141
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        236,
+        249,
+        271,
+        272,
+        318,
+        332,
+        360,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "354": {
+      "id": 354,
+      "name": "Sánchez de Mendeville",
+      "lat": -34.7123564,
+      "lon": -58.5247424,
+      "includedRamales": [
+        21,
+        23,
+        63
+      ],
+      "operativeRamales": [
+        21,
+        23,
+        63
+      ],
+      "neighbors": [
+        12,
+        121,
+        184,
+        195,
+        203,
+        232,
+        259,
+        260,
+        270,
+        313,
+        325,
+        385,
+        422,
+        424,
+        427,
+        525
+      ],
+      "seenInArribos": 11,
+      "processed": true
+    },
+    "355": {
+      "id": 355,
+      "name": "San Fernando C",
+      "lat": -34.4440924,
+      "lon": -58.5590584,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "356": {
+      "id": 356,
+      "name": "San Fernando R",
+      "lat": -34.4375367,
+      "lon": -58.553991,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "357": {
+      "id": 357,
+      "name": "San Isidro C",
+      "lat": -34.4717862,
+      "lon": -58.5137942,
+      "includedRamales": [
+        5
+      ],
+      "operativeRamales": [
+        5
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "358": {
+      "id": 358,
+      "name": "San Isidro R",
+      "lat": -34.4654466,
+      "lon": -58.5081309,
+      "includedRamales": [
+        41
+      ],
+      "operativeRamales": [
+        41
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "359": {
+      "id": 359,
+      "name": "San Justo",
+      "lat": -34.6738305,
+      "lon": -58.5558413,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "360": {
+      "id": 360,
+      "name": "San Martín",
+      "lat": -34.5739248,
+      "lon": -58.531334,
+      "includedRamales": [
+        9,
+        141,
+        151,
+        171,
+        505
+      ],
+      "operativeRamales": [
+        9,
+        141,
+        505
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        236,
+        249,
+        271,
+        272,
+        318,
+        332,
+        353,
+        412
+      ],
+      "seenInArribos": 21,
+      "processed": true
+    },
+    "361": {
+      "id": 361,
+      "name": "San Miguel",
+      "lat": -34.5441372,
+      "lon": -58.7132686,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        369,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "365": {
+      "id": 365,
+      "name": "Santa Catalina",
+      "lat": -34.7804203,
+      "lon": -58.4373374,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "367": {
+      "id": 367,
+      "name": "Santa Sofía",
+      "lat": -34.8250759,
+      "lon": -58.2132521,
+      "includedRamales": [
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "368": {
+      "id": 368,
+      "name": "Santillán y Kosteki",
+      "lat": -34.6620947,
+      "lon": -58.3766492,
+      "includedRamales": [
+        11,
+        13,
+        15,
+        17,
+        19,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        11,
+        13,
+        15,
+        17,
+        19,
+        43,
+        101,
+        103,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        125,
+        132,
+        151,
+        152,
+        165,
+        172,
+        215,
+        235,
+        238,
+        239,
+        246,
+        277,
+        329,
+        386,
+        399
+      ],
+      "seenInArribos": 52,
+      "processed": true
+    },
+    "369": {
+      "id": 369,
+      "name": "Santos Lugares",
+      "lat": -34.6036828,
+      "lon": -58.5409703,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        378,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "370": {
+      "id": 370,
+      "name": "Sarandí",
+      "lat": -34.6787475,
+      "lon": -58.3449626,
+      "includedRamales": [
+        11,
+        13
+      ],
+      "operativeRamales": [
+        11,
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "378": {
+      "id": 378,
+      "name": "Sol y Verde",
+      "lat": -34.5043148,
+      "lon": -58.7965871,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        411,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "381": {
+      "id": 381,
+      "name": "Speratti",
+      "lat": -35.0021051,
+      "lon": -58.9998545,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "383": {
+      "id": 383,
+      "name": "Tablada",
+      "lat": -34.6930707,
+      "lon": -58.5280209,
+      "includedRamales": [
+        27,
+        607,
+        609
+      ],
+      "operativeRamales": [
+        27,
+        607,
+        609
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "385": {
+      "id": 385,
+      "name": "Tapiales",
+      "lat": -34.7024078,
+      "lon": -58.5116991,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "386": {
+      "id": 386,
+      "name": "Temperley",
+      "lat": -34.7772101,
+      "lon": -58.395885,
+      "includedRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        49,
+        55,
+        57,
+        101,
+        103,
+        105,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "operativeRamales": [
+        15,
+        17,
+        19,
+        27,
+        29,
+        37,
+        43,
+        49,
+        57,
+        101,
+        103,
+        181,
+        601,
+        603,
+        605,
+        609
+      ],
+      "neighbors": [
+        8,
+        13,
+        30,
+        49,
+        93,
+        125,
+        132,
+        151,
+        152,
+        165,
+        172,
+        215,
+        235,
+        238,
+        239,
+        246,
+        277,
+        329,
+        368,
+        399
+      ],
+      "seenInArribos": 70,
+      "processed": true
+    },
+    "392": {
+      "id": 392,
+      "name": "Tolosa",
+      "lat": -34.8909547,
+      "lon": -57.9680983,
+      "includedRamales": [
+        11,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        11,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "396": {
+      "id": 396,
+      "name": "Tristán Suárez",
+      "lat": -34.8905761,
+      "lon": -58.5694728,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        49,
+        181,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        399,
+        400,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "399": {
+      "id": 399,
+      "name": "Turdera",
+      "lat": -34.7950754,
+      "lon": -58.4080951,
+      "includedRamales": [
+        19,
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        19,
+        37,
+        43,
+        49,
+        601
+      ],
+      "neighbors": [
+        30,
+        93,
+        125,
+        132,
+        151,
+        172,
+        215,
+        235,
+        238,
+        246,
+        277,
+        329,
+        368,
+        386
+      ],
+      "seenInArribos": 46,
+      "processed": true
+    },
+    "400": {
+      "id": 400,
+      "name": "Unión Ferroviaria",
+      "lat": -34.8702432,
+      "lon": -58.5434227,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        407,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "401": {
+      "id": 401,
+      "name": "Univ. Luján",
+      "lat": -34.5774739,
+      "lon": -59.0871981,
+      "includedRamales": [
+        51,
+        111
+      ],
+      "operativeRamales": [
+        51
+      ],
+      "neighbors": [],
+      "seenInArribos": 7,
+      "processed": true
+    },
+    "402": {
+      "id": 402,
+      "name": "Uribelarrea",
+      "lat": -35.1154841,
+      "lon": -58.8984676,
+      "includedRamales": [
+        55,
+        601
+      ],
+      "operativeRamales": [
+        55,
+        601
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "407": {
+      "id": 407,
+      "name": "Vicente Casares",
+      "lat": -34.9622855,
+      "lon": -58.6480259,
+      "includedRamales": [
+        37,
+        43,
+        49,
+        55,
+        181,
+        601
+      ],
+      "operativeRamales": [
+        37,
+        43,
+        49,
+        181,
+        601
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        8653,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "409": {
+      "id": 409,
+      "name": "Victoria",
+      "lat": -34.4564919,
+      "lon": -58.5404899,
+      "includedRamales": [
+        5,
+        33
+      ],
+      "operativeRamales": [
+        5,
+        33
+      ],
+      "neighbors": [],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "411": {
+      "id": 411,
+      "name": "Villa Astolfi",
+      "lat": -34.4786178,
+      "lon": -58.8770376,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        414,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "412": {
+      "id": 412,
+      "name": "Villa Ballester",
+      "lat": -34.5510362,
+      "lon": -58.5559827,
+      "includedRamales": [
+        9,
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        9,
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [
+        1,
+        35,
+        79,
+        91,
+        150,
+        190,
+        236,
+        249,
+        271,
+        272,
+        318,
+        332,
+        353,
+        360
+      ],
+      "seenInArribos": 35,
+      "processed": true
+    },
+    "414": {
+      "id": 414,
+      "name": "Villa Crespo",
+      "lat": -34.5934824,
+      "lon": -58.4485515,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        415,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "415": {
+      "id": 415,
+      "name": "Villa del Parque",
+      "lat": -34.6013699,
+      "lon": -58.4935315,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        431,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "418": {
+      "id": 418,
+      "name": "Villa Domínico",
+      "lat": -34.6915355,
+      "lon": -58.3253499,
+      "includedRamales": [
+        11,
+        13
+      ],
+      "operativeRamales": [
+        11,
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "419": {
+      "id": 419,
+      "name": "Villa Elisa",
+      "lat": -34.8497716,
+      "lon": -58.0748099,
+      "includedRamales": [
+        11,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        11,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "420": {
+      "id": 420,
+      "name": "Villa España",
+      "lat": -34.7744501,
+      "lon": -58.1949303,
+      "includedRamales": [
+        13
+      ],
+      "operativeRamales": [
+        13
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "422": {
+      "id": 422,
+      "name": "Villa Lugano",
+      "lat": -34.6772759,
+      "lon": -58.4770979,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "423": {
+      "id": 423,
+      "name": "Villa Luro",
+      "lat": -34.6361011,
+      "lon": -58.5010544,
+      "includedRamales": [
+        1,
+        51,
+        111
+      ],
+      "operativeRamales": [
+        1
+      ],
+      "neighbors": [
+        50,
+        70,
+        84,
+        139,
+        140,
+        169,
+        186,
+        234,
+        269,
+        278,
+        279,
+        293,
+        300,
+        327,
+        347
+      ],
+      "seenInArribos": 50,
+      "processed": true
+    },
+    "424": {
+      "id": 424,
+      "name": "Villa Madero",
+      "lat": -34.6840433,
+      "lon": -58.4923276,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "427": {
+      "id": 427,
+      "name": "Villa Soldati",
+      "lat": -34.6622828,
+      "lon": -58.4410917,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [
+        121,
+        154,
+        178,
+        181,
+        209,
+        256,
+        260,
+        313,
+        321,
+        385,
+        422,
+        424,
+        525
+      ],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "431": {
+      "id": 431,
+      "name": "William Morris",
+      "lat": -34.5785609,
+      "lon": -58.6563955,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65
+      ],
+      "neighbors": [
+        36,
+        51,
+        67,
+        106,
+        112,
+        127,
+        177,
+        194,
+        216,
+        252,
+        283,
+        297,
+        306,
+        348,
+        361,
+        369,
+        378,
+        411,
+        414,
+        415,
+        463
+      ],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "432": {
+      "id": 432,
+      "name": "Zamudio",
+      "lat": -34.8578991,
+      "lon": -58.8921946,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        173,
+        225,
+        237,
+        254,
+        257,
+        269,
+        381,
+        433,
+        464,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "433": {
+      "id": 433,
+      "name": "Zapiola",
+      "lat": -35.0583029,
+      "lon": -59.0418857,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "434": {
+      "id": 434,
+      "name": "Zárate",
+      "lat": -34.0979051,
+      "lon": -59.0378286,
+      "includedRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "operativeRamales": [
+        35,
+        141,
+        151,
+        171
+      ],
+      "neighbors": [],
+      "seenInArribos": 14,
+      "processed": true
+    },
+    "435": {
+      "id": 435,
+      "name": "Zeballos",
+      "lat": -34.8110162,
+      "lon": -58.2566214,
+      "includedRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        15,
+        29,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "436": {
+      "id": 436,
+      "name": "Zelaya",
+      "lat": -34.3701878,
+      "lon": -58.8691562,
+      "includedRamales": [
+        33
+      ],
+      "operativeRamales": [
+        33
+      ],
+      "neighbors": [
+        61,
+        118,
+        128,
+        147,
+        240,
+        243,
+        253,
+        264,
+        409
+      ],
+      "seenInArribos": 12,
+      "processed": true
+    },
+    "463": {
+      "id": 463,
+      "name": "Retiro - LSM",
+      "lat": -34.5888579,
+      "lon": -58.3741843,
+      "includedRamales": [
+        31,
+        65,
+        131
+      ],
+      "operativeRamales": [
+        31,
+        65,
+        131
+      ],
+      "neighbors": [],
+      "seenInArribos": 37,
+      "processed": true
+    },
+    "464": {
+      "id": 464,
+      "name": "Km. 34.5",
+      "lat": -34.6801742,
+      "lon": -58.7602409,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        173,
+        225,
+        237,
+        254,
+        257,
+        269,
+        381,
+        432,
+        433,
+        4601
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "525": {
+      "id": 525,
+      "name": "Dr. A. Sáenz Viad.",
+      "lat": -34.6490835,
+      "lon": -58.4158387,
+      "includedRamales": [
+        21,
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        21,
+        25
+      ],
+      "neighbors": [],
+      "seenInArribos": 13,
+      "processed": true
+    },
+    "3700": {
+      "id": 3700,
+      "name": "Marcos Paz",
+      "lat": -34.7864831,
+      "lon": -58.8296055,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "4226": {
+      "id": 4226,
+      "name": "Villars",
+      "lat": -34.8288253,
+      "lon": -58.9387125,
+      "includedRamales": [
+        25,
+        67,
+        73
+      ],
+      "operativeRamales": [
+        67,
+        73
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "4601": {
+      "id": 4601,
+      "name": "Maquinista R. Cal",
+      "lat": -34.744777,
+      "lon": -58.8081306,
+      "includedRamales": [
+        53
+      ],
+      "operativeRamales": [
+        53
+      ],
+      "neighbors": [
+        129,
+        137,
+        173,
+        225,
+        237,
+        254,
+        257,
+        269,
+        381,
+        432,
+        433,
+        464
+      ],
+      "seenInArribos": 9,
+      "processed": true
+    },
+    "5976": {
+      "id": 5976,
+      "name": "Avenida 7",
+      "lat": -34.9317367,
+      "lon": -57.9283343,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "5977": {
+      "id": 5977,
+      "name": "Circunvalación",
+      "lat": -34.9369548,
+      "lon": -57.934057,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "5978": {
+      "id": 5978,
+      "name": "Meridiano V",
+      "lat": -34.9404335,
+      "lon": -57.9378722,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "5979": {
+      "id": 5979,
+      "name": "Hospital San Juan de Dios",
+      "lat": -34.9471234,
+      "lon": -57.9452089,
+      "includedRamales": [
+        39,
+        603,
+        607
+      ],
+      "operativeRamales": [
+        39,
+        603,
+        607
+      ],
+      "neighbors": [],
+      "seenInArribos": 0,
+      "processed": true
+    },
+    "8653": {
+      "id": 8653,
+      "name": "Hospital Cuenca Alta",
+      "lat": -35.0264121,
+      "lon": -58.7290951,
+      "includedRamales": [
+        37,
+        49,
+        55
+      ],
+      "operativeRamales": [
+        37,
+        49
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        18272
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    },
+    "18272": {
+      "id": 18272,
+      "name": "Hospital Ezeiza",
+      "lat": -34.8645504,
+      "lon": -58.5361065,
+      "includedRamales": [
+        37,
+        49,
+        55
+      ],
+      "operativeRamales": [
+        37
+      ],
+      "neighbors": [
+        14,
+        21,
+        60,
+        64,
+        125,
+        132,
+        235,
+        246,
+        265,
+        277,
+        333,
+        386,
+        396,
+        399,
+        400,
+        407,
+        8653
+      ],
+      "seenInArribos": 18,
+      "processed": true
+    }
+  }
+}
