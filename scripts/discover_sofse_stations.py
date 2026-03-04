@@ -14,6 +14,10 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
+def normalize_station_name(value: str) -> str:
+    return " ".join((value or "").strip().lower().split())
+
+
 @dataclass
 class StationNode:
     station_id: int
@@ -58,6 +62,7 @@ class SofseCrawler:
         self.sleep_ms = sleep_ms
         self.seed_all_ramales = seed_all_ramales
         self.ssl_context = ssl._create_unverified_context() if insecure else None
+        self.ssl_fallback_applied = bool(insecure)
 
         self.stations: Dict[int, StationNode] = {}
         self.pending: deque[int] = deque()
@@ -69,6 +74,7 @@ class SofseCrawler:
         self.search_calls = 0
         self.ramal_calls = 0
         self.gerencia_calls = 0
+        self.known_name_keys: Set[str] = set()
 
     def _request_json(self, path: str, query: Optional[Dict[str, Any]] = None) -> Any:
         query = query or {}
@@ -95,6 +101,20 @@ class SofseCrawler:
                     continue
                 break
             except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+                if (
+                    isinstance(exc, URLError)
+                    and not self.ssl_fallback_applied
+                    and "CERTIFICATE_VERIFY_FAILED" in str(exc)
+                ):
+                    self.ssl_context = ssl._create_unverified_context()
+                    self.ssl_fallback_applied = True
+                    print(
+                        "[WARN] TLS verify falló. Se activa fallback SSL inseguro para continuar.",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    continue
+
                 last_error = exc
                 if attempts < self.max_retries:
                     time.sleep(self.retry_delay_ms / 1000)
@@ -140,14 +160,17 @@ class SofseCrawler:
 
         if info:
             name = info.get("nombre") or info.get("name")
-            if name and not node.name:
-                node.name = str(name)
+            if name:
+                normalized_name = str(name).strip()
+                if normalized_name:
+                    node.name = normalized_name
+                    self.known_name_keys.add(normalize_station_name(node.name))
 
             lat = self._to_float(info.get("latitud") if "latitud" in info else info.get("lat"))
             lon = self._to_float(info.get("longitud") if "longitud" in info else info.get("lon"))
-            if lat is not None and node.lat is None:
+            if lat is not None:
                 node.lat = lat
-            if lon is not None and node.lon is None:
+            if lon is not None:
                 node.lon = lon
 
             for rid in info.get("incluida_en_ramales", []) or []:
@@ -162,6 +185,9 @@ class SofseCrawler:
 
         return node
 
+    def _has_station_name(self, station_name: str) -> bool:
+        return normalize_station_name(station_name) in self.known_name_keys
+
     def _enqueue(self, station_id: int) -> None:
         if station_id in self.pending_set:
             return
@@ -170,12 +196,76 @@ class SofseCrawler:
         self.pending.append(station_id)
         self.pending_set.add(station_id)
 
+    def load_existing_snapshot(self, snapshot_path: Path) -> None:
+        if not snapshot_path.exists():
+            return
+
+        try:
+            payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"[WARN] No se pudo leer snapshot existente ({snapshot_path}): {exc}", file=sys.stderr)
+            return
+
+        stations = payload.get("stations") if isinstance(payload, dict) else None
+        if not isinstance(stations, dict):
+            return
+
+        loaded = 0
+        pending_loaded = 0
+
+        for sid_raw, item in stations.items():
+            if not isinstance(item, dict):
+                continue
+
+            station_id = self._to_int(item.get("id") or sid_raw)
+            if station_id is None:
+                continue
+
+            node = self._upsert_station(
+                station_id,
+                {
+                    "nombre": item.get("name"),
+                    "lat": item.get("lat"),
+                    "lon": item.get("lon"),
+                    "incluida_en_ramales": item.get("includedRamales") or [],
+                    "operativa_en_ramales": item.get("operativeRamales") or [],
+                },
+            )
+
+            neighbors: Set[int] = set()
+            for raw_neighbor in item.get("neighbors", []) or []:
+                neighbor_id = self._to_int(raw_neighbor)
+                if neighbor_id is not None:
+                    neighbors.add(neighbor_id)
+            node.neighbors = neighbors
+            node.seen_in_arribos = max(0, self._to_int(item.get("seenInArribos")) or 0)
+            node.processed = bool(item.get("processed"))
+
+            self.ramales_seen.update(node.included_ramales)
+            self.ramales_seen.update(node.operative_ramales)
+
+            if node.processed:
+                if station_id not in self.processed_order:
+                    self.processed_order.append(station_id)
+            else:
+                self._enqueue(station_id)
+                pending_loaded += 1
+
+            loaded += 1
+
+        print(
+            f"[INFO] Snapshot previo cargado: stations={loaded} | pending={pending_loaded} | processed={len(self.processed_order)}",
+            flush=True,
+        )
+
     def seed(self) -> None:
         for sid in self.seed_station_ids:
             self._upsert_station(sid)
             self._enqueue(sid)
 
         for station_name in self.seed_station_names:
+            if self._has_station_name(station_name):
+                continue
             payload = self._request_json("infraestructura/estaciones", {"nombre": station_name})
             self.search_calls += 1
             for item in self._as_list(payload):
@@ -186,6 +276,8 @@ class SofseCrawler:
                 self._enqueue(sid)
 
         if self.seed_query:
+            if self._has_station_name(self.seed_query):
+                return
             payload = self._request_json("infraestructura/estaciones", {"nombre": self.seed_query})
             self.search_calls += 1
             for item in self._as_list(payload):
@@ -246,8 +338,11 @@ class SofseCrawler:
                 current.included_ramales.add(rid)
 
             current_name = arribo.get("nombre")
-            if current_name and not current.name:
-                current.name = str(current_name)
+            if current_name:
+                normalized_name = str(current_name).strip()
+                if normalized_name:
+                    current.name = normalized_name
+                    self.known_name_keys.add(normalize_station_name(current.name))
 
             estaciones = servicio.get("estaciones") or []
             for est in estaciones:
@@ -376,7 +471,7 @@ class SofseCrawler:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Descubre IDs de estaciones SOFSE recorriendo arribos de forma incremental.")
     parser.add_argument("--base-url", default="https://ariedro.dev/api-trenes", help="Base URL de la API SOFSE")
-    parser.add_argument("--seed-query", default="A", help="Consulta inicial por nombre de estación")
+    parser.add_argument("--seed-query", default="", help="Consulta inicial por nombre de estación (vacío para desactivar)")
     parser.add_argument("--seed-station-id", action="append", default=[], help="ID de estación inicial adicional (repetible)")
     parser.add_argument("--seed-missing-from", default="", help="Archivo train-stations-v2.json para sembrar faltantes (sofseStationId null)")
     parser.add_argument("--seed-missing-limit", type=int, default=0, help="Límite de faltantes a sembrar (0 = todos)")
@@ -392,7 +487,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_missing_station_names(train_stations_path: Path, limit: int = 0) -> List[str]:
+def load_missing_station_names(train_stations_path: Path, limit: int = 0, discovered_path: Optional[Path] = None) -> List[str]:
     if not train_stations_path.exists():
         return []
 
@@ -405,6 +500,21 @@ def load_missing_station_names(train_stations_path: Path, limit: int = 0) -> Lis
     if not isinstance(stations, dict):
         return []
 
+    discovered_names: Set[str] = set()
+    if discovered_path and discovered_path.exists():
+        try:
+            discovered_payload = json.loads(discovered_path.read_text(encoding="utf-8"))
+            discovered_stations = discovered_payload.get("stations") if isinstance(discovered_payload, dict) else None
+            if isinstance(discovered_stations, dict):
+                for item in discovered_stations.values():
+                    if not isinstance(item, dict):
+                        continue
+                    name = (item.get("name") or "").strip()
+                    if name:
+                        discovered_names.add(normalize_station_name(name))
+        except Exception:
+            pass
+
     seen: Set[str] = set()
     names: List[str] = []
     for station in stations.values():
@@ -415,7 +525,9 @@ def load_missing_station_names(train_stations_path: Path, limit: int = 0) -> Lis
         name = (station.get("name") or "").strip()
         if not name:
             continue
-        key = name.lower()
+        key = normalize_station_name(name)
+        if key in discovered_names:
+            continue
         if key in seen:
             continue
         seen.add(key)
@@ -441,7 +553,11 @@ def main() -> int:
     seed_names: List[str] = []
     if args.seed_missing_from:
         missing_path = Path(args.seed_missing_from)
-        seed_names = load_missing_station_names(missing_path, max(0, args.seed_missing_limit))
+        seed_names = load_missing_station_names(
+            missing_path,
+            max(0, args.seed_missing_limit),
+            discovered_path=output_path,
+        )
         print(f"[INFO] Faltantes sembrados por nombre: {len(seed_names)}")
 
     crawler = SofseCrawler(
@@ -459,6 +575,8 @@ def main() -> int:
         sleep_ms=max(0, args.sleep_ms),
         seed_all_ramales=args.seed_all_ramales,
     )
+
+    crawler.load_existing_snapshot(output_path)
 
     try:
         crawler.run()
