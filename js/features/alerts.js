@@ -4,46 +4,64 @@
             return (globalThis.APP_CONFIG?.PATHS?.[pathKey] || fallback || '').toString();
         }
 
+        function renderAlertsLoadingState(container) {
+            container.innerHTML = `
+                <div class="text-[10px] text-slate-500 text-center py-4 flex flex-col items-center gap-1">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-500"></i>
+                    Cargando alertas...
+                </div>`;
+            lucide.createIcons();
+        }
+
+        async function fetchAlertsData() {
+            const subteServiceAlertsPath = getAlertPath('subteServiceAlerts', '/subtes/serviceAlerts');
+            const busServiceAlertsPath = getAlertPath('busServiceAlerts', '/colectivos/serviceAlerts');
+            const [subteRes, coleRes] = await Promise.allSettled([
+                fetch(`${BACKEND_URL}${subteServiceAlertsPath}`).then(r => r.text()),
+                fetch(`${BACKEND_URL}${busServiceAlertsPath}`).then(r => r.text())
+            ]);
+
+            const allAlerts = [];
+            if (subteRes.status === 'fulfilled') {
+                allAlerts.push(...parseServiceAlerts(subteRes.value, 'Subte'));
+            }
+            if (coleRes.status === 'fulfilled') {
+                allAlerts.push(...parseColectivoAlerts(coleRes.value));
+            }
+
+            return allAlerts;
+        }
+
+        async function openAlertPanel(panel, container) {
+            panel.classList.add('is-open');
+            if (typeof setStatus === 'function') setStatus('CARGANDO');
+            renderAlertsLoadingState(container);
+
+            try {
+                const allAlerts = await fetchAlertsData();
+                renderAlertsContent(allAlerts);
+                if (typeof setStatus === 'function') setStatus('LIVE');
+            } catch {
+                if (typeof setStatus === 'function') setStatus('ERROR');
+                container.innerHTML = '<div class="text-[10px] text-red-500 font-bold text-center py-2">Error al cargar alertas</div>';
+            }
+        }
+
         async function toggleAlertPanel() {
             isAlertsOpen = !isAlertsOpen;
+            if (typeof setDashboardActionActive === 'function') {
+                setDashboardActionActive('alerts', isAlertsOpen);
+            }
             const panel = document.getElementById('alerts-panel');
             const container = document.getElementById('alerts-container');
+            if (!panel || !container) return;
             
             if (isAlertsOpen) {
-                panel.style.display = 'flex';
-                if (typeof setStatus === 'function') setStatus('CARGANDO');
-                container.innerHTML = `
-                    <div class="text-[10px] text-slate-500 text-center py-4 flex flex-col items-center gap-1">
-                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-500"></i>
-                        Cargando alertas...
-                    </div>`;
-                lucide.createIcons();
-                
-                try {
-                    const subteServiceAlertsPath = getAlertPath('subteServiceAlerts', '/subtes/serviceAlerts');
-                    const busServiceAlertsPath = getAlertPath('busServiceAlerts', '/colectivos/serviceAlerts');
-                    const [subteRes, coleRes] = await Promise.allSettled([
-                        fetch(`${BACKEND_URL}${subteServiceAlertsPath}`).then(r => r.text()),
-                        fetch(`${BACKEND_URL}${busServiceAlertsPath}`).then(r => r.text())
-                    ]);
-
-                    const allAlerts = [];
-                    if (subteRes.status === 'fulfilled') {
-                        allAlerts.push(...parseServiceAlerts(subteRes.value, 'Subte'));
-                    }
-                    if (coleRes.status === 'fulfilled') {
-                        allAlerts.push(...parseColectivoAlerts(coleRes.value));
-                    }
-
-                    renderAlertsContent(allAlerts);
-                    if (typeof setStatus === 'function') setStatus('LIVE');
-                } catch {
-                    if (typeof setStatus === 'function') setStatus('ERROR');
-                    container.innerHTML = '<div class="text-[10px] text-red-500 font-bold text-center py-2">Error al cargar alertas</div>';
-                }
-            } else {
-                panel.style.display = 'none';
+                await openAlertPanel(panel, container);
+                return;
             }
+
+            panel.classList.remove('is-open');
         }
 
         function parseServiceAlerts(rawText, source) {

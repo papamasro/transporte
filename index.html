@@ -39,7 +39,7 @@
     <div id="loading-line" class="loading-bar"></div>
 
     <div class="ui-panel">
-        <div class="glass px-4 py-3 rounded-[1.5rem] shadow-xl">
+        <div class="glass dashboard-glass px-4 py-3 rounded-[1.5rem] shadow-xl">
             <button type="button" class="w-full flex justify-between items-center cursor-pointer select-none text-left" onclick="togglePanel()">
                 <div class="flex items-center gap-2.5">
                     <div class="p-2 bg-indigo-600/10 rounded-xl">
@@ -62,18 +62,18 @@
 
             <div id="panel-content" class="overflow-hidden" style="max-height: 400px; opacity: 1; transition: all 0.3s ease-in-out;">
                 <div class="pt-4">
-                    <div class="grid grid-cols-4 gap-1.5 mb-4">
-                        <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="bus" class="w-3.5 h-3.5"></i> COLE
+                    <div class="grid grid-cols-4 gap-2 mb-4">
+                        <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="bus" class="w-4 h-4"></i> Colectivo
                         </button>
-                        <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="train-front" class="w-3.5 h-3.5"></i> SUBTE
+                        <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="train-front" class="w-4 h-4"></i> Subte
                         </button>
-                        <button onclick="toggleType('train')" id="t-train" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="train-track" class="w-3.5 h-3.5"></i> TREN
+                        <button onclick="toggleType('train')" id="t-train" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="train-track" class="w-4 h-4"></i> Tren
                         </button>
-                        <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2 rounded-xl text-[8px] font-bold flex flex-col items-center gap-1 bg-white">
-                            <i data-lucide="bike" class="w-3.5 h-3.5"></i> ECO
+                        <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                            <i data-lucide="bike" class="w-4 h-4"></i> Ecobici
                         </button>
                     </div>
 
@@ -83,24 +83,40 @@
                             <input type="text" id="search" placeholder="Buscar línea, estación o tren..." 
                                    class="w-full bg-slate-100/50 border border-slate-200 rounded-xl pl-10 pr-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
                         </div>
-                        <div class="flex justify-between items-center px-1">
-                            <div class="flex items-center gap-1">
-                                <!-- CAMBIO 4: Ícono modificado a 'navigation' -->
-                                <button onclick="locateUser()" title="Mi ubicación" class="p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="navigation" class="w-3.5 h-3.5"></i></button>
-                                <button onclick="forceRefresh()" title="Refrescar" class="p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="refresh-cw" id="refresh-icon" class="w-3.5 h-3.5"></i></button>
-                                <button onclick="toggleAlertPanel()" title="Alertas" class="p-1.5 bg-slate-100 hover:bg-amber-50 rounded-lg text-slate-500 hover:text-amber-600 transition-colors"><i data-lucide="bell" class="w-3.5 h-3.5"></i></button>
-                                <button onclick="installApp()" id="install-app-btn" title="Instalar app" class="hidden p-1.5 bg-slate-100 hover:bg-indigo-50 rounded-lg text-slate-500"><i data-lucide="download" class="w-3.5 h-3.5"></i></button>
-                                
-                                <span id="unit-count" class="text-[9px] font-bold text-slate-400 ml-1 uppercase">Iniciando...</span>
+                        <div class="space-y-2">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                <button id="action-locate" onclick="locateUser()" title="Ir a mi ubicación" class="dashboard-action-btn">
+                                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                                    <span>Mi ubicación</span>
+                                </button>
+                                <button id="action-nearby" onclick="toggleNearbyPanel()" title="Buscar transportes cercanos" class="dashboard-action-btn">
+                                    <i data-lucide="radar" class="w-4 h-4"></i>
+                                    <span>Cercanos</span>
+                                </button>
+                                <button id="action-refresh" onclick="forceRefresh()" title="Actualizar datos ahora" class="dashboard-action-btn">
+                                    <i data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
+                                    <span>Actualizar</span>
+                                </button>
+                                <button id="action-alerts" onclick="toggleAlertPanel()" title="Ver alertas del servicio" class="dashboard-action-btn">
+                                    <i data-lucide="bell" class="w-4 h-4"></i>
+                                    <span>Alertas</span>
+                                </button>
+                                <button onclick="installApp()" id="install-app-btn" title="Instalar app" class="dashboard-action-btn">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span id="install-app-label">Instalar app</span>
+                                </button>
                             </div>
-                            <span id="last-update" class="text-[9px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Última actualización: --:--:--</span>
+                            <div class="flex justify-between items-center px-1 gap-2">
+                                <span id="unit-count" class="text-[10px] font-bold text-slate-500 uppercase">Iniciando...</span>
+                                <span id="last-update" class="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">Última act: --:--:--</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="alerts-panel" style="display: none;" class="glass mt-1 px-4 py-3 rounded-[1.5rem] shadow-xl max-h-[250px] flex flex-col">
+        <div id="alerts-panel" class="glass dashboard-glass dashboard-modal px-4 py-3 rounded-[1.5rem] shadow-xl max-h-[250px] flex flex-col">
             <div class="flex items-center justify-between mb-2 shrink-0">
                 <h3 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <!-- CAMBIO 2: Cambio de título -->
@@ -109,6 +125,25 @@
                 <button onclick="toggleAlertPanel()" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
             </div>
             <div id="alerts-container" class="flex flex-col gap-1.5 overflow-y-auto pr-1"></div>
+        </div>
+
+        <div id="nearby-panel" class="glass dashboard-glass dashboard-modal px-4 py-3 rounded-[1.5rem] shadow-xl max-h-[280px] flex flex-col">
+            <div class="flex items-center justify-between mb-2 shrink-0">
+                <h3 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <i data-lucide="radar" class="w-3.5 h-3.5 text-indigo-600"></i> Cercano a vos
+                </h3>
+                <button onclick="toggleNearbyPanel()" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+            </div>
+            <div class="flex items-center gap-2 mb-2 shrink-0">
+                <label for="nearby-radius-input" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Radio</label>
+                <input id="nearby-radius-input" type="number" min="200" max="5000" step="100" value="1000"
+                    class="w-24 bg-slate-100/50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-indigo-500">
+                <span class="text-[10px] font-bold text-slate-500">m</span>
+                <button onclick="refreshNearbyTransport()" class="ml-auto px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-600 text-white hover:bg-indigo-700">Buscar</button>
+            </div>
+            <div id="nearby-container" class="flex flex-col gap-1.5 overflow-y-auto pr-1 text-[10px] text-slate-600">
+                Tocá Buscar para ver paradas y transportes cercanos.
+            </div>
         </div>
     </div>
 
@@ -123,6 +158,7 @@
     <script src="./js/features/alerts.js"></script>
     <script src="./js/app/ui.js"></script>
     <script src="./js/app/services.js"></script>
+    <script src="./js/features/nearby.js"></script>
     <script src="./js/app/bootstrap.js"></script>
 </body>
 </html>

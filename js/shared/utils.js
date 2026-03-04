@@ -4,13 +4,13 @@
         }
 
         function getBusDisplayLine(vehicle) {
-            const headsign = (vehicle?.trip_headsign || '').toString();
-            const headsignMatch = headsign.match(/^\s*(\d{1,4})\b/);
-            if (headsignMatch) return headsignMatch[1];
-
             const shortName = (vehicle?.route_short_name || '').toString();
-            const shortNameMatch = shortName.match(/^0*(\d{1,4})/);
-            if (shortNameMatch) return shortNameMatch[1];
+            const cleanShortName = shortName.replaceAll(/\s+/g, '').trim();
+            if (cleanShortName) return cleanShortName;
+
+            const headsign = (vehicle?.trip_headsign || '').toString().trim();
+            const headsignMatch = headsign.match(/^\s*(\d{1,4}[a-zA-Z]?)/);
+            if (headsignMatch) return headsignMatch[1].toUpperCase();
 
             return formatLineName(vehicle?.route_short_name || vehicle?.route_id || '??');
         }

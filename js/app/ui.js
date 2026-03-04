@@ -1,6 +1,33 @@
 let isPanelOpen = true;
 let deferredInstallPrompt = null;
 
+function setDashboardActionActive(actionKey, isActive) {
+    const actionMap = {
+        alerts: 'action-alerts',
+        nearby: 'action-nearby',
+        locate: 'action-locate',
+        refresh: 'action-refresh'
+    };
+
+    const buttonId = actionMap[actionKey];
+    if (!buttonId) return;
+
+    const button = document.getElementById(buttonId);
+    if (!button) return;
+    button.classList.toggle('is-active', !!isActive);
+}
+
+function setInstallButtonState({ label, disabled = false, ready = false, title = '' } = {}) {
+    const installBtn = document.getElementById('install-app-btn');
+    const installLabel = document.getElementById('install-app-label');
+    if (!installBtn || !installLabel) return;
+
+    installBtn.disabled = !!disabled;
+    installBtn.classList.toggle('install-ready', !!ready);
+    if (title) installBtn.title = title;
+    installLabel.innerText = label || 'Instalar app';
+}
+
 function togglePanel() {
     isPanelOpen = !isPanelOpen;
     const content = document.getElementById('panel-content');
@@ -13,9 +40,15 @@ function togglePanel() {
 function setupInstallPrompt() {
     const installBtn = document.getElementById('install-app-btn');
     if (!installBtn) return;
+
     const isSupportedOrigin = globalThis.location.protocol === 'http:' || globalThis.location.protocol === 'https:';
     if (!isSupportedOrigin) {
-        installBtn.classList.add('hidden');
+        setInstallButtonState({
+            label: 'Instalar app',
+            disabled: true,
+            ready: false,
+            title: 'Disponible solo desde HTTP/HTTPS'
+        });
         return;
     }
 
@@ -26,21 +59,60 @@ function setupInstallPrompt() {
     globalThis.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
         deferredInstallPrompt = event;
-        installBtn.classList.remove('hidden');
+        setInstallButtonState({
+            label: 'Instalar app',
+            disabled: false,
+            ready: true,
+            title: 'Instalar aplicación'
+        });
     });
 
     globalThis.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
-        installBtn.classList.add('hidden');
+        setInstallButtonState({
+            label: 'App instalada',
+            disabled: true,
+            ready: false,
+            title: 'La app ya está instalada'
+        });
     });
 
+    if (isStandalone) {
+        setInstallButtonState({
+            label: 'App instalada',
+            disabled: true,
+            ready: false,
+            title: 'La app ya está instalada'
+        });
+        return;
+    }
+
     if (isIos && !isStandalone) {
-        installBtn.classList.remove('hidden');
+        setInstallButtonState({
+            label: 'Instalar app',
+            disabled: false,
+            ready: true,
+            title: 'Agregar a pantalla de inicio'
+        });
+        return;
     }
 
     if (isAndroid && !isStandalone) {
-        installBtn.classList.remove('hidden');
+        setInstallButtonState({
+            label: 'Instalar app',
+            disabled: false,
+            ready: true,
+            title: 'Instalar aplicación'
+        });
+        return;
     }
+
+    setInstallButtonState({
+        label: 'Instalar app',
+        disabled: false,
+        ready: false,
+        title: 'Ver cómo instalar en este navegador'
+    });
 }
 
 async function installApp() {
@@ -58,7 +130,12 @@ async function installApp() {
         deferredInstallPrompt.prompt();
         await deferredInstallPrompt.userChoice;
         deferredInstallPrompt = null;
-        document.getElementById('install-app-btn')?.classList.add('hidden');
+        setInstallButtonState({
+            label: 'App instalada',
+            disabled: true,
+            ready: false,
+            title: 'La app ya está instalada'
+        });
         return;
     }
 
@@ -69,7 +146,10 @@ async function installApp() {
 
     if (isAndroid && !isStandalone) {
         alert('Para instalar en Android: abrí el menú del navegador (⋮) y elegí “Instalar app” o “Agregar a pantalla principal”.');
+        return;
     }
+
+    alert('Para instalar en compu: abrí el menú del navegador y buscá la opción “Instalar app” (o el ícono de instalación junto a la barra de direcciones).');
 }
 
 function setStatus(state) {
@@ -110,28 +190,42 @@ function buildUserLocationTooltip(position) {
 }
 
 function locateUser() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-        const { latitude, longitude } = pos.coords;
-        userLayer.clearLayers();
-        const userMarker = L.marker([latitude, longitude], {
-            icon: L.divIcon({
-                className: 'user-location-icon',
-                html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
-                iconSize: [38, 38],
-                iconAnchor: [19, 19]
-            })
-        }).addTo(userLayer);
+    if (!navigator.geolocation) return Promise.resolve(null);
 
-        userMarker.bindTooltip(buildUserLocationTooltip(pos), {
-            className: 'custom-tooltip',
-            direction: 'top',
-            offset: [0, -20],
-            opacity: 1
-        });
+    return new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const { latitude, longitude } = pos.coords;
+            const lat = Number(latitude);
+            const lon = Number(longitude);
 
-        map.flyTo([latitude, longitude], 15);
-    }, (err) => {
-        console.warn("Geolocation error", err);
-    }, { enableHighAccuracy: true });
+            globalThis.cache.userLocation = {
+                lat,
+                lon,
+                timestamp: Date.now()
+            };
+
+            userLayer.clearLayers();
+            const userMarker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: 'user-location-icon',
+                    html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
+                    iconSize: [38, 38],
+                    iconAnchor: [19, 19]
+                })
+            }).addTo(userLayer);
+
+            userMarker.bindTooltip(buildUserLocationTooltip(pos), {
+                className: 'custom-tooltip',
+                direction: 'top',
+                offset: [0, -20],
+                opacity: 1
+            });
+
+            map.flyTo([lat, lon], 15);
+            resolve({ lat, lon });
+        }, (err) => {
+            console.warn("Geolocation error", err);
+            resolve(null);
+        }, { enableHighAccuracy: true });
+    });
 }

@@ -35,7 +35,12 @@ globalThis.APP_CONFIG = {
         busRouteMaxFallbackVehicles: 3,
         busRouteMaxCallsPerSelection: 3,
         busRouteNoResultTtlMs: 30000,
-        busRouteMaxShapeDistanceMeters: 4000,
+        busRouteMaxShapeDistanceMeters: 25000,
         busRouteMinShapePoints: 20
+    },
+    FEATURES: {
+        nearbyStopsRadiusMeters: 1000,
+        nearbyBusRouteFetchMax: 8,
+        nearbyTrainRealtimeStations: 4
     }
 };

@@ -25,8 +25,13 @@
                 busRouteMaxFallbackVehicles: 3,
                 busRouteMaxCallsPerSelection: 3,
                 busRouteNoResultTtlMs: 30000,
-                busRouteMaxShapeDistanceMeters: 4000,
+                busRouteMaxShapeDistanceMeters: 25000,
                 busRouteMinShapePoints: 20
+            },
+            FEATURES: {
+                nearbyStopsRadiusMeters: 1000,
+                nearbyBusRouteFetchMax: 8,
+                nearbyTrainRealtimeStations: 4
             }
         };
 
@@ -58,7 +63,10 @@
             trainLines: null,
             trainStations: null,
             busRoute: null,
-            busStops: null
+            busStops: null,
+            nearbyRadius: null,
+            nearbyStops: null,
+            nearbyVehicles: null
         };
         let userLayer;
         let activeTypes = { bus: true, subte: false, train: false, bike: false };
@@ -81,7 +89,8 @@
             trainSofseResolveByName: {},
             trainSofseResolvePromiseByStationKey: {},
             subteStaticPromise: null,
-            trainStaticPromise: null
+            trainStaticPromise: null,
+            userLocation: null
         };
 
         function init() {
@@ -103,6 +112,9 @@
             layers.trainStations = L.layerGroup().addTo(map);
             layers.busRoute = L.layerGroup().addTo(map);
             layers.busStops = L.layerGroup().addTo(map);
+            layers.nearbyRadius = L.layerGroup().addTo(map);
+            layers.nearbyStops = L.layerGroup().addTo(map);
+            layers.nearbyVehicles = L.layerGroup().addTo(map);
             userLayer = L.layerGroup().addTo(map);
 
             lucide.createIcons();
@@ -158,6 +170,9 @@
 
                 loadingLine.style.width = '100%';
                 renderMarkers();
+                if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
+                    refreshNearbyTransport({ silent: true }).catch(() => {});
+                }
                 setStatus('LIVE'); 
 
             } catch (err) {
