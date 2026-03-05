@@ -48,7 +48,12 @@
         }
 
         async function toggleAlertPanel() {
-            isAlertsOpen = !isAlertsOpen;
+            const willOpen = !isAlertsOpen;
+            if (willOpen && typeof closeNearbyPanel === 'function') {
+                closeNearbyPanel();
+            }
+
+            isAlertsOpen = willOpen;
             if (typeof setDashboardActionActive === 'function') {
                 setDashboardActionActive('alerts', isAlertsOpen);
             }

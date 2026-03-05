@@ -39,7 +39,7 @@ globalThis.APP_CONFIG = {
         busRouteMinShapePoints: 20
     },
     FEATURES: {
-        nearbyStopsRadiusMeters: 1000,
+        nearbyStopsRadiusMeters: 1500,
         nearbyBusRouteFetchMax: 8,
         nearbyTrainRealtimeStations: 4
     }

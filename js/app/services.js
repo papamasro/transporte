@@ -563,8 +563,9 @@ async function getTrainArrivalsForStation(stationData) {
     return { success: true, data: result, cached: false };
 }
 
-async function refreshSubteNow() {
-    if (!activeTypes.subte) return;
+async function refreshSubteNow(options = {}) {
+    const { force = false } = options;
+    if (!force && !activeTypes.subte) return false;
     const subteForecastPath = getAppPath('subteForecast', '/subtes/forecastGTFS');
     const subteRes = await fetchAPI(subteForecastPath);
     if (!subteRes.success || !subteRes.data) return false;
@@ -574,8 +575,9 @@ async function refreshSubteNow() {
     return true;
 }
 
-async function refreshBikeNow() {
-    if (!activeTypes.bike) return;
+async function refreshBikeNow(options = {}) {
+    const { force = false } = options;
+    if (!force && !activeTypes.bike) return false;
     const bikeInfoPath = getAppPath('bikeStationInformation', '/ecobici/gbfs/stationInformation');
     const bikeStatusPath = getAppPath('bikeStationStatus', '/ecobici/gbfs/stationStatus');
     const [bikeInfoRes, bikeStatusRes] = await Promise.all([

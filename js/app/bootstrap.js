@@ -29,7 +29,7 @@
                 busRouteMinShapePoints: 20
             },
             FEATURES: {
-                nearbyStopsRadiusMeters: 1000,
+                nearbyStopsRadiusMeters: 1500,
                 nearbyBusRouteFetchMax: 8,
                 nearbyTrainRealtimeStations: 4
             }
@@ -245,16 +245,32 @@
 
 
         async function toggleType(type) {
-            activeTypes[type] = !activeTypes[type];
-            setTypeButtonState(type, activeTypes[type]);
+            if (!Object.hasOwn(activeTypes, type)) return;
+
+            const nearbyPanel = document.getElementById('nearby-panel');
+            const isNearbyOpen = nearbyPanel?.classList?.contains('is-open');
+            if (isNearbyOpen && typeof closeNearbyPanel === 'function') {
+                closeNearbyPanel();
+            }
 
             let onDemandHadError = false;
 
-            if (activeTypes[type]) {
-                const activated = await activateType(type);
-                onDemandHadError = !activated;
-            } else {
-                deactivateType(type);
+            for (const currentType of Object.keys(activeTypes)) {
+                const shouldBeActive = currentType === type;
+                const wasActive = !!activeTypes[currentType];
+
+                activeTypes[currentType] = shouldBeActive;
+                setTypeButtonState(currentType, shouldBeActive);
+
+                if (shouldBeActive) {
+                    if (!wasActive) {
+                        const activated = await activateType(currentType);
+                        onDemandHadError = onDemandHadError || !activated;
+                    }
+                    continue;
+                }
+
+                if (wasActive) deactivateType(currentType);
             }
             
             renderMarkers();

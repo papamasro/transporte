@@ -189,11 +189,12 @@ function buildUserLocationTooltip(position) {
         </div>`;
 }
 
-function locateUser() {
+function locateUser(options = {}) {
+    const { autoActivateNearby = true } = options;
     if (!navigator.geolocation) return Promise.resolve(null);
 
     return new Promise(resolve => {
-        navigator.geolocation.getCurrentPosition(pos => {
+        navigator.geolocation.getCurrentPosition(async pos => {
             const { latitude, longitude } = pos.coords;
             const lat = Number(latitude);
             const lon = Number(longitude);
@@ -222,6 +223,17 @@ function locateUser() {
             });
 
             map.flyTo([lat, lon], 15);
+
+            try {
+                if (autoActivateNearby && typeof activateNearbyFromLocation === 'function') {
+                    await activateNearbyFromLocation();
+                } else if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
+                    await refreshNearbyTransport({ silent: true });
+                }
+            } catch {
+                // geolocation should still resolve even if nearby refresh fails
+            }
+
             resolve({ lat, lon });
         }, (err) => {
             console.warn("Geolocation error", err);

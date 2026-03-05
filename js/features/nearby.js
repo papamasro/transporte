@@ -1,22 +1,25 @@
 let isNearbyPanelOpen = false;
+let nearbyRefreshRequestId = 0;
+let nearbyNextGeolocationAttemptAt = 0;
+const NEARBY_GEO_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
 
 if (!globalThis.nearbyState) {
     globalThis.nearbyState = {
         active: false,
         lastCenter: null,
-        lastRadius: 1000,
+        lastRadius: 1500,
         lastResults: null
     };
 }
 
 function getNearbyFeatureConfig() {
     const featureCfg = globalThis.APP_CONFIG?.FEATURES || {};
-    const defaultRadius = Number(featureCfg.nearbyStopsRadiusMeters ?? 1000);
+    const defaultRadius = Number(featureCfg.nearbyStopsRadiusMeters ?? 1500);
     const maxRouteFetch = Number(featureCfg.nearbyBusRouteFetchMax ?? 8);
     const maxTrainRealtime = Number(featureCfg.nearbyTrainRealtimeStations ?? 4);
 
     return {
-        defaultRadius: Number.isFinite(defaultRadius) ? Math.min(5000, Math.max(200, defaultRadius)) : 1000,
+        defaultRadius: Number.isFinite(defaultRadius) ? Math.min(5000, Math.max(200, defaultRadius)) : 1500,
         maxRouteFetch: Number.isFinite(maxRouteFetch) ? Math.min(20, Math.max(1, maxRouteFetch)) : 8,
         maxTrainRealtime: Number.isFinite(maxTrainRealtime) ? Math.min(10, Math.max(1, maxTrainRealtime)) : 4
     };
@@ -78,17 +81,26 @@ function getNearbyCenterFromMapFallback() {
     return { lat, lon };
 }
 
-async function getNearbyCenterPosition() {
+async function getNearbyCenterPosition(options = {}) {
+    const { allowLocatePrompt = true } = options;
     const cached = globalThis.cache?.userLocation;
-    if (cached?.lat && cached?.lon && (Date.now() - (cached.timestamp || 0)) < 120000) {
+    if (Number.isFinite(Number(cached?.lat)) && Number.isFinite(Number(cached?.lon))) {
         return { lat: Number(cached.lat), lon: Number(cached.lon), source: 'cache' };
     }
 
-    try {
-        const loc = await locateUser();
-        if (loc?.lat && loc?.lon) return { lat: Number(loc.lat), lon: Number(loc.lon), source: 'gps' };
-    } catch {
-        // fallback below
+    const canAttemptLocate = allowLocatePrompt && Date.now() >= nearbyNextGeolocationAttemptAt;
+    if (canAttemptLocate) {
+        nearbyNextGeolocationAttemptAt = Date.now() + NEARBY_GEO_RETRY_COOLDOWN_MS;
+
+        try {
+            const loc = await locateUser({ autoActivateNearby: false });
+            if (Number.isFinite(Number(loc?.lat)) && Number.isFinite(Number(loc?.lon))) {
+                nearbyNextGeolocationAttemptAt = 0;
+                return { lat: Number(loc.lat), lon: Number(loc.lon), source: 'gps' };
+            }
+        } catch {
+            // fallback below
+        }
     }
 
     const mapCenter = getNearbyCenterFromMapFallback();
@@ -96,7 +108,7 @@ async function getNearbyCenterPosition() {
     return null;
 }
 
-function getSubteEtaText(station) {
+function getSubteEtaInfo(station) {
     const referenceTs = globalThis.cache.subteTimestamp || Math.floor(Date.now() / 1000);
     const arrivals = getSubteStationForecast(station)
         .filter(r => r.arrivalTime > 0)
@@ -104,8 +116,14 @@ function getSubteEtaText(station) {
         .sort((a, b) => a.arrivalTime - b.arrivalTime)
         .slice(0, 2);
 
-    if (arrivals.length === 0) return 'Sin ETA';
-    return arrivals.map(item => `${item.routeShort}: ${formatEtaMinutes(item.arrivalTime, referenceTs)}`).join(' · ');
+    if (arrivals.length === 0) {
+        return { text: 'Sin ETA', hasData: false };
+    }
+
+    return {
+        text: arrivals.map(item => `${item.routeShort}: ${formatEtaMinutes(item.arrivalTime, referenceTs)}`).join(' · '),
+        hasData: true
+    };
 }
 
 function collectNearbySubteStations(center, radiusMeters) {
@@ -132,12 +150,14 @@ function collectNearbySubteStations(center, radiusMeters) {
                 lineShort: line.short,
                 color: line.color
             };
+            const etaInfo = getSubteEtaInfo(payload);
 
             items.push({
                 ...payload,
                 type: 'subte',
                 distance,
-                etaText: getSubteEtaText(payload)
+                etaText: etaInfo.text,
+                hasRealtimeData: etaInfo.hasData
             });
         });
     });
@@ -173,7 +193,8 @@ function collectNearbyTrainStations(center, radiusMeters) {
                 color: line.color || '#0ea5e9',
                 type: 'train',
                 distance,
-                etaText: 'Consultando...'
+                etaText: 'Sin ETA',
+                hasRealtimeData: false
             });
         });
     });
@@ -199,6 +220,35 @@ function collectNearbyBusVehicles(center, radiusMeters) {
             lon: coords.lon,
             distance,
             line: getBusDisplayLine(vehicle)
+        });
+    });
+
+    items.sort((a, b) => a.distance - b.distance);
+    return items;
+}
+
+function collectNearbyBikeStations(center, radiusMeters) {
+    const bikes = Array.isArray(globalThis.cache.bike) ? globalThis.cache.bike : [];
+    const items = [];
+
+    bikes.forEach(station => {
+        const available = Number(station?.num_bikes_available || 0);
+        if (!Number.isFinite(available) || available <= 0) return;
+
+        const lat = Number(station?.lat);
+        const lon = Number(station?.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
+        if (distance > radiusMeters) return;
+
+        items.push({
+            ...station,
+            lat,
+            lon,
+            distance,
+            bikesAvailable: available,
+            type: 'bike'
         });
     });
 
@@ -249,23 +299,27 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
     });
 
     const selectedRoutes = routeFetchQueue.slice(0, cfg.maxRouteFetch);
-    const requestBudget = { remaining: Math.max(cfg.maxRouteFetch, 1) * 2 };
     const stopMap = new Map();
 
-    for (const route of selectedRoutes) {
-        if (requestBudget.remaining <= 0) break;
-
+    const routeResults = await Promise.all(selectedRoutes.map(async route => {
+        const routeRequestBudget = { remaining: 2 };
         const routeInfo = await fetchRouteInfo(
             route.routeId,
             route.lineShortName,
             route.tripCandidates,
             route.direction,
-            requestBudget,
+            routeRequestBudget,
             center
         );
 
-        const routeStops = Array.isArray(routeInfo?.stops) ? routeInfo.stops : [];
-        routeStops.forEach(stop => {
+        return {
+            route,
+            stops: Array.isArray(routeInfo?.stops) ? routeInfo.stops : []
+        };
+    }));
+
+    routeResults.forEach(({ route, stops }) => {
+        stops.forEach(stop => {
             const parsed = parseNearbyLatLon(stop);
             if (!parsed) return;
 
@@ -292,7 +346,7 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
                 existing.distance = normalizedStop.distance;
             }
         });
-    }
+    });
 
     return Array.from(stopMap.values()).sort((a, b) => a.distance - b.distance);
 }
@@ -313,7 +367,7 @@ function renderNearbyMapOverlay(center, radiusMeters, results) {
     }).addTo(layers.nearbyRadius);
 
     results.subteStations.forEach(station => {
-        createMarker(
+        const marker = createMarker(
             station.lat,
             station.lon,
             station.name,
@@ -321,15 +375,33 @@ function renderNearbyMapOverlay(center, radiusMeters, results) {
             'subte',
             station
         ).addTo(layers.nearbyStops);
+
+        if (station.hasRealtimeData) marker.openTooltip();
     });
 
     results.trainStations.forEach(station => {
-        createMarker(
+        const marker = createMarker(
             station.lat,
             station.lon,
             station.name,
             station.color || '#0ea5e9',
             'train',
+            station
+        ).addTo(layers.nearbyStops);
+
+        if (station.hasRealtimeData) marker.openTooltip();
+    });
+
+    results.bikeStations.forEach(station => {
+        const markerColor = station.bikesAvailable <= 2 ? '#f59e0b' : '#10b981';
+        const label = `🚲 ${station.bikesAvailable}`;
+
+        createMarker(
+            station.lat,
+            station.lon,
+            label,
+            markerColor,
+            'bike',
             station
         ).addTo(layers.nearbyStops);
     });
@@ -379,6 +451,10 @@ function renderNearbyDetails(results) {
         .map(st => `<div class="text-[10px] font-medium text-slate-700">🚌 ${st.name} · ${formatDistance(st.distance)} · Líneas ${st.lines.slice(0, 3).join(', ')}</div>`)
         .join('');
 
+    const firstBikes = results.bikeStations.slice(0, 6)
+        .map(st => `<div class="text-[10px] font-medium text-slate-700">🚲 ${st.name} · ${formatDistance(st.distance)} · ${st.bikesAvailable} disponibles</div>`)
+        .join('');
+
     const firstBuses = results.busVehicles.slice(0, 8)
         .map(item => {
             const headsign = item.vehicle?.trip_headsign || 'Sin destino';
@@ -386,7 +462,7 @@ function renderNearbyDetails(results) {
         })
         .join('');
 
-    const foundItems = [firstSubte, firstTrain, firstBusStops, firstBuses]
+    const foundItems = [firstSubte, firstTrain, firstBusStops, firstBikes, firstBuses]
         .filter(Boolean)
         .join('');
 
@@ -399,20 +475,23 @@ async function enrichTrainEtas(trainStations) {
     const cfg = getNearbyFeatureConfig();
     const sample = trainStations.slice(0, cfg.maxTrainRealtime);
 
-    for (const station of sample) {
+    await Promise.all(sample.map(async station => {
         const arrivalsRes = await getTrainArrivalsForStation(station);
         if (!arrivalsRes?.success) {
             station.etaText = 'Sin ETA';
-            continue;
+            station.hasRealtimeData = false;
+            return;
         }
 
         const arrivals = arrivalsRes.data?.arrivals || [];
         const first = arrivals[0];
         station.etaText = first ? formatTrainEta(first.etaSeconds) : 'Sin ETA';
-    }
+        station.hasRealtimeData = !!first;
+    }));
 
     trainStations.slice(cfg.maxTrainRealtime).forEach(station => {
-        station.etaText = 'Ver en tooltip';
+        station.etaText = 'Sin ETA';
+        station.hasRealtimeData = false;
     });
 }
 
@@ -425,6 +504,7 @@ async function computeNearbyTransport(center, radiusMeters) {
     const subteStations = collectNearbySubteStations(center, radiusMeters);
     const trainStations = collectNearbyTrainStations(center, radiusMeters);
     const busVehicles = collectNearbyBusVehicles(center, radiusMeters);
+    const bikeStations = collectNearbyBikeStations(center, radiusMeters);
     const busStops = await collectNearbyBusStops(center, radiusMeters, busVehicles);
 
     await enrichTrainEtas(trainStations);
@@ -435,6 +515,7 @@ async function computeNearbyTransport(center, radiusMeters) {
         subteStations,
         trainStations,
         busVehicles,
+        bikeStations,
         busStops
     };
 }
@@ -455,24 +536,36 @@ async function ensureNearbyBusDataReady() {
     if (Array.isArray(globalThis.cache.bus) && globalThis.cache.bus.length > 0) return;
 
     const busVehiclePositionsPath = globalThis.APP_CONFIG?.PATHS?.busVehiclePositions || '/colectivos/vehiclePositionsSimple';
-    const busData = await fetchWithRetry(busVehiclePositionsPath);
-    if (Array.isArray(busData)) updateBusCache(busData);
+    const busRes = await fetchAPI(busVehiclePositionsPath);
+    if (busRes?.success && Array.isArray(busRes.data)) {
+        updateBusCache(busRes.data);
+        return;
+    }
+
+    if (!Array.isArray(globalThis.cache.bus)) globalThis.cache.bus = [];
 }
 
-async function ensureNearbyStaticAndRealtimeReady() {
-    await ensureNearbyBusDataReady();
+async function ensureNearbyBikeDataReady() {
+    const refreshed = await refreshBikeNow({ force: true });
+    if (refreshed) return;
+    if (!Array.isArray(globalThis.cache.bike)) globalThis.cache.bike = [];
+}
 
+async function ensureNearbyStaticDataReady() {
+    const pendingLoads = [];
     if (!globalThis.cache.subteStatic?.lines || !globalThis.cache.subteStatic?.stations) {
-        await loadSubteStaticFromKV();
+        pendingLoads.push(loadSubteStaticFromKV());
     }
 
     if (!globalThis.cache.trainStatic?.lines || !globalThis.cache.trainStatic?.stations) {
-        await loadTrainStaticFromKV();
+        pendingLoads.push(loadTrainStaticFromKV());
     }
 
-    if (Array.isArray(globalThis.cache.subteForecast) && globalThis.cache.subteForecast.length === 0) {
-        await refreshSubteNow();
-    }
+    if (pendingLoads.length > 0) await Promise.all(pendingLoads);
+}
+
+function isCurrentNearbyRefresh(requestId) {
+    return requestId === nearbyRefreshRequestId;
 }
 
 function renderNearbyErrorState() {
@@ -488,18 +581,36 @@ function storeNearbyResults(center, radiusMeters, results) {
     globalThis.nearbyState.lastResults = results;
 }
 
+function focusMapOnNearbyArea(center, radiusMeters) {
+    if (!map?.fitBounds) return;
+
+    const fallbackRadius = getNearbyFeatureConfig().defaultRadius;
+    const baseRadius = Number.isFinite(Number(radiusMeters)) ? Number(radiusMeters) : fallbackRadius;
+    const clampedRadius = Math.min(5000, Math.max(200, baseRadius));
+    const focusRadius = clampedRadius * 1.08;
+    const focusBounds = L.circle([center.lat, center.lon], { radius: focusRadius }).getBounds();
+
+    map.fitBounds(focusBounds, {
+        padding: [14, 14],
+        maxZoom: 15.4,
+        animate: true,
+        duration: 0.35
+    });
+}
+
 function applyNearbyResults(center, radiusMeters, results, silent) {
     storeNearbyResults(center, radiusMeters, results);
     renderNearbyMapOverlay(center, radiusMeters, results);
     renderNearbyDetails(results);
 
     if (!silent) {
-        map?.flyTo?.([center.lat, center.lon], Math.max(14, map.getZoom() || 14));
+        focusMapOnNearbyArea(center, radiusMeters);
     }
 }
 
 async function refreshNearbyTransport(options = {}) {
-    const { silent = false } = options;
+    const { silent = false, allowLocatePrompt = !silent } = options;
+    const requestId = ++nearbyRefreshRequestId;
     initNearbyDefaultRadius();
 
     if (!silent) {
@@ -508,42 +619,125 @@ async function refreshNearbyTransport(options = {}) {
     }
 
     try {
-        await ensureNearbyStaticAndRealtimeReady();
-
         const radiusMeters = parseNearbyRadiusInput();
-        const center = await getNearbyCenterPosition();
+        const [center] = await Promise.all([
+            getNearbyCenterPosition({ allowLocatePrompt }),
+            ensureNearbyStaticDataReady()
+        ]);
         if (!center) throw new Error('Sin ubicación disponible');
+        if (!isCurrentNearbyRefresh(requestId)) return;
 
-        const results = await computeNearbyTransport(center, radiusMeters);
+        const results = {
+            center,
+            radiusMeters,
+            subteStations: collectNearbySubteStations(center, radiusMeters),
+            trainStations: collectNearbyTrainStations(center, radiusMeters),
+            busVehicles: collectNearbyBusVehicles(center, radiusMeters),
+            bikeStations: collectNearbyBikeStations(center, radiusMeters),
+            busStops: []
+        };
+
         applyNearbyResults(center, radiusMeters, results, silent);
+        if (isCurrentNearbyRefresh(requestId) && typeof setStatus === 'function') setStatus('LIVE');
 
-        if (typeof setStatus === 'function') setStatus('LIVE');
+        const progressiveTasks = [
+            (async () => {
+                await ensureNearbyBikeDataReady();
+                if (!isCurrentNearbyRefresh(requestId)) return;
+
+                results.bikeStations = collectNearbyBikeStations(center, radiusMeters);
+                applyNearbyResults(center, radiusMeters, results, true);
+            })(),
+            (async () => {
+                await ensureNearbyBusDataReady();
+                if (!isCurrentNearbyRefresh(requestId)) return;
+
+                results.busVehicles = collectNearbyBusVehicles(center, radiusMeters);
+                applyNearbyResults(center, radiusMeters, results, true);
+
+                results.busStops = await collectNearbyBusStops(center, radiusMeters, results.busVehicles);
+                if (!isCurrentNearbyRefresh(requestId)) return;
+
+                applyNearbyResults(center, radiusMeters, results, true);
+            })(),
+            (async () => {
+                const shouldRefreshSubteForecast = !Array.isArray(globalThis.cache.subteForecast) || globalThis.cache.subteForecast.length === 0;
+                if (shouldRefreshSubteForecast) {
+                    await refreshSubteNow({ force: true });
+                    if (!isCurrentNearbyRefresh(requestId)) return;
+                }
+
+                results.subteStations = collectNearbySubteStations(center, radiusMeters);
+                applyNearbyResults(center, radiusMeters, results, true);
+            })(),
+            (async () => {
+                await enrichTrainEtas(results.trainStations);
+                if (!isCurrentNearbyRefresh(requestId)) return;
+
+                applyNearbyResults(center, radiusMeters, results, true);
+            })()
+        ];
+
+        await Promise.allSettled(progressiveTasks);
     } catch (error) {
-        if (!silent) renderNearbyErrorState();
-        if (typeof setStatus === 'function') setStatus('ERROR');
+        if (!silent && isCurrentNearbyRefresh(requestId)) renderNearbyErrorState();
+        if (isCurrentNearbyRefresh(requestId) && typeof setStatus === 'function') setStatus('ERROR');
         console.warn('Nearby transport error', error);
     }
 }
 
-async function toggleNearbyPanel() {
-    isNearbyPanelOpen = !isNearbyPanelOpen;
+function closeNearbyPanel() {
+    nearbyRefreshRequestId += 1;
+    isNearbyPanelOpen = false;
     if (typeof setDashboardActionActive === 'function') {
-        setDashboardActionActive('nearby', isNearbyPanelOpen);
+        setDashboardActionActive('nearby', false);
+    }
+
+    const panel = document.getElementById('nearby-panel');
+    if (panel) panel.classList.remove('is-open');
+
+    clearNearbyMapOverlay();
+    globalThis.nearbyState.active = false;
+    globalThis.nearbyState.lastResults = null;
+}
+
+async function openNearbyPanel(options = {}) {
+    const { silentRefresh = false } = options;
+
+    const alertsPanel = document.getElementById('alerts-panel');
+    const isAlertsOpen = alertsPanel?.classList?.contains('is-open');
+    if (isAlertsOpen && typeof toggleAlertPanel === 'function') {
+        await toggleAlertPanel();
+    }
+
+    isNearbyPanelOpen = true;
+    if (typeof setDashboardActionActive === 'function') {
+        setDashboardActionActive('nearby', true);
     }
 
     const panel = document.getElementById('nearby-panel');
     if (!panel) return;
 
+    deactivateMainTransportFilters();
+    panel.classList.add('is-open');
+    initNearbyDefaultRadius();
+    await refreshNearbyTransport({ silent: silentRefresh });
+}
+
+async function toggleNearbyPanel() {
     if (isNearbyPanelOpen) {
-        deactivateMainTransportFilters();
-        panel.classList.add('is-open');
-        initNearbyDefaultRadius();
-        await refreshNearbyTransport();
+        closeNearbyPanel();
         return;
     }
 
-    panel.classList.remove('is-open');
-    clearNearbyMapOverlay();
-    globalThis.nearbyState.active = false;
-    globalThis.nearbyState.lastResults = null;
+    await openNearbyPanel();
+}
+
+async function activateNearbyFromLocation() {
+    if (!isNearbyPanelOpen) {
+        await openNearbyPanel();
+        return;
+    }
+
+    await refreshNearbyTransport({ allowLocatePrompt: false });
 }
