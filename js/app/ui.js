@@ -1,5 +1,7 @@
-let isPanelOpen = true;
+let isPanelOpen = false;
 let deferredInstallPrompt = null;
+const USER_LOCATION_STORAGE_KEY = 'radaramba.user-location-v1';
+const USER_LOCATION_CACHE_MAX_AGE_MS = 15 * 60 * 1000;
 
 function setDashboardActionActive(actionKey, isActive) {
     const actionMap = {
@@ -189,54 +191,175 @@ function buildUserLocationTooltip(position) {
         </div>`;
 }
 
-function locateUser(options = {}) {
-    const { autoActivateNearby = true } = options;
-    if (!navigator.geolocation) return Promise.resolve(null);
+function readStoredUserLocation() {
+    try {
+        const raw = globalThis.localStorage?.getItem(USER_LOCATION_STORAGE_KEY);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw);
+        const lat = Number(parsed?.lat);
+        const lon = Number(parsed?.lon);
+        const timestamp = Number(parsed?.timestamp || 0);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+        return {
+            lat,
+            lon,
+            timestamp: Number.isFinite(timestamp) ? timestamp : Date.now()
+        };
+    } catch {
+        return null;
+    }
+}
+
+function persistUserLocation(location) {
+    const lat = Number(location?.lat);
+    const lon = Number(location?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const payload = {
+        lat,
+        lon,
+        timestamp: Number(location?.timestamp || Date.now())
+    };
+
+    try {
+        globalThis.localStorage?.setItem(USER_LOCATION_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+        // ignore storage failures
+    }
+}
+
+function getKnownUserLocation() {
+    const memory = globalThis.cache?.userLocation;
+    if (Number.isFinite(Number(memory?.lat)) && Number.isFinite(Number(memory?.lon))) {
+        return {
+            lat: Number(memory.lat),
+            lon: Number(memory.lon),
+            timestamp: Number(memory.timestamp || Date.now())
+        };
+    }
+
+    return readStoredUserLocation();
+}
+
+function isLocationCacheFresh(location, maxAgeMs = USER_LOCATION_CACHE_MAX_AGE_MS) {
+    const timestamp = Number(location?.timestamp || 0);
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return false;
+    return (Date.now() - timestamp) <= maxAgeMs;
+}
+
+async function getGeolocationPermissionState() {
+    if (!navigator?.permissions?.query) return null;
+
+    try {
+        const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+        return permissionStatus?.state || null;
+    } catch {
+        return null;
+    }
+}
+
+async function locateUser(options = {}) {
+    const {
+        autoActivateNearby = true,
+        skipPromptIfCached = false,
+        maxCachedAgeMs = USER_LOCATION_CACHE_MAX_AGE_MS
+    } = options;
+
+    const applyUserLocation = async (location, tooltipPosition, shouldPersist) => {
+        const lat = Number(location?.lat);
+        const lon = Number(location?.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+        const payload = {
+            lat,
+            lon,
+            timestamp: Number(location?.timestamp || Date.now())
+        };
+
+        globalThis.cache.userLocation = payload;
+        if (shouldPersist) persistUserLocation(payload);
+
+        userLayer?.clearLayers?.();
+        const userMarker = L.marker([lat, lon], {
+            icon: L.divIcon({
+                className: 'user-location-icon',
+                html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
+                iconSize: [38, 38],
+                iconAnchor: [19, 19]
+            })
+        }).addTo(userLayer);
+
+        const tooltipData = tooltipPosition || { coords: { latitude: lat, longitude: lon } };
+        userMarker.bindTooltip(buildUserLocationTooltip(tooltipData), {
+            className: 'custom-tooltip',
+            direction: 'top',
+            offset: [0, -20],
+            opacity: 1
+        });
+
+        map?.stop?.();
+        map?.flyTo?.([lat, lon], 15, {
+            animate: true,
+            duration: 1.05,
+            easeLinearity: 0.15,
+            noMoveStart: true
+        });
+
+        try {
+            if (autoActivateNearby && typeof activateNearbyFromLocation === 'function') {
+                await activateNearbyFromLocation();
+            } else if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
+                await refreshNearbyTransport({ silent: true });
+            }
+        } catch {
+            // geolocation should still resolve even if nearby refresh fails
+        }
+
+        return { lat, lon };
+    };
+
+    const knownLocation = getKnownUserLocation();
+    const permissionState = await getGeolocationPermissionState();
+
+    if (skipPromptIfCached && knownLocation) {
+        const isFresh = isLocationCacheFresh(knownLocation, maxCachedAgeMs);
+        const canRefreshWithoutPrompt = permissionState === 'granted';
+
+        if (isFresh || !canRefreshWithoutPrompt) {
+            const tooltipData = { coords: { latitude: knownLocation.lat, longitude: knownLocation.lon } };
+            return applyUserLocation(knownLocation, tooltipData, false);
+        }
+    }
+
+    if (!navigator.geolocation) {
+        if (!knownLocation) return null;
+        const tooltipData = { coords: { latitude: knownLocation.lat, longitude: knownLocation.lon } };
+        return applyUserLocation(knownLocation, tooltipData, false);
+    }
 
     return new Promise(resolve => {
         navigator.geolocation.getCurrentPosition(async pos => {
             const { latitude, longitude } = pos.coords;
-            const lat = Number(latitude);
-            const lon = Number(longitude);
-
-            globalThis.cache.userLocation = {
-                lat,
-                lon,
+            const liveLocation = {
+                lat: Number(latitude),
+                lon: Number(longitude),
                 timestamp: Date.now()
             };
 
-            userLayer.clearLayers();
-            const userMarker = L.marker([lat, lon], {
-                icon: L.divIcon({
-                    className: 'user-location-icon',
-                    html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
-                    iconSize: [38, 38],
-                    iconAnchor: [19, 19]
-                })
-            }).addTo(userLayer);
+            const resolvedLocation = await applyUserLocation(liveLocation, pos, true);
+            resolve(resolvedLocation);
+        }, async (err) => {
+            console.warn('Geolocation error', err);
 
-            userMarker.bindTooltip(buildUserLocationTooltip(pos), {
-                className: 'custom-tooltip',
-                direction: 'top',
-                offset: [0, -20],
-                opacity: 1
-            });
-
-            map.flyTo([lat, lon], 15);
-
-            try {
-                if (autoActivateNearby && typeof activateNearbyFromLocation === 'function') {
-                    await activateNearbyFromLocation();
-                } else if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
-                    await refreshNearbyTransport({ silent: true });
-                }
-            } catch {
-                // geolocation should still resolve even if nearby refresh fails
+            if (knownLocation) {
+                const tooltipData = { coords: { latitude: knownLocation.lat, longitude: knownLocation.lon } };
+                const restored = await applyUserLocation(knownLocation, tooltipData, false);
+                resolve(restored);
+                return;
             }
 
-            resolve({ lat, lon });
-        }, (err) => {
-            console.warn("Geolocation error", err);
             resolve(null);
         }, { enableHighAccuracy: true });
     });

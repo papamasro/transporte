@@ -56,11 +56,11 @@
                         <div id="status-pulse" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                         <span id="status-text" class="text-[9px] font-black text-emerald-600">LIVE</span>
                     </div>
-                    <i data-lucide="chevron-up" id="panel-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-300"></i>
+                    <i data-lucide="chevron-up" id="panel-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-300" style="transform: rotate(180deg);"></i>
                 </div>
             </button>
 
-            <div id="panel-content" class="overflow-hidden" style="max-height: 400px; opacity: 1; transition: all 0.3s ease-in-out;">
+            <div id="panel-content" class="overflow-hidden" style="max-height: 0; opacity: 0; transition: all 0.3s ease-in-out;">
                 <div class="pt-4">
                     <div class="grid grid-cols-4 gap-2 mb-4">
                         <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
@@ -132,17 +132,29 @@
                 <h3 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <i data-lucide="radar" class="w-3.5 h-3.5 text-indigo-600"></i> Cercano a vos
                 </h3>
-                <button onclick="toggleNearbyPanel()" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                <div class="flex items-center gap-1">
+                    <button id="nearby-compact-toggle" onclick="toggleNearbyPanelCompact()" title="Achicar o expandir panel" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md">
+                        <i data-lucide="chevron-up" id="nearby-panel-chevron" class="w-4 h-4 transition-transform duration-300"></i>
+                    </button>
+                    <button onclick="toggleNearbyPanel()" title="Cerrar" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                </div>
             </div>
-            <div class="flex items-center gap-2 mb-2 shrink-0">
-                <label for="nearby-radius-input" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Radio</label>
-                <input id="nearby-radius-input" type="number" min="200" max="5000" step="100" value="1500"
-                    class="w-24 bg-slate-100/50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-indigo-500">
-                <span class="text-[10px] font-bold text-slate-500">m</span>
-                <button onclick="refreshNearbyTransport()" class="ml-auto px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-600 text-white hover:bg-indigo-700">Buscar</button>
-            </div>
-            <div id="nearby-container" class="flex flex-col gap-1.5 overflow-y-auto pr-1 text-[10px] text-slate-600">
-                Tocá Buscar para ver paradas y transportes cercanos.
+            <div id="nearby-panel-body" class="nearby-panel-body">
+                <div class="nearby-controls-row flex flex-wrap items-center gap-2 mb-2 shrink-0">
+                    <label for="nearby-radius-input" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Radio</label>
+                    <input id="nearby-radius-input" type="number" min="200" max="5000" step="100" value="1500"
+                        class="w-24 bg-slate-100/50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-indigo-500">
+                    <span class="text-[10px] font-bold text-slate-500">m</span>
+                    <label for="nearby-sort-select" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Orden</label>
+                    <select id="nearby-sort-select" class="nearby-sort-select bg-slate-100/50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] outline-none focus:ring-1 focus:ring-indigo-500">
+                        <option value="distance">Mas cerca</option>
+                        <option value="eta">ETA primero</option>
+                    </select>
+                    <button onclick="refreshNearbyTransport()" class="nearby-search-btn ml-auto px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-600 text-white hover:bg-indigo-700">Buscar</button>
+                </div>
+                <div id="nearby-container" class="flex flex-col gap-2 overflow-y-auto pr-1 text-[11px] text-slate-600">
+                    Tocá Buscar para ver paradas y transportes cercanos.
+                </div>
             </div>
         </div>
     </div>

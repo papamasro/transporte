@@ -10,7 +10,9 @@ function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize) {
     }
 
     if (type === 'bike') {
-        return `<div class="marker-container"><div style="width:${stationIconSize}px;height:${stationIconSize}px;border-radius:50%;background:white;border:2px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.25);font-size:${stationFontSize}px;">🚲</div><div class="vehicle-label">${label}</div></div>`;
+        const bikeIconSize = stationIconSize + 8;
+        const bikeFontSize = stationFontSize + 3;
+        return `<div class="marker-container"><div style="width:${bikeIconSize}px;height:${bikeIconSize}px;border-radius:50%;background:white;border:2px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.25);font-size:${bikeFontSize}px;">🚲</div><div class="vehicle-label">${label}</div></div>`;
     }
 
     if (type === 'train') {
@@ -249,7 +251,9 @@ function createMarker(lat, lng, label, color, type, data = null) {
     const zoom = map?.getZoom?.() || 14;
     const stationIconSize = getStationIconSize(zoom);
     const stationFontSize = zoom <= 12 ? 13 : 11;
-    const markerBoxSize = type === 'bus' ? 20 : stationIconSize + 8;
+    let markerBoxSize = stationIconSize + 8;
+    if (type === 'bus') markerBoxSize = 20;
+    if (type === 'bike') markerBoxSize = stationIconSize + 16;
     const markerHtml = buildMarkerHtml(type, label, color, stationIconSize, stationFontSize);
 
     const marker = L.marker([lat, lng], {

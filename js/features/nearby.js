@@ -1,4 +1,5 @@
 let isNearbyPanelOpen = false;
+let isNearbyPanelCompact = false;
 let nearbyRefreshRequestId = 0;
 let nearbyNextGeolocationAttemptAt = 0;
 const NEARBY_GEO_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
@@ -8,8 +9,18 @@ if (!globalThis.nearbyState) {
         active: false,
         lastCenter: null,
         lastRadius: 1500,
-        lastResults: null
+        lastResults: null,
+        loading: false,
+        loadingRequestId: 0
     };
+}
+
+if (typeof globalThis.nearbyState.loading !== 'boolean') {
+    globalThis.nearbyState.loading = false;
+}
+
+if (!Number.isFinite(Number(globalThis.nearbyState.loadingRequestId))) {
+    globalThis.nearbyState.loadingRequestId = 0;
 }
 
 function getNearbyFeatureConfig() {
@@ -46,6 +57,31 @@ function initNearbyDefaultRadius() {
 
     input.value = String(getNearbyFeatureConfig().defaultRadius);
     input.dataset.initialized = 'true';
+}
+
+function getNearbySortMode() {
+    const select = document.getElementById('nearby-sort-select');
+    return select?.value === 'eta' ? 'eta' : 'distance';
+}
+
+function initNearbySortControl() {
+    const select = document.getElementById('nearby-sort-select');
+    if (!select) return;
+
+    if (select.dataset.initialized !== 'true') {
+        select.value = 'distance';
+        select.dataset.initialized = 'true';
+        select.addEventListener('change', () => {
+            const lastResults = globalThis.nearbyState?.lastResults;
+            if (!lastResults) return;
+            renderNearbyDetails(lastResults);
+        });
+        return;
+    }
+
+    if (select.value !== 'distance' && select.value !== 'eta') {
+        select.value = 'distance';
+    }
 }
 
 function parseNearbyRadiusInput() {
@@ -93,7 +129,7 @@ async function getNearbyCenterPosition(options = {}) {
         nearbyNextGeolocationAttemptAt = Date.now() + NEARBY_GEO_RETRY_COOLDOWN_MS;
 
         try {
-            const loc = await locateUser({ autoActivateNearby: false });
+            const loc = await locateUser({ autoActivateNearby: false, skipPromptIfCached: true });
             if (Number.isFinite(Number(loc?.lat)) && Number.isFinite(Number(loc?.lon))) {
                 nearbyNextGeolocationAttemptAt = 0;
                 return { lat: Number(loc.lat), lon: Number(loc.lon), source: 'gps' };
@@ -351,20 +387,15 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
     return Array.from(stopMap.values()).sort((a, b) => a.distance - b.distance);
 }
 
-function renderNearbyMapOverlay(center, radiusMeters, results) {
+function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
+    const { showRadiusCircle = true } = options;
     if (!layers?.nearbyRadius || !layers?.nearbyStops || !layers?.nearbyVehicles) return;
 
     layers.nearbyRadius.clearLayers();
     layers.nearbyStops.clearLayers();
     layers.nearbyVehicles.clearLayers();
 
-    L.circle([center.lat, center.lon], {
-        radius: radiusMeters,
-        color: '#6366f1',
-        weight: 2,
-        fillColor: '#6366f1',
-        fillOpacity: 0.08
-    }).addTo(layers.nearbyRadius);
+    if (showRadiusCircle) renderNearbyRadiusCircle(center, radiusMeters);
 
     results.subteStations.forEach(station => {
         const marker = createMarker(
@@ -407,17 +438,20 @@ function renderNearbyMapOverlay(center, radiusMeters, results) {
     });
 
     results.busStops.forEach(stop => {
-        L.circleMarker([stop.lat, stop.lon], {
-            radius: 5,
-            color: '#1d4ed8',
-            fillColor: '#60a5fa',
-            fillOpacity: 0.95,
-            weight: 1
+        const stopLines = Array.isArray(stop.lines) ? stop.lines.join(', ') : '-';
+
+        L.marker([stop.lat, stop.lon], {
+            icon: L.divIcon({
+                className: 'nearby-bus-stop-icon-wrapper',
+                html: '<div class="nearby-bus-stop-icon" title="Parada de bondi">🚏</div>',
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            })
         })
-            .bindTooltip(`${stop.name} · Líneas: ${stop.lines.join(', ')}`, {
+            .bindTooltip(`${stop.name} · Líneas: ${stopLines}`, {
                 className: 'custom-tooltip',
                 direction: 'top',
-                offset: [0, -6],
+                offset: [0, -8],
                 opacity: 0.95
             })
             .addTo(layers.nearbyStops);
@@ -430,45 +464,206 @@ function renderNearbyMapOverlay(center, radiusMeters, results) {
     });
 }
 
+function renderNearbyRadiusCircle(center, radiusMeters) {
+    if (!layers?.nearbyRadius) return;
+
+    layers.nearbyRadius.clearLayers();
+    L.circle([center.lat, center.lon], {
+        radius: radiusMeters,
+        color: '#6366f1',
+        weight: 2,
+        fillColor: '#6366f1',
+        fillOpacity: 0.08
+    }).addTo(layers.nearbyRadius);
+}
+
 function formatDistance(distance) {
-    const rounded = Math.round(distance);
-    return `${rounded} m`;
+    const numeric = Number(distance);
+    if (!Number.isFinite(numeric)) return '--';
+
+    if (numeric >= 1000) {
+        const km = numeric / 1000;
+        const decimals = km >= 10 ? 0 : 1;
+        return `${km.toFixed(decimals)} km`;
+    }
+
+    return `${Math.round(numeric)} m`;
+}
+
+function getEtaMinutes(etaText) {
+    const raw = String(etaText || '').trim();
+    if (!raw) return Number.POSITIVE_INFINITY;
+
+    const normalized = normalizeText(raw);
+    if (/arrib|ya|ahora|inmediat/.test(normalized)) return 0;
+
+    const minutesMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(min|m|minuto|minutos)\b/);
+    if (minutesMatch) {
+        return Number(minutesMatch[1].replace(',', '.'));
+    }
+
+    const secondsMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(s|seg|segundo|segundos)\b/);
+    if (secondsMatch) {
+        return Number(secondsMatch[1].replace(',', '.')) / 60;
+    }
+
+    return Number.POSITIVE_INFINITY;
+}
+
+function sortNearbyItems(items, sortMode, getEtaValue) {
+    const source = Array.isArray(items) ? items : [];
+    const sorted = [...source];
+
+    sorted.sort((a, b) => {
+        const distanceA = Number(a?.distance);
+        const distanceB = Number(b?.distance);
+        const safeDistanceA = Number.isFinite(distanceA) ? distanceA : Number.POSITIVE_INFINITY;
+        const safeDistanceB = Number.isFinite(distanceB) ? distanceB : Number.POSITIVE_INFINITY;
+
+        if (sortMode === 'eta' && typeof getEtaValue === 'function') {
+            const etaA = Number(getEtaValue(a));
+            const etaB = Number(getEtaValue(b));
+            const safeEtaA = Number.isFinite(etaA) ? etaA : Number.POSITIVE_INFINITY;
+            const safeEtaB = Number.isFinite(etaB) ? etaB : Number.POSITIVE_INFINITY;
+
+            if (safeEtaA !== safeEtaB) {
+                return safeEtaA - safeEtaB;
+            }
+        }
+
+        return safeDistanceA - safeDistanceB;
+    });
+
+    return sorted;
+}
+
+function escapeNearbyHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function buildNearbyItemHtml(item) {
+    const itemTitle = escapeNearbyHtml(item?.title || '-');
+    const itemMeta = item?.meta ? `<div class="nearby-item-meta">${escapeNearbyHtml(item.meta)}</div>` : '';
+
+    return `
+        <article class="nearby-item">
+            <div class="nearby-item-title">${itemTitle}</div>
+            ${itemMeta}
+        </article>
+    `;
+}
+
+function buildNearbySectionHtml(section) {
+    const itemsHtml = section.items.length > 0
+        ? section.items.map(item => buildNearbyItemHtml(item)).join('')
+        : '<div class="nearby-empty">Sin resultados en este radio.</div>';
+
+    return `
+        <section class="nearby-section ${section.sectionClass}">
+            <div class="nearby-section-header">
+                <span class="nearby-section-title">${section.icon} ${section.title}</span>
+                <span class="nearby-section-count">${section.total}</span>
+            </div>
+            <div class="nearby-section-list">${itemsHtml}</div>
+        </section>
+    `;
 }
 
 function renderNearbyDetails(results) {
     const container = document.getElementById('nearby-container');
     if (!container) return;
 
-    const firstSubte = results.subteStations.slice(0, 5)
-        .map(st => `<div class="text-[10px] font-medium text-slate-700">🚇 ${st.name} · ${formatDistance(st.distance)} · ${st.etaText}</div>`)
-        .join('');
+    const sortMode = getNearbySortMode();
+    const sortedSubteStations = sortNearbyItems(results.subteStations, sortMode, item => getEtaMinutes(item?.etaText));
+    const sortedTrainStations = sortNearbyItems(results.trainStations, sortMode, item => getEtaMinutes(item?.etaText));
+    const sortedBusVehicles = sortNearbyItems(results.busVehicles, 'distance');
+    const sortedBusStops = sortNearbyItems(results.busStops, 'distance');
+    const sortedBikeStations = sortNearbyItems(results.bikeStations, 'distance');
 
-    const firstTrain = results.trainStations.slice(0, 5)
-        .map(st => `<div class="text-[10px] font-medium text-slate-700">🚆 ${st.name} · ${formatDistance(st.distance)} · ${st.etaText}</div>`)
-        .join('');
+    const busVehicleItems = sortedBusVehicles.slice(0, 5).map(item => ({
+        title: `Linea ${item.line || '-'}`,
+        meta: `${formatDistance(item.distance)} · ${item.vehicle?.trip_headsign || 'Sin destino'}`
+    }));
 
-    const firstBusStops = results.busStops.slice(0, 6)
-        .map(st => `<div class="text-[10px] font-medium text-slate-700">🚌 ${st.name} · ${formatDistance(st.distance)} · Líneas ${st.lines.slice(0, 3).join(', ')}</div>`)
-        .join('');
+    const busStopItems = sortedBusStops.slice(0, 4).map(st => {
+        const stopLines = Array.isArray(st.lines)
+            ? st.lines.slice(0, 3).join(', ')
+            : '-';
 
-    const firstBikes = results.bikeStations.slice(0, 6)
-        .map(st => `<div class="text-[10px] font-medium text-slate-700">🚲 ${st.name} · ${formatDistance(st.distance)} · ${st.bikesAvailable} disponibles</div>`)
-        .join('');
+        return {
+            title: `Parada ${st.name || 'Sin nombre'}`,
+            meta: `${formatDistance(st.distance)} · Lineas ${stopLines}`
+        };
+    });
 
-    const firstBuses = results.busVehicles.slice(0, 8)
-        .map(item => {
-            const headsign = item.vehicle?.trip_headsign || 'Sin destino';
-            return `<div class="text-[10px] font-medium text-slate-700">🟣 Línea ${item.line} · ${formatDistance(item.distance)} · ${headsign}</div>`;
-        })
-        .join('');
+    const bondiItems = [...busVehicleItems, ...busStopItems];
 
-    const foundItems = [firstSubte, firstTrain, firstBusStops, firstBikes, firstBuses]
-        .filter(Boolean)
-        .join('');
+    const sections = [
+        {
+            icon: '🚆',
+            title: 'Trenes',
+            sectionClass: 'nearby-section-train',
+            total: sortedTrainStations.length,
+            items: sortedTrainStations.slice(0, 5).map(st => {
+                const lineSuffix = st.lineShort ? ` · ${st.lineShort}` : '';
+                return {
+                    title: st.name || 'Estacion',
+                    meta: `${formatDistance(st.distance)} · ${st.etaText || 'Sin ETA'}${lineSuffix}`
+                };
+            })
+        },
+        {
+            icon: '🚌',
+            title: 'Bondis',
+            sectionClass: 'nearby-section-bus',
+            total: sortedBusVehicles.length + sortedBusStops.length,
+            items: bondiItems
+        },
+        {
+            icon: '🚇',
+            title: 'Subte',
+            sectionClass: 'nearby-section-subte',
+            total: sortedSubteStations.length,
+            items: sortedSubteStations.slice(0, 5).map(st => {
+                const lineSuffix = st.lineShort ? ` · ${st.lineShort}` : '';
+                return {
+                    title: st.name || 'Estacion',
+                    meta: `${formatDistance(st.distance)} · ${st.etaText || 'Sin ETA'}${lineSuffix}`
+                };
+            })
+        },
+        {
+            icon: '🚲',
+            title: 'Ecobici',
+            sectionClass: 'nearby-section-bike',
+            total: sortedBikeStations.length,
+            items: sortedBikeStations.slice(0, 6).map(st => ({
+                title: st.name || 'Estacion',
+                meta: `${formatDistance(st.distance)} · ${Math.max(0, Number(st.bikesAvailable || 0))} disponibles`
+            }))
+        }
+    ];
 
-    container.innerHTML = foundItems
-        ? `<div class="mt-1 space-y-1">${foundItems}</div>`
-        : '<div class="text-[10px] text-slate-500">No se encontraron transportes dentro del radio.</div>';
+    const totalMatches = sections.reduce((acc, section) => acc + section.total, 0);
+    const renderedMatches = sections.reduce((acc, section) => acc + section.items.length, 0);
+    const radiusLabel = formatDistance(results.radiusMeters || globalThis.nearbyState?.lastRadius || getNearbyFeatureConfig().defaultRadius);
+    const sortLabel = sortMode === 'eta' ? 'ETA mas proximo' : 'distancia';
+
+    const summaryText = totalMatches > 0
+        ? `${totalMatches} hallazgos dentro de ${radiusLabel}. Mostrando ${renderedMatches}. Orden: ${sortLabel}.`
+        : `Sin resultados dentro de ${radiusLabel}. Orden: ${sortLabel}.`;
+
+    const sectionsHtml = sections.map(section => buildNearbySectionHtml(section)).join('');
+
+    container.innerHTML = `
+        <div class="nearby-summary">${summaryText}</div>
+        <div class="nearby-sections">${sectionsHtml}</div>
+    `;
 }
 
 async function enrichTrainEtas(trainStations) {
@@ -581,26 +776,60 @@ function storeNearbyResults(center, radiusMeters, results) {
     globalThis.nearbyState.lastResults = results;
 }
 
-function focusMapOnNearbyArea(center, radiusMeters) {
-    if (!map?.fitBounds) return;
+function shouldOpenNearbyCompactByDefault() {
+    return globalThis.matchMedia?.('(max-width: 767px)')?.matches === true;
+}
 
+function setNearbyPanelCompact(shouldCompact) {
+    const panel = document.getElementById('nearby-panel');
+    if (!panel) return;
+
+    const compact = !!shouldCompact;
+    isNearbyPanelCompact = compact;
+    panel.classList.toggle('is-compact', compact);
+
+    const chevron = document.getElementById('nearby-panel-chevron');
+    if (chevron?.style) {
+        chevron.style.transform = compact ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+}
+
+function focusMapOnNearbyArea(center, radiusMeters) {
     const fallbackRadius = getNearbyFeatureConfig().defaultRadius;
     const baseRadius = Number.isFinite(Number(radiusMeters)) ? Number(radiusMeters) : fallbackRadius;
     const clampedRadius = Math.min(5000, Math.max(200, baseRadius));
-    const focusRadius = clampedRadius * 1.08;
-    const focusBounds = L.circle([center.lat, center.lon], { radius: focusRadius }).getBounds();
 
-    map.fitBounds(focusBounds, {
-        padding: [14, 14],
-        maxZoom: 15.4,
+    // Acerca mas para usar el radio como referencia visual y cortar parte del circulo.
+    let targetZoom = 15.3;
+    if (clampedRadius <= 3000) targetZoom = 15.6;
+    if (clampedRadius <= 2000) targetZoom = 15.9;
+    if (clampedRadius <= 1200) targetZoom = 16.2;
+    if (clampedRadius <= 700) targetZoom = 16.5;
+
+    if (map?.flyTo) {
+        map.flyTo([center.lat, center.lon], targetZoom, {
+            animate: true,
+            duration: 1.75,
+            easeLinearity: 0.14,
+            noMoveStart: true
+        });
+        return;
+    }
+
+    if (!map?.fitBounds) return;
+    const fallbackBounds = L.circle([center.lat, center.lon], { radius: clampedRadius * 0.44 }).getBounds();
+    map.fitBounds(fallbackBounds, {
+        padding: [12, 12],
+        maxZoom: targetZoom,
         animate: true,
-        duration: 0.35
+        duration: 1.65,
+        easeLinearity: 0.14
     });
 }
 
-function applyNearbyResults(center, radiusMeters, results, silent) {
+function applyNearbyResults(center, radiusMeters, results, silent, overlayOptions = {}) {
     storeNearbyResults(center, radiusMeters, results);
-    renderNearbyMapOverlay(center, radiusMeters, results);
+    renderNearbyMapOverlay(center, radiusMeters, results, overlayOptions);
     renderNearbyDetails(results);
 
     if (!silent) {
@@ -608,97 +837,332 @@ function applyNearbyResults(center, radiusMeters, results, silent) {
     }
 }
 
+function getNearbyOverlayOptions(shouldDelayRadiusCircle) {
+    return { showRadiusCircle: !shouldDelayRadiusCircle };
+}
+
+function setNearbyStatusValue(state) {
+    if (typeof setStatus === 'function') setStatus(state);
+}
+
+function beginNearbyRefreshStatus(requestId, silent) {
+    if (silent) return;
+
+    if (!globalThis.nearbyState) return;
+
+    globalThis.nearbyState.loading = true;
+    globalThis.nearbyState.loadingRequestId = requestId;
+    setNearbyStatusValue('CARGANDO');
+    setNearbyLoadingState();
+}
+
+function endNearbyRefreshStatus(requestId, state) {
+    if (!globalThis.nearbyState) return;
+    if (Number(globalThis.nearbyState.loadingRequestId) !== Number(requestId)) return;
+
+    globalThis.nearbyState.loading = false;
+    globalThis.nearbyState.loadingRequestId = 0;
+    setNearbyStatusValue(state);
+}
+
+function waitForNearbyMapStabilization(timeoutMs = 3200) {
+    return new Promise(resolve => {
+        if (!map?.once) {
+            resolve();
+            return;
+        }
+
+        let settled = false;
+        const done = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve();
+        };
+
+        const timer = setTimeout(done, Math.max(2600, timeoutMs));
+
+        // Espera al proximo tick para ignorar moveend sincronos de animaciones previas.
+        setTimeout(() => {
+            if (settled || !map?.once) return;
+            map.once('moveend', done);
+        }, 0);
+    });
+}
+
+function buildNearbyProgressiveContext(
+    requestId,
+    center,
+    radiusMeters,
+    previousResults = {},
+    options = {}
+) {
+    const {
+        shouldDelayRadiusCircle = false,
+        shouldReuseBusStops = false,
+        shouldReuseBusVehicles = false,
+        shouldReuseSubteStations = false,
+        shouldReuseTrainStations = false
+    } = options;
+
+    const previousBusStops = Array.isArray(previousResults.busStops) ? previousResults.busStops : [];
+    const previousBusVehicles = Array.isArray(previousResults.busVehicles) ? previousResults.busVehicles : [];
+    const previousSubteStations = Array.isArray(previousResults.subteStations) ? previousResults.subteStations : [];
+    const previousTrainStations = Array.isArray(previousResults.trainStations) ? previousResults.trainStations : [];
+
+    const collectedSubteStations = collectNearbySubteStations(center, radiusMeters);
+    const collectedTrainStations = collectNearbyTrainStations(center, radiusMeters);
+    const collectedBusVehicles = collectNearbyBusVehicles(center, radiusMeters);
+
+    const stableSubteStations = (shouldReuseSubteStations && collectedSubteStations.length === 0)
+        ? previousSubteStations
+        : collectedSubteStations;
+
+    const stableTrainStations = (shouldReuseTrainStations && collectedTrainStations.length === 0)
+        ? previousTrainStations
+        : collectedTrainStations;
+
+    const stableBusVehicles = (shouldReuseBusVehicles && collectedBusVehicles.length === 0)
+        ? previousBusVehicles
+        : collectedBusVehicles;
+
+    const results = {
+        center,
+        radiusMeters,
+        subteStations: stableSubteStations,
+        trainStations: stableTrainStations,
+        busVehicles: stableBusVehicles,
+        bikeStations: collectNearbyBikeStations(center, radiusMeters),
+        busStops: shouldReuseBusStops ? previousBusStops : []
+    };
+
+    return {
+        requestId,
+        center,
+        radiusMeters,
+        results,
+        shouldDelayRadiusCircle,
+        radiusCircleRevealed: !shouldDelayRadiusCircle,
+        shouldReuseBusStops,
+        shouldReuseBusVehicles,
+        shouldReuseSubteStations,
+        shouldReuseTrainStations
+    };
+}
+
+function renderNearbyInitialState(context, silent) {
+    applyNearbyResults(
+        context.center,
+        context.radiusMeters,
+        context.results,
+        silent,
+        getNearbyOverlayOptions(context.shouldDelayRadiusCircle)
+    );
+}
+
+function revealNearbyRadiusCircle(context) {
+    if (context.radiusCircleRevealed) return;
+    if (!isCurrentNearbyRefresh(context.requestId)) return;
+
+    context.shouldDelayRadiusCircle = false;
+    context.radiusCircleRevealed = true;
+
+    // Reveal liviano: dibuja solo el circulo y evita rerender completo del panel.
+    renderNearbyRadiusCircle(context.center, context.radiusMeters);
+}
+
+async function synchronizeNearbyRadiusCircle(context) {
+    if (!context.shouldDelayRadiusCircle) return;
+
+    await waitForNearbyMapStabilization();
+    revealNearbyRadiusCircle(context);
+}
+
+function handleNearbyRefreshError(requestId, silent, error) {
+    if (!isCurrentNearbyRefresh(requestId)) return;
+    if (!silent) renderNearbyErrorState();
+    setNearbyStatusValue('ERROR');
+    console.warn('Nearby transport error', error);
+}
+
+async function resolveNearbyRefreshContext(requestId, allowLocatePrompt, previousResults = {}, options = {}) {
+    const {
+        silent = false,
+        shouldReuseBusStops = false,
+        shouldReuseBusVehicles = false,
+        shouldReuseSubteStations = false,
+        shouldReuseTrainStations = false
+    } = options;
+
+    const radiusMeters = parseNearbyRadiusInput();
+    const [center] = await Promise.all([
+        getNearbyCenterPosition({ allowLocatePrompt }),
+        ensureNearbyStaticDataReady()
+    ]);
+
+    if (!center) throw new Error('Sin ubicación disponible');
+    if (!isCurrentNearbyRefresh(requestId)) return null;
+
+    const shouldDelayRadiusCircle = !silent;
+
+    return buildNearbyProgressiveContext(
+        requestId,
+        center,
+        radiusMeters,
+        previousResults,
+        {
+            shouldDelayRadiusCircle,
+            shouldReuseBusStops,
+            shouldReuseBusVehicles,
+            shouldReuseSubteStations,
+            shouldReuseTrainStations
+        }
+    );
+}
+
+async function runNearbyProgressiveTasks(context) {
+    const progressiveTasks = [
+        runNearbyBikeProgressiveTask(context),
+        runNearbyBusProgressiveTask(context),
+        runNearbySubteProgressiveTask(context),
+        runNearbyTrainProgressiveTask(context)
+    ];
+
+    await Promise.allSettled(progressiveTasks);
+}
+
+function renderNearbyProgressiveUpdate(context) {
+    const { center, radiusMeters, results, shouldDelayRadiusCircle } = context;
+    applyNearbyResults(center, radiusMeters, results, true, getNearbyOverlayOptions(shouldDelayRadiusCircle));
+}
+
+async function runNearbyBikeProgressiveTask(context) {
+    await ensureNearbyBikeDataReady();
+    if (!isCurrentNearbyRefresh(context.requestId)) return;
+
+    context.results.bikeStations = collectNearbyBikeStations(context.center, context.radiusMeters);
+    renderNearbyProgressiveUpdate(context);
+}
+
+async function runNearbyBusProgressiveTask(context) {
+    await ensureNearbyBusDataReady();
+    if (!isCurrentNearbyRefresh(context.requestId)) return;
+
+    const refreshedBusVehicles = collectNearbyBusVehicles(context.center, context.radiusMeters);
+    if (refreshedBusVehicles.length > 0 || !context.shouldReuseBusVehicles) {
+        context.results.busVehicles = refreshedBusVehicles;
+    }
+    renderNearbyProgressiveUpdate(context);
+
+    if (!context.shouldReuseBusStops) {
+        const refreshedBusStops = await collectNearbyBusStops(
+            context.center,
+            context.radiusMeters,
+            context.results.busVehicles
+        );
+        if (!isCurrentNearbyRefresh(context.requestId)) return;
+        if (Array.isArray(refreshedBusStops) && refreshedBusStops.length > 0) {
+            context.results.busStops = refreshedBusStops;
+        }
+    }
+
+    renderNearbyProgressiveUpdate(context);
+}
+
+async function runNearbySubteProgressiveTask(context) {
+    const shouldRefreshSubteForecast = !Array.isArray(globalThis.cache.subteForecast) || globalThis.cache.subteForecast.length === 0;
+    if (shouldRefreshSubteForecast) {
+        await refreshSubteNow({ force: true });
+        if (!isCurrentNearbyRefresh(context.requestId)) return;
+    }
+
+    const refreshedSubteStations = collectNearbySubteStations(context.center, context.radiusMeters);
+    if (refreshedSubteStations.length > 0 || !context.shouldReuseSubteStations) {
+        context.results.subteStations = refreshedSubteStations;
+    }
+    renderNearbyProgressiveUpdate(context);
+}
+
+async function runNearbyTrainProgressiveTask(context) {
+    await enrichTrainEtas(context.results.trainStations);
+    if (!isCurrentNearbyRefresh(context.requestId)) return;
+
+    renderNearbyProgressiveUpdate(context);
+}
+
 async function refreshNearbyTransport(options = {}) {
     const { silent = false, allowLocatePrompt = !silent } = options;
     const requestId = ++nearbyRefreshRequestId;
     initNearbyDefaultRadius();
+    initNearbySortControl();
 
-    if (!silent) {
-        if (typeof setStatus === 'function') setStatus('CARGANDO');
-        setNearbyLoadingState();
-    }
+    const previousResults = {
+        busStops: Array.isArray(globalThis.nearbyState?.lastResults?.busStops)
+            ? [...globalThis.nearbyState.lastResults.busStops]
+            : [],
+        busVehicles: Array.isArray(globalThis.nearbyState?.lastResults?.busVehicles)
+            ? [...globalThis.nearbyState.lastResults.busVehicles]
+            : [],
+        subteStations: Array.isArray(globalThis.nearbyState?.lastResults?.subteStations)
+            ? [...globalThis.nearbyState.lastResults.subteStations]
+            : [],
+        trainStations: Array.isArray(globalThis.nearbyState?.lastResults?.trainStations)
+            ? [...globalThis.nearbyState.lastResults.trainStations]
+            : []
+    };
+
+    const shouldReuseBusStops = silent && previousResults.busStops.length > 0;
+    const shouldReuseBusVehicles = silent && previousResults.busVehicles.length > 0;
+    const shouldReuseSubteStations = silent && previousResults.subteStations.length > 0;
+    const shouldReuseTrainStations = silent && previousResults.trainStations.length > 0;
+
+    beginNearbyRefreshStatus(requestId, silent);
 
     try {
-        const radiusMeters = parseNearbyRadiusInput();
-        const [center] = await Promise.all([
-            getNearbyCenterPosition({ allowLocatePrompt }),
-            ensureNearbyStaticDataReady()
-        ]);
-        if (!center) throw new Error('Sin ubicación disponible');
-        if (!isCurrentNearbyRefresh(requestId)) return;
+        const progressiveContext = await resolveNearbyRefreshContext(
+            requestId,
+            allowLocatePrompt,
+            previousResults,
+            {
+                silent,
+                shouldReuseBusStops,
+                shouldReuseBusVehicles,
+                shouldReuseSubteStations,
+                shouldReuseTrainStations
+            }
+        );
+        if (!progressiveContext) return;
 
-        const results = {
-            center,
-            radiusMeters,
-            subteStations: collectNearbySubteStations(center, radiusMeters),
-            trainStations: collectNearbyTrainStations(center, radiusMeters),
-            busVehicles: collectNearbyBusVehicles(center, radiusMeters),
-            bikeStations: collectNearbyBikeStations(center, radiusMeters),
-            busStops: []
-        };
-
-        applyNearbyResults(center, radiusMeters, results, silent);
-        if (isCurrentNearbyRefresh(requestId) && typeof setStatus === 'function') setStatus('LIVE');
-
-        const progressiveTasks = [
-            (async () => {
-                await ensureNearbyBikeDataReady();
-                if (!isCurrentNearbyRefresh(requestId)) return;
-
-                results.bikeStations = collectNearbyBikeStations(center, radiusMeters);
-                applyNearbyResults(center, radiusMeters, results, true);
-            })(),
-            (async () => {
-                await ensureNearbyBusDataReady();
-                if (!isCurrentNearbyRefresh(requestId)) return;
-
-                results.busVehicles = collectNearbyBusVehicles(center, radiusMeters);
-                applyNearbyResults(center, radiusMeters, results, true);
-
-                results.busStops = await collectNearbyBusStops(center, radiusMeters, results.busVehicles);
-                if (!isCurrentNearbyRefresh(requestId)) return;
-
-                applyNearbyResults(center, radiusMeters, results, true);
-            })(),
-            (async () => {
-                const shouldRefreshSubteForecast = !Array.isArray(globalThis.cache.subteForecast) || globalThis.cache.subteForecast.length === 0;
-                if (shouldRefreshSubteForecast) {
-                    await refreshSubteNow({ force: true });
-                    if (!isCurrentNearbyRefresh(requestId)) return;
-                }
-
-                results.subteStations = collectNearbySubteStations(center, radiusMeters);
-                applyNearbyResults(center, radiusMeters, results, true);
-            })(),
-            (async () => {
-                await enrichTrainEtas(results.trainStations);
-                if (!isCurrentNearbyRefresh(requestId)) return;
-
-                applyNearbyResults(center, radiusMeters, results, true);
-            })()
-        ];
-
-        await Promise.allSettled(progressiveTasks);
+        renderNearbyInitialState(progressiveContext, silent);
+        const circleSyncPromise = synchronizeNearbyRadiusCircle(progressiveContext);
+        await runNearbyProgressiveTasks(progressiveContext);
+        await circleSyncPromise;
+        revealNearbyRadiusCircle(progressiveContext);
+        endNearbyRefreshStatus(requestId, 'LIVE');
     } catch (error) {
-        if (!silent && isCurrentNearbyRefresh(requestId)) renderNearbyErrorState();
-        if (isCurrentNearbyRefresh(requestId) && typeof setStatus === 'function') setStatus('ERROR');
-        console.warn('Nearby transport error', error);
+        endNearbyRefreshStatus(requestId, 'ERROR');
+        handleNearbyRefreshError(requestId, silent, error);
     }
 }
 
 function closeNearbyPanel() {
     nearbyRefreshRequestId += 1;
     isNearbyPanelOpen = false;
+    isNearbyPanelCompact = false;
     if (typeof setDashboardActionActive === 'function') {
         setDashboardActionActive('nearby', false);
     }
 
     const panel = document.getElementById('nearby-panel');
-    if (panel) panel.classList.remove('is-open');
+    if (panel) {
+        panel.classList.remove('is-open', 'is-compact');
+    }
 
     clearNearbyMapOverlay();
     globalThis.nearbyState.active = false;
     globalThis.nearbyState.lastResults = null;
+    globalThis.nearbyState.loading = false;
+    globalThis.nearbyState.loadingRequestId = 0;
 }
 
 async function openNearbyPanel(options = {}) {
@@ -720,8 +1184,15 @@ async function openNearbyPanel(options = {}) {
 
     deactivateMainTransportFilters();
     panel.classList.add('is-open');
+    setNearbyPanelCompact(shouldOpenNearbyCompactByDefault());
     initNearbyDefaultRadius();
+    initNearbySortControl();
     await refreshNearbyTransport({ silent: silentRefresh });
+}
+
+function toggleNearbyPanelCompact() {
+    if (!isNearbyPanelOpen) return;
+    setNearbyPanelCompact(!isNearbyPanelCompact);
 }
 
 async function toggleNearbyPanel() {

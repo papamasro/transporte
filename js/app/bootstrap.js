@@ -122,8 +122,8 @@
             document.getElementById('search').addEventListener('input', renderMarkers);
             map.on('moveend', renderMarkers);
             
-            // CAMBIO 4: Auto-ubicar al usuario cuando termina de inicializar
-            locateUser();
+            // Auto-ubica con cache persistida para evitar prompt repetido.
+            locateUser({ skipPromptIfCached: true });
             setupInstallPrompt();
             setStatus('CARGANDO');
             forceRefresh();
@@ -161,7 +161,9 @@
                     const busData = await fetchWithRetry(busVehiclePositionsPath);
                     updateBusCache(busData);
                 } else {
-                    globalThis.cache.bus = [];
+                    if (!globalThis.nearbyState?.active) {
+                        globalThis.cache.bus = [];
+                    }
                     clearBusRouteOverlay();
                 }
 
@@ -173,7 +175,11 @@
                 if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
                     refreshNearbyTransport({ silent: true }).catch(() => {});
                 }
-                setStatus('LIVE'); 
+                if (globalThis.nearbyState?.loading) {
+                    setStatus('CARGANDO');
+                } else {
+                    setStatus('LIVE');
+                }
 
             } catch (err) {
                 console.error("Error crítico en refreshLoop", err);

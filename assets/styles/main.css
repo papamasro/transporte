@@ -60,6 +60,163 @@
             pointer-events: auto;
         }
 
+        #nearby-panel.dashboard-modal.is-open {
+            max-height: min(460px, calc(100vh - 120px)) !important;
+        }
+
+        #nearby-panel .nearby-panel-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            max-height: 360px;
+            opacity: 1;
+            transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+        }
+
+        #nearby-panel.dashboard-modal.is-open.is-compact {
+            max-height: 82px !important;
+        }
+
+        #nearby-panel.is-compact .nearby-panel-body {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0;
+            pointer-events: none;
+        }
+
+        .nearby-controls-row {
+            row-gap: 6px;
+        }
+
+        .nearby-sort-select {
+            min-width: 118px;
+            font-weight: 700;
+        }
+
+        .nearby-search-btn {
+            margin-left: auto;
+        }
+
+        #nearby-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 2px;
+        }
+
+        #nearby-container::-webkit-scrollbar { width: 5px; }
+        #nearby-container::-webkit-scrollbar-track { background: transparent; }
+        #nearby-container::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.55); border-radius: 10px; }
+
+        .nearby-summary {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #e2e8f0;
+            background: rgba(15, 23, 42, 0.62);
+            border: 1px solid rgba(100, 116, 139, 0.4);
+            border-radius: 11px;
+            padding: 8px 10px;
+            line-height: 1.35;
+        }
+
+        .nearby-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nearby-section {
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(100, 116, 139, 0.36);
+            border-left: 3px solid rgba(100, 116, 139, 0.55);
+            border-radius: 12px;
+            padding: 8px 9px;
+        }
+
+        .nearby-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .nearby-section-title {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: #e2e8f0;
+        }
+
+        .nearby-section-count {
+            min-width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(30, 41, 59, 0.8);
+            color: #e2e8f0;
+        }
+
+        .nearby-section-train {
+            border-left-color: rgba(56, 189, 248, 0.72);
+        }
+
+        .nearby-section-bus {
+            border-left-color: rgba(129, 140, 248, 0.72);
+        }
+
+        .nearby-section-subte {
+            border-left-color: rgba(192, 132, 252, 0.72);
+        }
+
+        .nearby-section-bike {
+            border-left-color: rgba(74, 222, 128, 0.72);
+        }
+
+        .nearby-section-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nearby-item {
+            border-top: 1px dashed rgba(100, 116, 139, 0.35);
+            padding-top: 6px;
+        }
+
+        .nearby-item:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
+
+        .nearby-item-title {
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.22;
+            color: #f8fafc;
+        }
+
+        .nearby-item-meta {
+            margin-top: 2px;
+            font-size: 11px;
+            line-height: 1.24;
+            color: #cbd5e1;
+        }
+
+        .nearby-empty {
+            font-size: 11px;
+            color: #94a3b8;
+            line-height: 1.28;
+        }
+
         .v-marker {
             width: 14px; height: 14px; 
             border: 2px solid white; 
@@ -83,6 +240,24 @@
         .marker-container {
             width: 100%; height: 100%; position: relative;
             display: flex; align-items: center; justify-content: center;
+        }
+
+        .nearby-bus-stop-icon-wrapper {
+            background: transparent;
+            border: none;
+        }
+
+        .nearby-bus-stop-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+            background: rgba(30, 64, 175, 0.18);
+            border: 1px solid rgba(147, 197, 253, 0.7);
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.26);
         }
 
         .user-location-icon {
@@ -212,9 +387,19 @@
         }
 
         .ui-panel input,
+        .ui-panel select,
         .ui-panel input::placeholder {
             color: #e2e8f0 !important;
             opacity: 1;
+        }
+
+        .ui-panel select {
+            background: rgba(15, 23, 42, 0.72) !important;
+        }
+
+        .ui-panel select option {
+            color: #0f172a;
+            background: #e2e8f0;
         }
 
         .ui-panel input::placeholder {
@@ -242,6 +427,21 @@
         #alerts-container::-webkit-scrollbar { width: 4px; }
         #alerts-container::-webkit-scrollbar-track { background: transparent; }
         #alerts-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        @media (max-width: 767px) {
+            #nearby-panel.dashboard-modal.is-open {
+                max-height: 62vh !important;
+            }
+
+            #nearby-panel .nearby-panel-body {
+                max-height: 50vh;
+            }
+
+            .nearby-search-btn {
+                width: 100%;
+                margin-left: 0;
+            }
+        }
 
         @media (min-width: 768px) {
             .ui-panel {
