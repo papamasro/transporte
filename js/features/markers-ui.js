@@ -1,7 +1,7 @@
 function getStationIconSize(zoom) {
-    if (zoom <= 12) return 22;
-    if (zoom <= 14) return 20;
-    return 18;
+    if (zoom <= 12) return 16;
+    if (zoom <= 14) return 14;
+    return 12;
 }
 
 function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize) {
@@ -24,7 +24,7 @@ function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize) {
 
 function buildBusTooltip(data, color, label) {
     const speed = Math.max(0, Math.round((Number(data.speed) || 0) * 3.6));
-    const shortName = (data.route_short_name || label || '-').toString();
+    const shortName = (getVehicleShortName(data) || label || '-').toString();
     const agencyName = data.agency_name || 'Servicio AMBA';
     const agencyDisplay = agencyName.length > 34 ? `${agencyName.slice(0, 34).trim()}…` : agencyName;
     const agencyTitle = agencyName.replaceAll('"', '&quot;');
@@ -250,7 +250,7 @@ function buildTooltipHtml(type, data, color, label) {
 function createMarker(lat, lng, label, color, type, data = null) {
     const zoom = map?.getZoom?.() || 14;
     const stationIconSize = getStationIconSize(zoom);
-    const stationFontSize = zoom <= 12 ? 13 : 11;
+    const stationFontSize = zoom <= 12 ? 11 : 9;
     let markerBoxSize = stationIconSize + 8;
     if (type === 'bus') markerBoxSize = 20;
     if (type === 'bike') markerBoxSize = stationIconSize + 16;

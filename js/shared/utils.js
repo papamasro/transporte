@@ -3,8 +3,28 @@
             return name.toString().replace(/^0+/, '') || name;
         }
 
+        function getVehicleShortName(vehicle) {
+            const candidates = [
+                vehicle?.route_short_name,
+                vehicle?.routeShortName,
+                vehicle?.short_name,
+                vehicle?.shortName,
+                vehicle?.vehicle?.trip?.route_short_name,
+                vehicle?.vehicle?.trip?.routeShortName,
+                vehicle?.trip?.route_short_name,
+                vehicle?.trip?.routeShortName
+            ];
+
+            for (const candidate of candidates) {
+                const value = (candidate || '').toString().trim();
+                if (value) return value;
+            }
+
+            return '';
+        }
+
         function getBusDisplayLine(vehicle) {
-            const shortName = (vehicle?.route_short_name || '').toString();
+            const shortName = getVehicleShortName(vehicle);
             const cleanShortName = shortName.replaceAll(/\s+/g, '').trim();
             if (cleanShortName) return cleanShortName;
 
@@ -12,7 +32,7 @@
             const headsignMatch = headsign.match(/^\s*(\d{1,4}[a-zA-Z]?)/);
             if (headsignMatch) return headsignMatch[1].toUpperCase();
 
-            return formatLineName(vehicle?.route_short_name || vehicle?.route_id || '??');
+            return formatLineName(getVehicleShortName(vehicle) || vehicle?.route_id || '??');
         }
 
         function getColor(type, line) {
@@ -30,6 +50,10 @@
                 .replaceAll(/[\u0300-\u036f]/g, '')
                 .toLowerCase()
                 .trim();
+        }
+
+        function normalizeLineToken(value) {
+            return normalizeText(value).replaceAll(/[^a-z0-9]+/g, '');
         }
 
         function formatTimestamp(ts) {

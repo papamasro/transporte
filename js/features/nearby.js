@@ -323,7 +323,7 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
     nearbyVehicles.forEach(item => {
         const vehicle = item.vehicle;
         const routeId = getVehicleRouteId(vehicle);
-        const lineShortName = (vehicle?.route_short_name || routeId || '').toString().trim();
+        const lineShortName = (getVehicleShortName(vehicle) || routeId || '').toString().trim();
         const direction = vehicle?.direction;
         const tripCandidates = getVehicleTripCandidates(vehicle);
         const key = `${routeId}::${lineShortName}::${direction ?? ''}`;

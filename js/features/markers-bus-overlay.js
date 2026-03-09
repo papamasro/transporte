@@ -70,10 +70,18 @@ function getVehicleUniqueKey(vehicle) {
     return '';
 }
 
+function getVehicleRouteShortNameForSearch(vehicle) {
+    return (
+        vehicle?.route_short_name ||
+        vehicle?.vehicle?.trip?.route_short_name ||
+        ''
+    ).toString().trim();
+}
+
 function buildBusSearchText(vehicle) {
     const parts = [
         getBusDisplayLine(vehicle),
-        vehicle?.route_short_name,
+        getVehicleShortName(vehicle),
         vehicle?.trip_headsign,
         vehicle?.agency_name,
         vehicle?.route_id,
@@ -183,7 +191,7 @@ function getVehiclesBySameRoute(selectedVehicle, vehicles) {
 
     const selectedKey = getVehicleUniqueKey(selectedVehicle);
     const selectedRouteId = normalizeText(getVehicleRouteId(selectedVehicle));
-    const selectedShortName = normalizeText(selectedVehicle?.route_short_name || '');
+    const selectedShortName = normalizeLineToken(getVehicleShortName(selectedVehicle));
 
     const selectedDirection = Number(selectedVehicle?.direction);
 
@@ -192,7 +200,7 @@ function getVehiclesBySameRoute(selectedVehicle, vehicles) {
         if (!vehicleKey || vehicleKey === selectedKey) return false;
 
         const sameShortName = selectedShortName
-            && normalizeText(vehicle?.route_short_name || '') === selectedShortName;
+            && normalizeLineToken(getVehicleShortName(vehicle)) === selectedShortName;
         if (sameShortName) return true;
 
         const sameRouteId = selectedRouteId
@@ -213,70 +221,36 @@ function findVehicleForBusSearch(query, vehicles) {
     const normalizedQuery = normalizeText(query);
     if (!normalizedQuery || !Array.isArray(vehicles) || vehicles.length === 0) return null;
 
-    const queryDigits = normalizedQuery.replaceAll(/\D+/g, '');
-    const isNumericOnlyQuery = /^\d+$/.test(normalizedQuery);
-
-    const exactTripMatch = vehicles.find(vehicle => normalizeText(getVehicleTripId(vehicle)) === normalizedQuery);
-    if (exactTripMatch) return exactTripMatch;
-
-    const exactVehicleIdMatch = vehicles.find(vehicle => normalizeText(vehicle?.id || vehicle?.vehicle?.id || '') === normalizedQuery);
-    if (exactVehicleIdMatch) return exactVehicleIdMatch;
+    const compactQuery = normalizeLineToken(query);
 
     const exactMatch = vehicles.find(vehicle => {
-        const line = normalizeText(getBusDisplayLine(vehicle));
-        const shortName = normalizeText(vehicle?.route_short_name || '');
-        const routeId = normalizeText(getVehicleRouteId(vehicle));
-        const agencyName = normalizeText(vehicle?.agency_name || '');
-        const headsign = normalizeText(vehicle?.trip_headsign || '');
+        const routeShortName = getVehicleRouteShortNameForSearch(vehicle);
+        const shortName = normalizeText(routeShortName);
+        const shortNameCompact = normalizeLineToken(routeShortName);
         return (
-            line === normalizedQuery
-            || shortName === normalizedQuery
-            || routeId === normalizedQuery
-            || agencyName === normalizedQuery
-            || headsign === normalizedQuery
+            shortName === normalizedQuery
+            || (compactQuery && shortNameCompact === compactQuery)
         );
     });
     if (exactMatch) return exactMatch;
 
     const partialMatch = vehicles.find(vehicle => {
-        const line = normalizeText(getBusDisplayLine(vehicle));
-        const shortName = normalizeText(vehicle?.route_short_name || '');
-        const routeId = normalizeText(getVehicleRouteId(vehicle));
-        const agencyName = normalizeText(vehicle?.agency_name || '');
-        const headsign = normalizeText(vehicle?.trip_headsign || '');
+        const routeShortName = getVehicleRouteShortNameForSearch(vehicle);
+        const shortName = normalizeText(routeShortName);
+        const shortNameCompact = normalizeLineToken(routeShortName);
         return (
-            line.includes(normalizedQuery)
-            || shortName.includes(normalizedQuery)
-            || routeId.includes(normalizedQuery)
-            || agencyName.includes(normalizedQuery)
-            || headsign.includes(normalizedQuery)
+            shortName.includes(normalizedQuery)
+            || (compactQuery && shortNameCompact.includes(compactQuery))
         );
     });
     if (partialMatch) return partialMatch;
-
-    if (isNumericOnlyQuery && queryDigits) {
-        const numericMatch = vehicles.find(vehicle => {
-            const candidates = [
-                getBusDisplayLine(vehicle),
-                vehicle?.route_short_name || ''
-            ];
-
-            return candidates.some(candidate => {
-                const candidateDigits = normalizeText(candidate).replaceAll(/\D+/g, '');
-                if (!candidateDigits) return false;
-                return candidateDigits === queryDigits || candidateDigits.startsWith(queryDigits);
-            });
-        });
-
-        if (numericMatch) return numericMatch;
-    }
 
     return null;
 }
 
 function getVehicleRouteContext(vehicle) {
     const routeId = getVehicleRouteId(vehicle);
-    const lineShortName = (vehicle?.route_short_name || routeId || '').toString().trim();
+    const lineShortName = (getVehicleShortName(vehicle) || routeId || '').toString().trim();
     const tripCandidates = getVehicleTripCandidates(vehicle);
     const direction = vehicle?.direction;
 
@@ -414,23 +388,38 @@ function buildInfoTrayectoParams(candidate, direction) {
 async function fetchLineSearchInfo(numero) {
     const normalizedNumero = normalizeText(numero);
     if (!normalizedNumero) return null;
-    if (globalThis.markerState.busLineSearchCache.has(normalizedNumero)) return globalThis.markerState.busLineSearchCache.get(normalizedNumero);
+    const compactNumero = normalizeLineToken(numero);
+    const cacheKey = compactNumero || normalizedNumero;
+    const cache = globalThis.markerState.busLineSearchCache;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    if (compactNumero && cache.has(normalizedNumero)) return cache.get(normalizedNumero);
 
     const searchLinePath = getConfiguredPath('busSearchLine', '/buscar-linea');
-    const response = await fetchAPI(`${searchLinePath}?numero=${encodeURIComponent(numero)}`);
-    if (!response.success || !response.data) return null;
+    const queryCandidates = Array.from(new Set([
+        (numero || '').toString().trim(),
+        compactNumero
+    ].filter(Boolean)));
 
-    let normalizedData = null;
-    if (Array.isArray(response.data)) {
-        normalizedData = { recorridos: response.data };
-    } else if (Array.isArray(response.data?.recorridos)) {
-        normalizedData = response.data;
+    for (const candidate of queryCandidates) {
+        const response = await fetchAPI(`${searchLinePath}?numero=${encodeURIComponent(candidate)}`);
+        if (!response.success || !response.data) continue;
+
+        let normalizedData = null;
+        if (Array.isArray(response.data)) {
+            normalizedData = { recorridos: response.data };
+        } else if (Array.isArray(response.data?.recorridos)) {
+            normalizedData = response.data;
+        }
+
+        if (!normalizedData) continue;
+
+        cache.set(cacheKey, normalizedData);
+        cache.set(normalizedNumero, normalizedData);
+        if (compactNumero) cache.set(compactNumero, normalizedData);
+        return normalizedData;
     }
 
-    if (!normalizedData) return null;
-
-    globalThis.markerState.busLineSearchCache.set(normalizedNumero, normalizedData);
-    return normalizedData;
+    return null;
 }
 
 function getShapePointsFromRecorrido(recorrido) {
@@ -545,7 +534,7 @@ function pickBestRecorridoForVehicle(recorridos, selectedVehicle, anchorCoordina
 
     return {
         info: {
-            route_short_name: best?.route_short_name || selectedVehicle?.route_short_name || '',
+            route_short_name: best?.route_short_name || best?.routeShortName || best?.short_name || getVehicleShortName(selectedVehicle) || '',
             trip_headsign: best?.trip_headsign || selectedVehicle?.trip_headsign || '',
             source: 'buscar-linea'
         },
@@ -557,7 +546,7 @@ function pickBestRecorridoForVehicle(recorridos, selectedVehicle, anchorCoordina
 async function fetchRouteInfoFromLineSearch(selectedVehicle, requestBudget, anchorCoordinates) {
     if (!requestBudget || requestBudget.remaining <= 0) return null;
 
-    const lineQuery = (selectedVehicle?.route_short_name || selectedVehicle?.route_id || '').toString().trim();
+    const lineQuery = (getVehicleShortName(selectedVehicle) || selectedVehicle?.route_id || '').toString().trim();
     if (!lineQuery) return null;
 
     requestBudget.remaining -= 1;

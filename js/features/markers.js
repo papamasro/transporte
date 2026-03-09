@@ -1,42 +1,17 @@
-function extractDigits(value) {
-    return (value || '').toString().replaceAll(/\D+/g, '');
-}
-
-function isBusNumericMatch(query, lineFields) {
-    const queryDigits = extractDigits(query);
-    if (!queryDigits) return false;
-
-    return lineFields.some(field => {
-        const fieldDigits = extractDigits(field);
-        if (!fieldDigits) return false;
-        return fieldDigits === queryDigits || fieldDigits.startsWith(queryDigits);
-    });
-}
-
 function renderBusLayer(filter, bounds) {
     let visibleCount = 0;
     if (!activeTypes.bus) return visibleCount;
 
     globalThis.cache.bus.forEach(v => {
         const line = getBusDisplayLine(v);
-        const shortName = v?.route_short_name || '';
-        const searchFields = [
-            line,
-            shortName,
-            getVehicleRouteId(v),
-            getVehicleTripId(v),
-            v?.id || v?.vehicle?.id || '',
-            v?.agency_name || '',
-            v?.trip_headsign || ''
-        ];
-        const lineFields = [line, shortName];
-
-        const isNumericOnlyQuery = /^\d+$/.test(filter);
+        const routeShortName = (v?.route_short_name || v?.vehicle?.trip?.route_short_name || '').toString().trim();
+        const normalizedRouteShortName = normalizeText(routeShortName);
+        const compactFilter = normalizeLineToken(filter);
+        const compactRouteShortName = normalizeLineToken(routeShortName);
 
         const matchesFilter = !filter || (
-            isNumericOnlyQuery
-                ? isBusNumericMatch(filter, lineFields)
-                : searchFields.some(field => normalizeText(field).includes(filter))
+            normalizedRouteShortName.includes(filter)
+            || (compactFilter && compactRouteShortName.includes(compactFilter))
         );
         if (!matchesFilter) return;
 

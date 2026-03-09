@@ -94,11 +94,12 @@
         };
 
         function init() {
+            const isMobile = window.innerWidth < 768;
             map = L.map('map', { 
                 zoomControl: false, 
                 attributionControl: false,
                 tap: false 
-            }).setView([-34.6037, -58.3816], 14);
+            }).setView([-34.6037, -58.3816], isMobile ? 13 : 14);
 
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                 maxZoom: 19
@@ -140,6 +141,12 @@
 
         function updateBusCache(busData) {
             globalThis.cache.bus = Array.isArray(busData) ? busData : [];
+            if (globalThis.markerState) {
+                globalThis.markerState.busRouteCache.clear();
+                globalThis.markerState.busLineSearchCache.clear();
+                globalThis.markerState.currentBusRouteKey = '';
+                globalThis.markerState.currentLineOverlayQuery = '';
+            }
             document.getElementById('last-update').innerText = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
         }
 

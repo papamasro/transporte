@@ -240,7 +240,7 @@ function getKnownUserLocation() {
         };
     }
 
-    return readStoredUserLocation();
+    return null;
 }
 
 function isLocationCacheFresh(location, maxAgeMs = USER_LOCATION_CACHE_MAX_AGE_MS) {
@@ -279,7 +279,6 @@ async function locateUser(options = {}) {
         };
 
         globalThis.cache.userLocation = payload;
-        if (shouldPersist) persistUserLocation(payload);
 
         userLayer?.clearLayers?.();
         const userMarker = L.marker([lat, lon], {
