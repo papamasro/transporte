@@ -424,8 +424,8 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     });
 
     results.bikeStations.forEach(station => {
-        const markerColor = station.bikesAvailable <= 2 ? '#f59e0b' : '#10b981';
-        const label = `🚲 ${station.bikesAvailable}`;
+        const markerColor = station.bikesAvailable === 0 ? '#ef4444' : '#10b981';
+        const label = station.bikesAvailable === 0 ? 'Sin 🚲' : `🚲 ${station.bikesAvailable}`;
 
         createMarker(
             station.lat,

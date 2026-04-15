@@ -159,6 +159,32 @@
         </div>
     </div>
 
+    <!-- Modal de confirmación de ubicación -->
+    <div id="location-prompt-overlay" class="location-prompt-overlay hidden">
+        <div id="location-prompt-modal" class="location-prompt-modal glass dashboard-glass">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="p-2 bg-indigo-600/20 rounded-xl">
+                    <i data-lucide="map-pin" class="text-indigo-400 w-5 h-5"></i>
+                </div>
+                <h2 class="text-sm font-black text-white uppercase tracking-tight">Indicá tu ubicación</h2>
+            </div>
+            <p id="location-prompt-text" class="text-[11px] text-slate-300 leading-relaxed mb-3">
+                Tocá el mapa para marcar dónde estás, o usá el GPS. Podés arrastrar el marcador para ajustar.
+            </p>
+            <div class="flex flex-col gap-2">
+                <button id="location-prompt-gps" onclick="locationPromptUseGPS()" class="location-prompt-btn location-prompt-btn-secondary">
+                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                    <span id="location-prompt-gps-label">Reintentar GPS</span>
+                </button>
+                <button id="location-prompt-confirm" onclick="locationPromptConfirm()" class="location-prompt-btn location-prompt-btn-primary" disabled>
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>Confirmar ubicación</span>
+                </button>
+            </div>
+            <p id="location-prompt-coords" class="text-[9px] text-slate-500 mt-2 text-center hidden"></p>
+        </div>
+    </div>
+
     <div id="map"></div>
 
     <script src="./js/app/config.js"></script>

@@ -224,6 +224,23 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+
+        .bus-chip {
+            height: 22px;
+            padding: 0 5px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 900;
+            font-family: 'Outfit', sans-serif;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+            border: 1.5px solid rgba(255,255,255,0.5);
+            letter-spacing: -0.3px;
+            line-height: 1;
+        }
         
         .vehicle-label {
             background: white; color: #1e293b; padding: 1px 5px; 
@@ -418,6 +435,51 @@
             padding: 0 !important;
         }
 
+        .custom-tooltip .tooltip-dark,
+        .custom-popup .tooltip-dark {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(100, 116, 139, 0.35);
+            box-shadow: 0 8px 32px rgba(2, 6, 23, 0.55);
+        }
+
+        .custom-popup {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+        }
+
+        .custom-popup .leaflet-popup-content {
+            margin: 0 !important;
+            min-width: 0 !important;
+        }
+
+        .custom-popup .leaflet-popup-tip-container {
+            display: none !important;
+        }
+
+        .custom-popup .leaflet-popup-close-button {
+            color: #94a3b8 !important;
+            font-size: 18px !important;
+            top: 6px !important;
+            right: 8px !important;
+            z-index: 10;
+        }
+
+        .custom-popup .leaflet-popup-close-button:hover {
+            color: #e2e8f0 !important;
+        }
+
         .dest-text {
             white-space: normal !important;
             word-wrap: break-word !important;
@@ -452,4 +514,97 @@
                 min-height: 42px;
                 font-size: 12px;
             }
+        }
+
+        /* Location prompt modal */
+        .location-prompt-overlay {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .location-prompt-overlay.hidden {
+            opacity: 0;
+            pointer-events: none !important;
+            transform: translateX(-50%) translateY(-16px);
+        }
+
+        .location-prompt-modal {
+            width: calc(100vw - 48px);
+            max-width: 340px;
+            padding: 20px;
+            border-radius: 1.5rem;
+            pointer-events: auto;
+        }
+
+        .location-prompt-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .location-prompt-btn-primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .location-prompt-btn-primary:hover:not(:disabled) {
+            background: #4338ca;
+        }
+
+        .location-prompt-btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .location-prompt-btn-secondary {
+            background: rgba(30, 41, 59, 0.85);
+            color: #e2e8f0;
+            border-color: rgba(100, 116, 139, 0.5);
+        }
+
+        .location-prompt-btn-secondary:hover {
+            border-color: rgba(79, 70, 229, 0.6);
+            background: rgba(55, 48, 163, 0.25);
+        }
+
+        .location-prompt-btn-secondary.is-loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .location-pick-marker {
+            background: transparent;
+            border: none;
+        }
+
+        .location-pick-pin {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
+            animation: location-pin-drop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes location-pin-drop {
+            0% { transform: translateY(-18px) scale(0.7); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
         }

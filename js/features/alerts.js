@@ -112,14 +112,14 @@
                 if (msg && !seen.has(msg) && msg.length > 5) {
                     seen.add(msg); count++;
                     const el = document.createElement('div');
-                    el.className = 'bg-amber-50/50 p-2.5 rounded-xl border-l-4 border-amber-400 shadow-sm mx-0.5 mt-1';
+                    el.className = 'bg-slate-800/60 p-2.5 rounded-xl border-l-4 border-amber-500/70 shadow-sm mx-0.5 mt-1';
                     const sourceTag = item.source ? `<span class="text-[8px] font-black uppercase text-slate-400">${item.source}</span>` : '';
-                    el.innerHTML = `<div class="mb-0.5">${sourceTag}</div><p class="text-[10px] text-slate-700 font-medium leading-tight">${msg}</p>`;
+                    el.innerHTML = `<div class="mb-0.5">${sourceTag}</div><p class="text-[10px] text-slate-300 font-medium leading-tight">${msg}</p>`;
                     container.appendChild(el);
                 }
             });
             
             if (count === 0) {
-                container.innerHTML = '<div class="text-[10px] text-slate-500 text-center py-4 font-medium">No hay alertas reportadas en este momento.</div>';
+                container.innerHTML = '<div class="text-[10px] text-slate-400 text-center py-4 font-medium">No hay alertas reportadas en este momento.</div>';
             }
         }

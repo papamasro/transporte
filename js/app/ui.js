@@ -363,3 +363,213 @@ async function locateUser(options = {}) {
         }, { enableHighAccuracy: true });
     });
 }
+
+// --- Location prompt flow ---
+
+let _locationPromptMarker = null;
+let _locationPromptPicked = null;
+let _locationPromptMapHandler = null;
+let _locationPromptResolve = null;
+
+function _showLocationPromptOverlay(show) {
+    const overlay = document.getElementById('location-prompt-overlay');
+    if (!overlay) return;
+    if (show) {
+        overlay.classList.remove('hidden');
+    } else {
+        overlay.classList.add('hidden');
+    }
+}
+
+function _updateLocationPromptCoords(lat, lon) {
+    const coordsEl = document.getElementById('location-prompt-coords');
+    const confirmBtn = document.getElementById('location-prompt-confirm');
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        _locationPromptPicked = { lat, lon };
+        if (coordsEl) {
+            coordsEl.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            coordsEl.classList.remove('hidden');
+        }
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
+}
+
+function _placePickMarker(lat, lon) {
+    if (!map) return;
+    if (_locationPromptMarker) {
+        _locationPromptMarker.setLatLng([lat, lon]);
+    } else {
+        _locationPromptMarker = L.marker([lat, lon], {
+            draggable: true,
+            icon: L.divIcon({
+                className: 'location-pick-marker',
+                html: '<div class="location-pick-pin">📍</div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
+            })
+        }).addTo(map);
+
+        _locationPromptMarker.on('dragend', () => {
+            const pos = _locationPromptMarker.getLatLng();
+            _updateLocationPromptCoords(pos.lat, pos.lng);
+        });
+    }
+    _updateLocationPromptCoords(lat, lon);
+}
+
+function _enableMapPick() {
+    if (_locationPromptMapHandler) return;
+    _locationPromptMapHandler = (e) => {
+        _placePickMarker(e.latlng.lat, e.latlng.lng);
+    };
+    map?.on('click', _locationPromptMapHandler);
+}
+
+function _disableMapPick() {
+    if (_locationPromptMapHandler && map) {
+        map.off('click', _locationPromptMapHandler);
+    }
+    _locationPromptMapHandler = null;
+}
+
+function _cleanupLocationPrompt() {
+    _disableMapPick();
+    if (_locationPromptMarker && map) {
+        map.removeLayer(_locationPromptMarker);
+    }
+    _locationPromptMarker = null;
+    _locationPromptPicked = null;
+    _showLocationPromptOverlay(false);
+}
+
+async function locationPromptUseGPS() {
+    const gpsBtn = document.getElementById('location-prompt-gps');
+    const gpsLabel = document.getElementById('location-prompt-gps-label');
+    const promptText = document.getElementById('location-prompt-text');
+
+    if (gpsBtn) gpsBtn.classList.add('is-loading');
+    if (gpsLabel) gpsLabel.textContent = 'Buscando GPS...';
+
+    if (!navigator.geolocation) {
+        if (gpsLabel) gpsLabel.textContent = 'GPS no disponible';
+        if (gpsBtn) gpsBtn.classList.remove('is-loading');
+        if (promptText) promptText.textContent = 'Tu dispositivo no soporta GPS. Tocá el mapa para marcar tu ubicación.';
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude, longitude } = pos.coords;
+            _placePickMarker(latitude, longitude);
+            map?.flyTo([latitude, longitude], 15, { animate: true, duration: 0.8 });
+            if (gpsLabel) gpsLabel.textContent = 'Reintentar GPS';
+            if (gpsBtn) gpsBtn.classList.remove('is-loading');
+            if (promptText) promptText.textContent = 'Verificá que el marcador esté bien. Podés arrastrarlo o tocar el mapa para corregir.';
+        },
+        (err) => {
+            console.warn('Location prompt GPS error', err);
+            if (gpsLabel) gpsLabel.textContent = 'GPS falló - tocá el mapa';
+            if (gpsBtn) gpsBtn.classList.remove('is-loading');
+            if (promptText) promptText.textContent = 'No se pudo obtener tu ubicación con GPS. Tocá el mapa para indicar dónde estás.';
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+function locationPromptConfirm() {
+    if (!_locationPromptPicked) return;
+
+    const location = {
+        lat: _locationPromptPicked.lat,
+        lon: _locationPromptPicked.lon,
+        timestamp: Date.now()
+    };
+
+    // Apply location to cache and persist
+    globalThis.cache.userLocation = location;
+    persistUserLocation(location);
+
+    // Draw user marker
+    userLayer?.clearLayers?.();
+    const lat = location.lat;
+    const lon = location.lon;
+    const userMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+            className: 'user-location-icon',
+            html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
+        })
+    }).addTo(userLayer);
+
+    const tooltipData = { coords: { latitude: lat, longitude: lon } };
+    userMarker.bindTooltip(buildUserLocationTooltip(tooltipData), {
+        className: 'custom-tooltip',
+        direction: 'top',
+        offset: [0, -20],
+        opacity: 1
+    });
+
+    map?.flyTo([lat, lon], 15, { animate: true, duration: 1.05, easeLinearity: 0.15 });
+
+    _cleanupLocationPrompt();
+
+    // Activate nearby transport around confirmed location
+    try {
+        if (typeof activateNearbyFromLocation === 'function') {
+            activateNearbyFromLocation();
+        }
+    } catch {}
+
+    // Now start loading services
+    if (_locationPromptResolve) {
+        _locationPromptResolve(location);
+        _locationPromptResolve = null;
+    }
+}
+
+function showLocationPrompt() {
+    return new Promise((resolve) => {
+        _locationPromptResolve = resolve;
+        _locationPromptPicked = null;
+
+        const confirmBtn = document.getElementById('location-prompt-confirm');
+        const coordsEl = document.getElementById('location-prompt-coords');
+        const gpsLabel = document.getElementById('location-prompt-gps-label');
+        const promptText = document.getElementById('location-prompt-text');
+        const gpsBtn = document.getElementById('location-prompt-gps');
+
+        if (confirmBtn) confirmBtn.disabled = true;
+        if (coordsEl) { coordsEl.textContent = ''; coordsEl.classList.add('hidden'); }
+        if (gpsLabel) gpsLabel.textContent = 'Reintentar GPS';
+        if (gpsBtn) gpsBtn.classList.remove('is-loading');
+        if (promptText) promptText.textContent = 'Buscando tu ubicación...';
+
+        _enableMapPick();
+
+        // Re-render lucide icons inside the modal
+        try { lucide?.createIcons?.(); } catch {}
+
+        // Try GPS automatically first, then show modal
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    _placePickMarker(latitude, longitude);
+                    map?.flyTo([latitude, longitude], 15, { animate: true, duration: 0.8 });
+                    if (promptText) promptText.textContent = 'Verificá que el marcador esté bien. Podés arrastrarlo o tocar el mapa para corregir.';
+                    _showLocationPromptOverlay(true);
+                },
+                (err) => {
+                    console.warn('Auto GPS failed', err);
+                    if (promptText) promptText.textContent = 'No se pudo obtener tu ubicación. Tocá el mapa para indicar dónde estás, o reintentá el GPS.';
+                    _showLocationPromptOverlay(true);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        } else {
+            if (promptText) promptText.textContent = 'GPS no disponible. Tocá el mapa para indicar dónde estás.';
+            _showLocationPromptOverlay(true);
+        }
+    });
+}

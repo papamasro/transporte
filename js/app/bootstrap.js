@@ -123,11 +123,12 @@
             document.getElementById('search').addEventListener('input', renderMarkers);
             map.on('moveend', renderMarkers);
             
-            // Auto-ubica con cache persistida para evitar prompt repetido.
-            locateUser({ skipPromptIfCached: true });
+            // Show location prompt and wait for user confirmation before loading services.
             setupInstallPrompt();
             setStatus('CARGANDO');
-            forceRefresh();
+            showLocationPrompt().then(() => {
+                forceRefresh();
+            });
 
             const isSupportedOrigin = globalThis.location.protocol === 'http:' || globalThis.location.protocol === 'https:';
             if ('serviceWorker' in navigator && isSupportedOrigin) {
