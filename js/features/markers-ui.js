@@ -160,7 +160,7 @@ function buildSubteTooltip(data, color) {
                     <i data-lucide="train-front" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <h4 class="text-[11px] font-black text-slate-200 leading-none">${data.name}</h4>
+                    <h4 class="text-[11px] font-black text-slate-200 leading-none">Estación de Subte: ${data.name}</h4>
                     <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Línea ${data.lineShort}</span>
                 </div>
             </div>
@@ -234,7 +234,7 @@ function buildTrainTooltip(data, color, realtimeState = null) {
                     <i data-lucide="train-track" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <h4 class="text-[11px] font-black text-slate-200 leading-none">${data.name}</h4>
+                    <h4 class="text-[11px] font-black text-slate-200 leading-none">Estación de Tren: ${data.name}</h4>
                     <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${lineName}</span>
                 </div>
             </div>
@@ -259,21 +259,11 @@ function buildTooltipHtml(type, data, color, label) {
 }
 
 function buildSubteCompactTooltip(data, color) {
-    const referenceTs = globalThis.cache.subteTimestamp || Math.floor(Date.now() / 1000);
-    const forecast = getSubteStationForecast(data)
-        .filter(r => r.arrivalTime > 0 && r.arrivalTime >= (referenceTs - 60) && r.arrivalTime <= (referenceTs + 7200))
-        .sort((a, b) => a.arrivalTime - b.arrivalTime);
-    const next = forecast[0];
-    let infoLine = 'Sin pronóstico';
-    if (next) {
-        const etaText = formatEtaMinutes(next.arrivalTime, referenceTs);
-        const dest = next.destination || '';
-        infoLine = `→ ${dest} · ${etaText}`;
-    }
+    const lineName = data.lineShort ? `Línea ${data.lineShort}` : 'Subte';
     return `
         <div class="tooltip-dark px-2.5 py-1.5 rounded-xl shadow-lg" style="border-left: 3px solid ${color}; min-width: 120px;">
-            <div class="text-[10px] font-black text-slate-200 leading-tight">${data.name}</div>
-            <div class="text-[8px] font-bold text-indigo-400 leading-snug mt-0.5">${infoLine}</div>
+            <div class="text-[10px] font-black text-slate-200 leading-tight">Estación de Subte: ${data.name}</div>
+            <div class="text-[8px] font-bold text-indigo-400 leading-snug mt-0.5">${lineName} · Tocá para ver llegadas</div>
         </div>`;
 }
 
@@ -281,7 +271,7 @@ function buildTrainCompactTooltip(data, color) {
     const lineName = data.lineName || data.lineShort || 'Tren';
     return `
         <div class="tooltip-dark px-2.5 py-1.5 rounded-xl shadow-lg" style="border-left: 3px solid ${color}; min-width: 120px;">
-            <div class="text-[10px] font-black text-slate-200 leading-tight">${data.name}</div>
+            <div class="text-[10px] font-black text-slate-200 leading-tight">Estación de Tren: ${data.name}</div>
             <div class="text-[8px] font-bold text-indigo-400 leading-snug mt-0.5">${lineName} · Tocá para ver arribos</div>
         </div>`;
 }
