@@ -575,32 +575,6 @@ async function refreshSubteNow(options = {}) {
     return true;
 }
 
-
-
-async function refreshBikeRoutesNow() {
-    if (globalThis.cache.bikeRoutes) return true;
-    if (globalThis.cache.bikeRoutesPromise) return globalThis.cache.bikeRoutesPromise;
-
-    const sourceUrl = 'https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/ciclovias/ciclovias.geojson';
-
-    globalThis.cache.bikeRoutesPromise = (async () => {
-        try {
-            const response = await fetch(sourceUrl, { headers: { 'Accept': 'application/geo+json, application/json' } });
-            if (!response.ok) return false;
-            const payload = await response.json();
-            if (!payload || payload.type !== 'FeatureCollection' || !Array.isArray(payload.features)) return false;
-
-            globalThis.cache.bikeRoutes = payload;
-            return true;
-        } catch {
-            return false;
-        } finally {
-            globalThis.cache.bikeRoutesPromise = null;
-        }
-    })();
-
-    return globalThis.cache.bikeRoutesPromise;
-}
 async function refreshBikeNow(options = {}) {
     const { force = false } = options;
     if (!force && !activeTypes.bike) return false;
