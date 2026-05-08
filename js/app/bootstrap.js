@@ -62,6 +62,7 @@
             subteStations: null,
             trainLines: null,
             trainStations: null,
+            bikeRoutes: null,
             busRoute: null,
             busStops: null,
             nearbyRadius: null,
@@ -88,6 +89,8 @@
             trainSofseResolveByStationKey: {},
             trainSofseResolveByName: {},
             trainSofseResolvePromiseByStationKey: {},
+            bikeRoutes: null,
+            bikeRoutesPromise: null,
             subteStaticPromise: null,
             trainStaticPromise: null,
             userLocation: null
@@ -111,6 +114,7 @@
             layers.subteStations = L.layerGroup().addTo(map);
             layers.trainLines = L.layerGroup().addTo(map);
             layers.trainStations = L.layerGroup().addTo(map);
+            layers.bikeRoutes = L.layerGroup().addTo(map);
             layers.busRoute = L.layerGroup().addTo(map);
             layers.busStops = L.layerGroup().addTo(map);
             layers.nearbyRadius = L.layerGroup().addTo(map);
@@ -176,7 +180,10 @@
                 }
 
                 if (activeTypes.subte) await refreshSubteNow();
-                if (activeTypes.bike) await refreshBikeNow();
+                if (activeTypes.bike) {
+                    await refreshBikeNow();
+                    await refreshBikeRoutesNow();
+                }
 
                 loadingLine.style.width = '100%';
                 renderMarkers();
@@ -229,7 +236,11 @@
 
             if (type === 'bike') {
                 setStatus('CARGANDO');
-                return refreshBikeNow();
+                const [stationsOk, routesOk] = await Promise.all([
+                    refreshBikeNow(),
+                    refreshBikeRoutesNow()
+                ]);
+                return stationsOk && routesOk;
             }
 
             return true;
@@ -253,6 +264,7 @@
 
             if (type === 'bike') {
                 globalThis.cache.bike = [];
+                layers.bikeRoutes?.clearLayers();
             }
         }
 

@@ -263,6 +263,77 @@ function collectNearbyBusVehicles(center, radiusMeters) {
     return items;
 }
 
+function isPointWithinNearbyRadius(center, radiusMeters, lat, lon) {
+    const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
+    return distance <= radiusMeters;
+}
+
+function clipBikeRoutesByNearbyRadius(center, radiusMeters) {
+    const source = globalThis.cache?.bikeRoutes;
+    if (!source || !Array.isArray(source.features) || source.features.length === 0) return null;
+
+    const clippedFeatures = [];
+
+    source.features.forEach(feature => {
+        const geometry = feature?.geometry;
+        const coords = geometry?.coordinates;
+        if (!geometry || !Array.isArray(coords)) return;
+
+        const pushSegments = (segments) => {
+            segments.forEach(segment => {
+                if (!Array.isArray(segment) || segment.length < 2) return;
+                clippedFeatures.push({
+                    type: 'Feature',
+                    properties: feature?.properties || {},
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: segment
+                    }
+                });
+            });
+        };
+
+        const collectLineSegments = (lineCoords) => {
+            const segments = [];
+            let current = [];
+
+            lineCoords.forEach(pair => {
+                if (!Array.isArray(pair) || pair.length < 2) return;
+                const lon = Number(pair[0]);
+                const lat = Number(pair[1]);
+                if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+                const inside = isPointWithinNearbyRadius(center, radiusMeters, lat, lon);
+                if (inside) {
+                    current.push([lon, lat]);
+                } else if (current.length >= 2) {
+                    segments.push(current);
+                    current = [];
+                } else {
+                    current = [];
+                }
+            });
+
+            if (current.length >= 2) segments.push(current);
+            return segments;
+        };
+
+        if (geometry.type === 'LineString') {
+            pushSegments(collectLineSegments(coords));
+            return;
+        }
+
+        if (geometry.type === 'MultiLineString') {
+            coords.forEach(line => pushSegments(collectLineSegments(line)));
+        }
+    });
+
+    return {
+        type: 'FeatureCollection',
+        features: clippedFeatures
+    };
+}
+
 function collectNearbyBikeStations(center, radiusMeters) {
     const bikes = Array.isArray(globalThis.cache.bike) ? globalThis.cache.bike : [];
     const items = [];
@@ -396,6 +467,19 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     layers.nearbyVehicles.clearLayers();
 
     if (showRadiusCircle) renderNearbyRadiusCircle(center, radiusMeters);
+
+    const nearbyBikeRoutes = results.bikeRoutes;
+    if (nearbyBikeRoutes?.features?.length) {
+        L.geoJSON(nearbyBikeRoutes, {
+            style: () => ({
+                color: '#22c55e',
+                weight: 3,
+                opacity: 0.85,
+                lineCap: 'round',
+                lineJoin: 'round'
+            })
+        }).addTo(layers.nearbyRadius);
+    }
 
     results.subteStations.forEach(station => {
         const marker = createMarker(
@@ -741,9 +825,12 @@ async function ensureNearbyBusDataReady() {
 }
 
 async function ensureNearbyBikeDataReady() {
-    const refreshed = await refreshBikeNow({ force: true });
-    if (refreshed) return;
-    if (!Array.isArray(globalThis.cache.bike)) globalThis.cache.bike = [];
+    const [stationsOk] = await Promise.all([
+        refreshBikeNow({ force: true }),
+        refreshBikeRoutesNow()
+    ]);
+
+    if (!stationsOk && !Array.isArray(globalThis.cache.bike)) globalThis.cache.bike = [];
 }
 
 async function ensureNearbyStaticDataReady() {
@@ -933,6 +1020,7 @@ function buildNearbyProgressiveContext(
         trainStations: stableTrainStations,
         busVehicles: stableBusVehicles,
         bikeStations: collectNearbyBikeStations(center, radiusMeters),
+        bikeRoutes: clipBikeRoutesByNearbyRadius(center, radiusMeters),
         busStops: shouldReuseBusStops ? previousBusStops : []
     };
 
