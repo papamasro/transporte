@@ -263,6 +263,108 @@ function collectNearbyBusVehicles(center, radiusMeters) {
     return items;
 }
 
+function isPointWithinNearbyRadius(center, radiusMeters, lat, lon) {
+    const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
+    return distance <= radiusMeters;
+}
+
+function nearbyProjectToMeters(center, lat, lon) {
+    const latFactor = 111320;
+    const lonFactor = 111320 * Math.cos(nearbyToRadians(center.lat));
+    return {
+        x: (lon - center.lon) * lonFactor,
+        y: (lat - center.lat) * latFactor
+    };
+}
+
+function nearbySegmentTouchesRadius(center, radiusMeters, start, end) {
+    const p1 = nearbyProjectToMeters(center, start.lat, start.lon);
+    const p2 = nearbyProjectToMeters(center, end.lat, end.lon);
+
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const segLenSq = (dx * dx) + (dy * dy);
+
+    if (segLenSq <= 0) {
+        return Math.hypot(p1.x, p1.y) <= radiusMeters;
+    }
+
+    const t = Math.max(0, Math.min(1, -((p1.x * dx) + (p1.y * dy)) / segLenSq));
+    const closestX = p1.x + (dx * t);
+    const closestY = p1.y + (dy * t);
+    return Math.hypot(closestX, closestY) <= radiusMeters;
+}
+
+function clipBikeRoutesByNearbyRadius(center, radiusMeters) {
+    const source = globalThis.cache?.bikeRoutes;
+    if (!source || !Array.isArray(source.features) || source.features.length === 0) return null;
+
+    const clippedFeatures = [];
+
+    source.features.forEach(feature => {
+        const geometry = feature?.geometry;
+        const coords = geometry?.coordinates;
+        if (!geometry || !Array.isArray(coords)) return;
+
+        const pushSegments = (segments) => {
+            segments.forEach(segment => {
+                if (!Array.isArray(segment) || segment.length < 2) return;
+                clippedFeatures.push({
+                    type: 'Feature',
+                    properties: feature?.properties || {},
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: segment
+                    }
+                });
+            });
+        };
+
+        const collectLineSegments = (lineCoords) => {
+            const segments = [];
+
+            for (let i = 1; i < lineCoords.length; i += 1) {
+                const prev = lineCoords[i - 1];
+                const curr = lineCoords[i];
+                if (!Array.isArray(prev) || prev.length < 2 || !Array.isArray(curr) || curr.length < 2) continue;
+
+                const startLon = Number(prev[0]);
+                const startLat = Number(prev[1]);
+                const endLon = Number(curr[0]);
+                const endLat = Number(curr[1]);
+                if (!Number.isFinite(startLat) || !Number.isFinite(startLon) || !Number.isFinite(endLat) || !Number.isFinite(endLon)) continue;
+
+                const startInside = isPointWithinNearbyRadius(center, radiusMeters, startLat, startLon);
+                const endInside = isPointWithinNearbyRadius(center, radiusMeters, endLat, endLon);
+                const touchesRadius = nearbySegmentTouchesRadius(center, radiusMeters,
+                    { lat: startLat, lon: startLon },
+                    { lat: endLat, lon: endLon }
+                );
+
+                if (startInside || endInside || touchesRadius) {
+                    segments.push([[startLon, startLat], [endLon, endLat]]);
+                }
+            }
+
+            return segments;
+        };
+
+        if (geometry.type === 'LineString') {
+            pushSegments(collectLineSegments(coords));
+            return;
+        }
+
+        if (geometry.type === 'MultiLineString') {
+            coords.forEach(line => pushSegments(collectLineSegments(line)));
+        }
+    });
+
+    return {
+        type: 'FeatureCollection',
+        features: clippedFeatures
+    };
+}
+
 function collectNearbyBikeStations(center, radiusMeters) {
     const bikes = Array.isArray(globalThis.cache.bike) ? globalThis.cache.bike : [];
     const items = [];
@@ -396,6 +498,19 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     layers.nearbyVehicles.clearLayers();
 
     if (showRadiusCircle) renderNearbyRadiusCircle(center, radiusMeters);
+
+    const nearbyBikeRoutes = results.bikeRoutes;
+    if (nearbyBikeRoutes?.features?.length) {
+        L.geoJSON(nearbyBikeRoutes, {
+            style: () => ({
+                color: '#22c55e',
+                weight: 3,
+                opacity: 0.85,
+                lineCap: 'round',
+                lineJoin: 'round'
+            })
+        }).addTo(layers.nearbyRadius);
+    }
 
     results.subteStations.forEach(station => {
         const marker = createMarker(
@@ -741,9 +856,12 @@ async function ensureNearbyBusDataReady() {
 }
 
 async function ensureNearbyBikeDataReady() {
-    const refreshed = await refreshBikeNow({ force: true });
-    if (refreshed) return;
-    if (!Array.isArray(globalThis.cache.bike)) globalThis.cache.bike = [];
+    const [stationsOk] = await Promise.all([
+        refreshBikeNow({ force: true }),
+        refreshBikeRoutesNow()
+    ]);
+
+    if (!stationsOk && !Array.isArray(globalThis.cache.bike)) globalThis.cache.bike = [];
 }
 
 async function ensureNearbyStaticDataReady() {
@@ -933,6 +1051,7 @@ function buildNearbyProgressiveContext(
         trainStations: stableTrainStations,
         busVehicles: stableBusVehicles,
         bikeStations: collectNearbyBikeStations(center, radiusMeters),
+        bikeRoutes: clipBikeRoutesByNearbyRadius(center, radiusMeters),
         busStops: shouldReuseBusStops ? previousBusStops : []
     };
 

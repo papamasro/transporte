@@ -26,6 +26,23 @@ function renderBusLayer(filter, bounds) {
     return visibleCount;
 }
 
+function renderBikeRoutesLayer() {
+    if (!activeTypes.bike) return;
+
+    const bikeRoutes = globalThis.cache.bikeRoutes;
+    if (!bikeRoutes?.features?.length) return;
+
+    L.geoJSON(bikeRoutes, {
+        style: () => ({
+            color: '#22c55e',
+            weight: 2.5,
+            opacity: 0.6,
+            lineCap: 'round',
+            lineJoin: 'round'
+        })
+    }).addTo(layers.bikeRoutes);
+}
+
 function renderBikeLayer(filter, bounds) {
     let visibleCount = 0;
     if (!activeTypes.bike) return visibleCount;
@@ -170,10 +187,13 @@ function renderMarkers() {
 
     layers.bus.clearLayers();
     layers.bike.clearLayers();
+    layers.bikeRoutes.clearLayers();
     layers.subteLines.clearLayers();
     layers.subteStations.clearLayers();
     layers.trainLines.clearLayers();
     layers.trainStations.clearLayers();
+
+    renderBikeRoutesLayer();
 
     const visibleCount =
         renderBusLayer(filter, bounds)
