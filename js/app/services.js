@@ -581,7 +581,7 @@ async function refreshBikeRoutesNow() {
     if (globalThis.cache.bikeRoutes) return true;
     if (globalThis.cache.bikeRoutesPromise) return globalThis.cache.bikeRoutesPromise;
 
-    const sourceUrl = 'https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/ciclovias/ciclovias.geojson';
+    const sourceUrl = 'https://transporte-be.papamasro.workers.dev/obtener-bicisenda';
 
     globalThis.cache.bikeRoutesPromise = (async () => {
         try {
