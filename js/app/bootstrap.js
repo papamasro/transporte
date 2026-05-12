@@ -168,14 +168,19 @@
             loadingLine.style.width = '30%';
 
             try {
+                const busVehiclePositionsPath = appConfig.PATHS?.busVehiclePositions || DEFAULT_APP_CONFIG.PATHS.busVehiclePositions;
                 if (activeTypes.bus) {
-                    const busVehiclePositionsPath = appConfig.PATHS?.busVehiclePositions || DEFAULT_APP_CONFIG.PATHS.busVehiclePositions;
                     const busData = await fetchWithRetry(busVehiclePositionsPath);
                     updateBusCache(busData);
-                } else {
-                    if (!globalThis.nearbyState?.active) {
-                        globalThis.cache.bus = [];
+                } else if (globalThis.nearbyState?.active) {
+                    // Nearby activo: refrescar posiciones aunque el filtro principal esté apagado
+                    const nearbyBusRes = await fetchAPI(busVehiclePositionsPath);
+                    if (nearbyBusRes?.success && Array.isArray(nearbyBusRes.data)) {
+                        updateBusCache(nearbyBusRes.data);
                     }
+                    clearBusRouteOverlay();
+                } else {
+                    globalThis.cache.bus = [];
                     clearBusRouteOverlay();
                 }
 

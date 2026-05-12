@@ -98,6 +98,16 @@ function getVehicleCoordinates(vehicle) {
     return { lat, lon };
 }
 
+function getVehicleBearing(vehicle) {
+    if (!vehicle) return null;
+    const b = Number(
+        vehicle?.bearing ??
+        vehicle?.vehicle?.position?.bearing ??
+        Number.NaN
+    );
+    return Number.isFinite(b) ? (b % 360 + 360) % 360 : null;
+}
+
 function getBusRouteConfig() {
     const cfg = globalThis.NETWORK_CONFIG || {};
     return {

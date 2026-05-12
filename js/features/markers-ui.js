@@ -4,7 +4,7 @@ function getStationIconSize(zoom) {
     return 12;
 }
 
-function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize) {
+function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize, bearing) {
     if (type === 'bus') {
         const busLabel = label || '?';
         const labelLen = busLabel.length;
@@ -12,14 +12,16 @@ function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize) {
         if (labelLen > 3) busFontSize = 9;
         else if (labelLen > 2) busFontSize = 10;
         const busWidth = Math.max(28, 12 + labelLen * 6);
-        return `<div class="marker-container"><div class="bus-chip" style="background:${color};min-width:${busWidth}px;font-size:${busFontSize}px;">${busLabel}</div></div>`;
+        const arrowHtml = (bearing !== null && bearing !== undefined)
+            ? `<div class="bus-dir-arrow" style="transform:rotate(${Math.round(bearing)}deg) translateY(-14px)"></div>`
+            : '';
+        return `<div class="marker-container"><div class="bus-chip" style="background:${color};min-width:${busWidth}px;font-size:${busFontSize}px;">${busLabel}</div>${arrowHtml}</div>`;
     }
 
     if (type === 'bike') {
         const bikeIconSize = stationIconSize + 14;
         const bikeFontSize = stationFontSize + 5;
-        const bikeLabelSize = bikeFontSize - 1;
-        return `<div class="marker-container"><div style="width:${bikeIconSize}px;height:${bikeIconSize}px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.35);font-size:${bikeFontSize}px;color:white;font-weight:900;">🚲</div><div class="vehicle-label" style="font-size:${bikeLabelSize}px;background:${color};color:white;border:none;padding:1px 6px;">${label}</div></div>`;
+        return `<div class="marker-container"><div style="width:${bikeIconSize}px;height:${bikeIconSize}px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.35);font-size:${bikeFontSize}px;color:white;font-weight:900;">🚲</div></div>`;
     }
 
     if (type === 'train') {
@@ -283,7 +285,8 @@ function createMarker(lat, lng, label, color, type, data = null) {
     let markerBoxSize = stationIconSize + 22;
     if (type === 'bus') markerBoxSize = 32;
     if (type === 'bike') markerBoxSize = stationIconSize + 22;
-    const markerHtml = buildMarkerHtml(type, label, color, stationIconSize, stationFontSize);
+    const bearing = (type === 'bus' && data) ? getVehicleBearing(data) : null;
+    const markerHtml = buildMarkerHtml(type, label, color, stationIconSize, stationFontSize, bearing);
 
     const marker = L.marker([lat, lng], {
         icon: L.divIcon({

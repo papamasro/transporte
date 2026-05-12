@@ -4,6 +4,10 @@ let nearbyRefreshRequestId = 0;
 let nearbyNextGeolocationAttemptAt = 0;
 const NEARBY_GEO_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
 
+if (!globalThis.nearbyLiveBusMarkers) {
+    globalThis.nearbyLiveBusMarkers = new Map();
+}
+
 if (!globalThis.nearbyState) {
     globalThis.nearbyState = {
         active: false,
@@ -40,6 +44,7 @@ function clearNearbyMapOverlay() {
     layers?.nearbyRadius?.clearLayers?.();
     layers?.nearbyStops?.clearLayers?.();
     layers?.nearbyVehicles?.clearLayers?.();
+    globalThis.nearbyLiveBusMarkers?.clear?.();
 }
 
 function deactivateMainTransportFilters() {
@@ -458,13 +463,59 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
     return Array.from(stopMap.values()).sort((a, b) => a.distance - b.distance);
 }
 
+function updateNearbyLiveBusMarkers(busVehicles) {
+    if (!layers?.nearbyVehicles) return;
+
+    const currentKeys = new Set();
+
+    busVehicles.forEach(item => {
+        const key = getVehicleUniqueKey(item.vehicle);
+        const label = item.line || '-';
+        const color = getColor('bus', label);
+
+        if (!key) {
+            // Sin clave única: agregar directamente sin tracking
+            createMarker(item.lat, item.lon, label, color, 'bus', item.vehicle)
+                .addTo(layers.nearbyVehicles);
+            return;
+        }
+
+        currentKeys.add(key);
+        const existing = globalThis.nearbyLiveBusMarkers.get(key);
+
+        if (existing) {
+            // Actualizar posición en el mapa (suave gracias a CSS transition)
+            existing.setLatLng([item.lat, item.lon]);
+        } else {
+            const marker = createMarker(item.lat, item.lon, label, color, 'bus', item.vehicle);
+            globalThis.nearbyLiveBusMarkers.set(key, marker);
+            marker.addTo(layers.nearbyVehicles);
+            // Agregar clase CSS para transición de movimiento suave
+            const el = marker.getElement();
+            if (el) el.classList.add('nearby-live-bus-icon');
+            else marker.on('add', () => {
+                const addedEl = marker.getElement();
+                if (addedEl) addedEl.classList.add('nearby-live-bus-icon');
+            });
+        }
+    });
+
+    // Remover marcadores de vehículos que ya no están en el radio
+    globalThis.nearbyLiveBusMarkers.forEach((marker, key) => {
+        if (!currentKeys.has(key)) {
+            layers.nearbyVehicles.removeLayer(marker);
+            globalThis.nearbyLiveBusMarkers.delete(key);
+        }
+    });
+}
+
 function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     const { showRadiusCircle = true } = options;
     if (!layers?.nearbyRadius || !layers?.nearbyStops || !layers?.nearbyVehicles) return;
 
     layers.nearbyRadius.clearLayers();
     layers.nearbyStops.clearLayers();
-    layers.nearbyVehicles.clearLayers();
+    // nearbyVehicles se gestiona con updateNearbyLiveBusMarkers (no clearLayers acá)
 
     if (showRadiusCircle) renderNearbyRadiusCircle(center, radiusMeters);
 
@@ -492,6 +543,21 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
         ).addTo(layers.nearbyStops);
 
         if (station.hasRealtimeData) marker.openTooltip();
+
+        // Pulso visual cuando el subte llega en ≤2 min
+        const subteEtaMin = getEtaMinutes(station.etaText);
+        if (Number.isFinite(subteEtaMin) && subteEtaMin <= 2) {
+            L.marker([station.lat, station.lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: `<div class="train-approach-ring" style="border-color:${station.color || '#9333ea'}"></div>`,
+                    iconSize: [60, 60],
+                    iconAnchor: [30, 30]
+                }),
+                interactive: false,
+                zIndexOffset: -50
+            }).addTo(layers.nearbyStops);
+        }
     });
 
     results.trainStations.forEach(station => {
@@ -505,6 +571,21 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
         ).addTo(layers.nearbyStops);
 
         if (station.hasRealtimeData) marker.openTooltip();
+
+        // Pulso visual cuando el tren llega en ≤3 min
+        const trainEtaMin = getEtaMinutes(station.etaText);
+        if (Number.isFinite(trainEtaMin) && trainEtaMin <= 3) {
+            L.marker([station.lat, station.lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: `<div class="train-approach-ring" style="border-color:${station.color || '#0ea5e9'}"></div>`,
+                    iconSize: [60, 60],
+                    iconAnchor: [30, 30]
+                }),
+                interactive: false,
+                zIndexOffset: -50
+            }).addTo(layers.nearbyStops);
+        }
     });
 
     results.bikeStations.forEach(station => {
@@ -541,11 +622,7 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
             .addTo(layers.nearbyStops);
     });
 
-    results.busVehicles.forEach(item => {
-        const label = item.line || '-';
-        createMarker(item.lat, item.lon, label, getColor('bus', label), 'bus', item.vehicle)
-            .addTo(layers.nearbyVehicles);
-    });
+    updateNearbyLiveBusMarkers(results.busVehicles);
 }
 
 function renderNearbyRadiusCircle(center, radiusMeters) {
