@@ -441,18 +441,50 @@ function renderLineSearchOverlay(lineSearchData) {
     layers.busStops?.clearLayers();
 
     const recorridos = Array.isArray(lineSearchData?.recorridos) ? lineSearchData.recorridos : [];
+    const renderedStopKeys = new Set();
+
     recorridos.forEach((recorrido, index) => {
         const coords = getShapePointsFromRecorrido(recorrido);
         if (coords.length < 2) return;
 
         const hue = (index * 67) % 360;
+        const color = `hsl(${hue}, 85%, 48%)`;
+
         L.polyline(coords, {
-            color: `hsl(${hue}, 85%, 48%)`,
+            color: color,
             weight: 4,
             opacity: 0.78,
             lineCap: 'round',
             lineJoin: 'round'
         }).addTo(layers.busRoute);
+
+        const stops = Array.isArray(recorrido?.stops) 
+            ? recorrido.stops 
+            : (Array.isArray(recorrido?.paradas) ? recorrido.paradas : []);
+
+        stops.forEach(stop => {
+            const parsedStop = parseLatLon(stop);
+            if (!parsedStop) return;
+
+            const stopKey = `${parsedStop.lat.toFixed(5)},${parsedStop.lon.toFixed(5)}`;
+            if (renderedStopKeys.has(stopKey)) return;
+            renderedStopKeys.add(stopKey);
+
+            L.circleMarker([parsedStop.lat, parsedStop.lon], {
+                radius: 4,
+                color: '#1d4ed8',
+                fillColor: '#60a5fa',
+                fillOpacity: 0.95,
+                weight: 1
+            })
+                .bindTooltip((stop?.name || stop?.nombre || 'Parada').toString(), {
+                    className: 'custom-tooltip',
+                    direction: 'top',
+                    offset: [0, -6],
+                    opacity: 0.95
+                })
+                .addTo(layers.busStops);
+        });
     });
 }
 

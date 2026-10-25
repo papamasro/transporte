@@ -30,18 +30,17 @@ jobs:
       - name: Obtener contexto del código (git diff o estructura)
         id: code_context
         run: |
-          # Captura el diff del último commit o el árbol del repositorio
           DIFF=$(git diff HEAD~1 HEAD 2>/dev/null || git log -1)
           echo "CODE_DIFF<<EOF" >> $GITHUB_ENV
           echo "$DIFF" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Ejecutar Pipeline Multagente
+      - name: Ejecutar Pipeline Multagente (QA -> TL -> Dev)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CODE_CONTEXT: ${{ env.CODE_DIFF }}
         run: |
-          node ./scripts/agent-business.mjs
+          node ./scripts/agent-qa.mjs
           node ./scripts/agent-lead.mjs
           node ./scripts/agent-coder.mjs
 

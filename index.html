@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-RHZN8GPH8G"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-RHZN8GPH8G');
-</script>
     <meta charset="UTF-8">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-RHZN8GPH8G"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-RHZN8GPH8G');
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radar AMBA - Dashboard de Movilidad</title>
     
@@ -49,14 +49,13 @@
 
     <div class="ui-panel">
         <div class="glass dashboard-glass px-4 py-3 rounded-[1.5rem] shadow-xl">
-            <button type="button" class="w-full flex justify-between items-center cursor-pointer select-none text-left" onclick="togglePanel()">
+            <button type="button" class="w-full flex justify-between items-center cursor-pointer select-none text-left" onclick="togglePanel()" aria-expanded="false" aria-controls="panel-content">
                 <div class="flex items-center gap-2.5">
                     <div class="p-2 bg-indigo-600/10 rounded-xl">
                         <i data-lucide="map-pinned" class="text-indigo-600 w-5 h-5"></i>
                     </div>
                     <div>
                         <h1 class="text-lg font-black tracking-tighter leading-none text-slate-800 uppercase">Radar<span class="text-indigo-600">Amba</span></h1>
-                        <!-- CAMBIO 5: Nueva descripción que explica el objetivo -->
                         <p class="text-[8px] text-slate-500 font-bold uppercase tracking-wide mt-1 leading-none">Monitoreo en vivo de transporte y bicis</p>
                     </div>
                 </div>
@@ -72,16 +71,16 @@
             <div id="panel-content" class="overflow-hidden" style="max-height: 0; opacity: 0; transition: all 0.3s ease-in-out;">
                 <div class="pt-4">
                     <div class="grid grid-cols-4 gap-2 mb-4">
-                        <button onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                        <button type="button" onclick="toggleType('bus')" id="t-bus" class="btn-transport active p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
                             <i data-lucide="bus" class="w-4 h-4"></i> Colectivo
                         </button>
-                        <button onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                        <button type="button" onclick="toggleType('subte')" id="t-subte" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
                             <i data-lucide="train-front" class="w-4 h-4"></i> Subte
                         </button>
-                        <button onclick="toggleType('train')" id="t-train" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                        <button type="button" onclick="toggleType('train')" id="t-train" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
                             <i data-lucide="train-track" class="w-4 h-4"></i> Tren
                         </button>
-                        <button onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
+                        <button type="button" onclick="toggleType('bike')" id="t-bike" class="btn-transport p-2.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1.5 bg-white">
                             <i data-lucide="bike" class="w-4 h-4"></i> Ecobici
                         </button>
                     </div>
@@ -94,23 +93,23 @@
                         </div>
                         <div class="space-y-2">
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                <button id="action-locate" onclick="locateUser()" title="Ir a mi ubicación" class="dashboard-action-btn">
+                                <button type="button" id="action-locate" onclick="locateUser()" title="Ir a mi ubicación" class="dashboard-action-btn">
                                     <i data-lucide="navigation" class="w-4 h-4"></i>
                                     <span>Mi ubicación</span>
                                 </button>
-                                <button id="action-nearby" onclick="toggleNearbyPanel()" title="Buscar transportes cercanos" class="dashboard-action-btn">
+                                <button type="button" id="action-nearby" onclick="toggleNearbyPanel()" title="Buscar transportes cercanos" class="dashboard-action-btn">
                                     <i data-lucide="radar" class="w-4 h-4"></i>
                                     <span>Cercanos</span>
                                 </button>
-                                <button id="action-refresh" onclick="forceRefresh()" title="Actualizar datos ahora" class="dashboard-action-btn">
+                                <button type="button" id="action-refresh" onclick="forceRefresh()" title="Actualizar datos ahora" class="dashboard-action-btn">
                                     <i data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
                                     <span>Actualizar</span>
                                 </button>
-                                <button id="action-alerts" onclick="toggleAlertPanel()" title="Ver alertas del servicio" class="dashboard-action-btn">
+                                <button type="button" id="action-alerts" onclick="toggleAlertPanel()" title="Ver alertas del servicio" class="dashboard-action-btn">
                                     <i data-lucide="bell" class="w-4 h-4"></i>
                                     <span>Alertas</span>
                                 </button>
-                                <button onclick="installApp()" id="install-app-btn" title="Instalar app" class="dashboard-action-btn">
+                                <button type="button" onclick="installApp()" id="install-app-btn" title="Instalar app" class="dashboard-action-btn">
                                     <i data-lucide="download" class="w-4 h-4"></i>
                                     <span id="install-app-label">Instalar app</span>
                                 </button>
@@ -128,10 +127,9 @@
         <div id="alerts-panel" class="glass dashboard-glass dashboard-modal px-4 py-3 rounded-[1.5rem] shadow-xl max-h-[250px] flex flex-col">
             <div class="flex items-center justify-between mb-2 shrink-0">
                 <h3 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <!-- CAMBIO 2: Cambio de título -->
                     <i data-lucide="bell-ring" class="w-3.5 h-3.5 text-amber-500"></i> Noticias Subte
                 </h3>
-                <button onclick="toggleAlertPanel()" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                <button type="button" onclick="toggleAlertPanel()" title="Cerrar" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
             </div>
             <div id="alerts-container" class="flex flex-col gap-1.5 overflow-y-auto pr-1"></div>
         </div>
@@ -142,10 +140,10 @@
                     <i data-lucide="radar" class="w-3.5 h-3.5 text-indigo-600"></i> Cercano a vos
                 </h3>
                 <div class="flex items-center gap-1">
-                    <button id="nearby-compact-toggle" onclick="toggleNearbyPanelCompact()" title="Achicar o expandir panel" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md">
+                    <button type="button" id="nearby-compact-toggle" onclick="toggleNearbyPanelCompact()" title="Achicar o expandir panel" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md">
                         <i data-lucide="chevron-up" id="nearby-panel-chevron" class="w-4 h-4 transition-transform duration-300"></i>
                     </button>
-                    <button onclick="toggleNearbyPanel()" title="Cerrar" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                    <button type="button" onclick="toggleNearbyPanel()" title="Cerrar" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-1 rounded-md"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
                 </div>
             </div>
             <div id="nearby-panel-body" class="nearby-panel-body">
@@ -159,7 +157,7 @@
                         <option value="distance">Mas cerca</option>
                         <option value="eta">ETA primero</option>
                     </select>
-                    <button onclick="refreshNearbyTransport()" class="nearby-search-btn ml-auto px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-600 text-white hover:bg-indigo-700">Buscar</button>
+                    <button type="button" onclick="refreshNearbyTransport()" class="nearby-search-btn ml-auto px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-600 text-white hover:bg-indigo-700">Buscar</button>
                 </div>
                 <div id="nearby-container" class="flex flex-col gap-2 overflow-y-auto pr-1 text-[11px] text-slate-600">
                     Tocá Buscar para ver paradas y transportes cercanos.
@@ -170,24 +168,30 @@
 
     <!-- Modal de confirmación de ubicación -->
     <div id="location-prompt-overlay" class="location-prompt-overlay hidden">
-        <div id="location-prompt-modal" class="location-prompt-modal glass dashboard-glass">
-            <div class="flex items-center gap-2 mb-3">
+        <div id="location-prompt-modal" class="location-prompt-modal glass dashboard-glass relative" role="dialog" aria-modal="true" aria-labelledby="location-prompt-title">
+            <button type="button" onclick="locationPromptDismiss()" title="Cerrar y continuar" class="absolute top-3 right-3 text-slate-400 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-lg transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+            <div class="flex items-center gap-2 mb-3 pr-8">
                 <div class="p-2 bg-indigo-600/20 rounded-xl">
                     <i data-lucide="map-pin" class="text-indigo-400 w-5 h-5"></i>
                 </div>
-                <h2 class="text-sm font-black text-white uppercase tracking-tight">Indicá tu ubicación</h2>
+                <h2 id="location-prompt-title" class="text-sm font-black text-white uppercase tracking-tight">Indicá tu ubicación</h2>
             </div>
             <p id="location-prompt-text" class="text-[11px] text-slate-300 leading-relaxed mb-3">
                 Tocá el mapa para marcar dónde estás, o usá el GPS. Podés arrastrar el marcador para ajustar.
             </p>
             <div class="flex flex-col gap-2">
-                <button id="location-prompt-gps" onclick="locationPromptUseGPS()" class="location-prompt-btn location-prompt-btn-secondary">
+                <button id="location-prompt-gps" onclick="locationPromptUseGPS()" class="location-prompt-btn location-prompt-btn-secondary" type="button">
                     <i data-lucide="navigation" class="w-4 h-4"></i>
                     <span id="location-prompt-gps-label">Reintentar GPS</span>
                 </button>
-                <button id="location-prompt-confirm" onclick="locationPromptConfirm()" class="location-prompt-btn location-prompt-btn-primary" disabled>
+                <button id="location-prompt-confirm" onclick="locationPromptConfirm()" class="location-prompt-btn location-prompt-btn-primary" type="button" disabled>
                     <i data-lucide="check" class="w-4 h-4"></i>
                     <span>Confirmar ubicación</span>
+                </button>
+                <button id="location-prompt-dismiss" onclick="locationPromptDismiss()" class="text-slate-400 hover:text-slate-200 text-[11px] py-1 transition-colors text-center" type="button">
+                    Omitir por ahora
                 </button>
             </div>
             <p id="location-prompt-coords" class="text-[9px] text-slate-500 mt-2 text-center hidden"></p>

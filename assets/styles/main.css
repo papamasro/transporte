@@ -608,3 +608,21 @@
             0% { transform: translateY(-18px) scale(0.7); opacity: 0; }
             100% { transform: translateY(0) scale(1); opacity: 1; }
         }
+
+
+.train-moving-badge {
+    background: #0f172a;
+    border-radius: 9999px;
+    padding: 2px 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.train-moving-badge:hover {
+    transform: scale(1.1);
+}

@@ -62,6 +62,7 @@
             subteStations: null,
             trainLines: null,
             trainStations: null,
+            trainVehicles: null,
             bikeRoutes: null,
             busRoute: null,
             busStops: null,
@@ -104,8 +105,21 @@
                 tap: false 
             }).setView([-34.6037, -58.3816], isMobile ? 13 : 14);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 19
+            const mapConfig = appConfig.MAP || {};
+            const mapApiKey = (mapConfig.apiKey || '').toString().trim();
+            let tileUrl = mapConfig.tileUrl || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+
+            if (mapApiKey) {
+                if (tileUrl.includes('{apiKey}')) {
+                    tileUrl = tileUrl.replace('{apiKey}', encodeURIComponent(mapApiKey));
+                } else if (!tileUrl.includes('api_key=')) {
+                    tileUrl += (tileUrl.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(mapApiKey);
+                }
+            }
+
+            L.tileLayer(tileUrl, {
+                maxZoom: Number(mapConfig.maxZoom) || 19,
+                attribution: mapConfig.attribution || '&copy; Esri'
             }).addTo(map);
 
             layers.bus = L.layerGroup().addTo(map);
@@ -114,6 +128,7 @@
             layers.subteStations = L.layerGroup().addTo(map);
             layers.trainLines = L.layerGroup().addTo(map);
             layers.trainStations = L.layerGroup().addTo(map);
+            layers.trainVehicles = L.layerGroup().addTo(map);
             layers.bikeRoutes = L.layerGroup().addTo(map);
             layers.busRoute = L.layerGroup().addTo(map);
             layers.busStops = L.layerGroup().addTo(map);
@@ -145,14 +160,21 @@
         }
 
         function updateBusCache(busData) {
-            globalThis.cache.bus = Array.isArray(busData) ? busData : [];
-            if (globalThis.markerState) {
-                globalThis.markerState.busRouteCache.clear();
-                globalThis.markerState.busLineSearchCache.clear();
-                globalThis.markerState.currentBusRouteKey = '';
-                globalThis.markerState.currentLineOverlayQuery = '';
+            if (Array.isArray(busData)) {
+                globalThis.cache.bus = busData;
+                if (globalThis.markerState) {
+                    globalThis.markerState.busRouteCache.clear();
+                    globalThis.markerState.busLineSearchCache.clear();
+                    globalThis.markerState.currentBusRouteKey = '';
+                    globalThis.markerState.currentLineOverlayQuery = '';
+                }
+                const lastUpdateEl = document.getElementById('last-update');
+                if (lastUpdateEl) {
+                    lastUpdateEl.textContent = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
+                }
+            } else {
+                console.warn('Datos de colectivos inválidos o error de red. Se preserva el caché existente.');
             }
-            document.getElementById('last-update').innerText = `Última act: ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
         }
 
 
@@ -165,7 +187,7 @@
             const loadingLine = document.getElementById('loading-line');
             
             refreshIcon?.classList.add('animate-spin');
-            loadingLine.style.width = '30%';
+            if (loadingLine) loadingLine.style.width = '30%';
 
             try {
                 if (activeTypes.bus) {
@@ -185,7 +207,7 @@
                     await refreshBikeRoutesNow();
                 }
 
-                loadingLine.style.width = '100%';
+                if (loadingLine) loadingLine.style.width = '100%';
                 renderMarkers();
                 if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
                     refreshNearbyTransport({ silent: true }).catch(() => {});
@@ -200,7 +222,7 @@
                 console.error("Error crítico en refreshLoop", err);
             } finally {
                 setTimeout(() => { 
-                    loadingLine.style.width = '0%'; 
+                    if (loadingLine) loadingLine.style.width = '0%'; 
                     refreshIcon?.classList.remove('animate-spin');
                     isRefreshing = false;
                 }, 500);
@@ -265,6 +287,14 @@
             if (type === 'bike') {
                 globalThis.cache.bike = [];
                 layers.bikeRoutes?.clearLayers();
+                return;
+            }
+
+            if (type === 'train') {
+                layers.trainLines?.clearLayers();
+                layers.trainStations?.clearLayers();
+                layers.trainVehicles?.clearLayers();
+                return;
             }
         }
 
@@ -281,8 +311,9 @@
 
             let onDemandHadError = false;
 
+            const isCurrentlyActive = !!activeTypes[type];
             for (const currentType of Object.keys(activeTypes)) {
-                const shouldBeActive = currentType === type;
+                const shouldBeActive = isCurrentlyActive ? false : (currentType === type);
                 const wasActive = !!activeTypes[currentType];
 
                 activeTypes[currentType] = shouldBeActive;

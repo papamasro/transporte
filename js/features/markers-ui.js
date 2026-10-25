@@ -102,10 +102,10 @@ function buildBikeTooltip(data, color) {
 }
 
 function buildSubteTooltip(data, color) {
-    const referenceTs = globalThis.cache.subteTimestamp || Math.floor(Date.now() / 1000);
+    const nowTs = Math.floor(Date.now() / 1000);
     const stationForecast = getSubteStationForecast(data)
         .filter(r => r.arrivalTime > 0)
-        .filter(r => r.arrivalTime >= (referenceTs - 60) && r.arrivalTime <= (referenceTs + 7200))
+        .filter(r => r.arrivalTime >= (nowTs - 60) && r.arrivalTime <= (nowTs + 7200))
         .sort((a, b) => a.arrivalTime - b.arrivalTime);
 
     const groupedByDestination = new Map();
@@ -120,7 +120,7 @@ function buildSubteTooltip(data, color) {
             const [routeShort, destination] = key.split('|');
             const nextItems = items.slice(0, 2);
             const etaParts = nextItems.map(r => {
-                const etaText = formatEtaMinutes(r.arrivalTime, referenceTs);
+                const etaText = formatEtaMinutes(r.arrivalTime, nowTs);
                 return `Llega ${formatTimestamp(r.arrivalTime)} (${etaText})`;
             }).join(' · ');
             const maxDelay = Math.max(...nextItems.map(r => r.delay || 0));

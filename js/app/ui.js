@@ -34,7 +34,9 @@ function togglePanel() {
     isPanelOpen = !isPanelOpen;
     const content = document.getElementById('panel-content');
     const chevron = document.getElementById('panel-chevron');
-    content.style.maxHeight = isPanelOpen ? '400px' : '0px';
+    if (!content || !chevron) return;
+    content.style.maxHeight = isPanelOpen ? 'min(420px, calc(100vh - 120px))' : '0px';
+    content.style.overflowY = isPanelOpen ? 'auto' : 'hidden';
     content.style.opacity = isPanelOpen ? '1' : '0';
     chevron.style.transform = isPanelOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
@@ -130,14 +132,24 @@ async function installApp() {
 
     if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
-        await deferredInstallPrompt.userChoice;
-        deferredInstallPrompt = null;
-        setInstallButtonState({
-            label: 'App instalada',
-            disabled: true,
-            ready: false,
-            title: 'La app ya está instalada'
-        });
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice?.outcome === 'accepted') {
+            deferredInstallPrompt = null;
+            setInstallButtonState({
+                label: 'App instalada',
+                disabled: true,
+                ready: false,
+                title: 'La app ya está instalada'
+            });
+        } else {
+            console.log('Instalación cancelada por el usuario');
+            setInstallButtonState({
+                label: 'Instalar app',
+                disabled: false,
+                ready: true,
+                title: 'Instalar aplicación'
+            });
+        }
         return;
     }
 
@@ -240,6 +252,12 @@ function getKnownUserLocation() {
         };
     }
 
+    const stored = readStoredUserLocation();
+    if (stored) {
+        if (globalThis.cache) globalThis.cache.userLocation = stored;
+        return stored;
+    }
+
     return null;
 }
 
@@ -279,6 +297,9 @@ async function locateUser(options = {}) {
         };
 
         globalThis.cache.userLocation = payload;
+        if (shouldPersist) {
+            persistUserLocation(payload);
+        }
 
         userLayer?.clearLayers?.();
         const userMarker = L.marker([lat, lon], {
@@ -528,10 +549,31 @@ function locationPromptConfirm() {
     }
 }
 
+function locationPromptDismiss() {
+    _cleanupLocationPrompt();
+    if (_locationPromptResolve) {
+        _locationPromptResolve(null);
+        _locationPromptResolve = null;
+    }
+}
+
 function showLocationPrompt() {
     return new Promise((resolve) => {
-        _locationPromptResolve = resolve;
+        let safetyTimer = null;
+        const wrappedResolve = (val) => {
+            if (safetyTimer) clearTimeout(safetyTimer);
+            resolve(val);
+        };
+
+        _locationPromptResolve = wrappedResolve;
         _locationPromptPicked = null;
+
+        safetyTimer = setTimeout(() => {
+            if (_locationPromptResolve === wrappedResolve) {
+                console.log('Location prompt: auto-dismiss por inactividad.');
+                locationPromptDismiss();
+            }
+        }, 15000);
 
         const confirmBtn = document.getElementById('location-prompt-confirm');
         const coordsEl = document.getElementById('location-prompt-coords');
@@ -573,3 +615,12 @@ function showLocationPrompt() {
         }
     });
 }
+
+globalThis.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const overlay = document.getElementById('location-prompt-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) {
+            locationPromptDismiss();
+        }
+    }
+});
