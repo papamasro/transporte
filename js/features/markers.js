@@ -176,6 +176,73 @@ function renderTrainLayer(filter, bounds) {
         });
     });
 
+    // Render de formaciones de trenes visuales en base a arribos reportados
+    const arrivalsByStation = globalThis.cache.trainArrivalsByStation || {};
+    const renderedTrainKeys = new Set();
+
+    Object.entries(trainLines).forEach(([lineId, line]) => {
+        const stationItems = (line.stations || []).map(id => trainStations[id]).filter(Boolean);
+        if (stationItems.length < 2) return;
+
+        for (let i = 0; i < stationItems.length; i++) {
+            const station = stationItems[i];
+            const stationKey = station.id || station.stationId || station.name;
+            const arrivalData = arrivalsByStation[stationKey]?.data;
+            const arrivals = Array.isArray(arrivalData?.arribos) ? arrivalData.arribos : [];
+
+            arrivals.forEach(arr => {
+                const eta = Number(arr.etaSeconds);
+                if (!Number.isFinite(eta) || eta < 0 || eta > 900) return;
+
+                const trainKey = `${lineId}::${arr.destino || ''}::${Math.floor(eta / 120)}`;
+                if (renderedTrainKeys.has(trainKey)) return;
+                renderedTrainKeys.add(trainKey);
+
+                let trainLat = station.lat;
+                let trainLon = station.lon;
+
+                if (eta > 60 && i > 0) {
+                    const prevStation = stationItems[i - 1];
+                    const progress = Math.min(0.85, Math.max(0.15, 1 - (eta / 600)));
+                    trainLat = prevStation.lat + (station.lat - prevStation.lat) * progress;
+                    trainLon = prevStation.lon + (station.lon - prevStation.lon) * progress;
+                }
+
+                if (!bounds.contains([trainLat, trainLon])) return;
+
+                const m = Math.round(eta / 60);
+                const etaText = m <= 0 ? 'Ahora' : `En ${m} min`;
+                const trainIcon = L.divIcon({
+                    className: 'train-vehicle-marker',
+                    html: `
+                        <div class="train-moving-badge animate-pulse" style="border: 2px solid ${line.color || '#0284c7'};">
+                            🚆 <span class="font-black text-[9px] text-white">${etaText}</span>
+                        </div>
+                    `,
+                    iconSize: [52, 24],
+                    iconAnchor: [26, 12]
+                });
+
+                const trainMarker = L.marker([trainLat, trainLon], { icon: trainIcon })
+                    .bindTooltip(`
+                        <div class="tooltip-dark p-2.5 rounded-xl shadow-lg min-w-[160px]">
+                            <div class="text-[10px] font-black text-white flex items-center gap-1.5">
+                                <span>🚆 Tren ${line.short || line.name || ''}</span>
+                            </div>
+                            <div class="text-[9px] text-cyan-400 font-bold mt-0.5">Destino: ${arr.destino || 'Sin destino'}</div>
+                            <div class="text-[8px] text-slate-300 mt-1">Hacia: ${station.name} (${etaText})</div>
+                            <div class="text-[7px] text-slate-400 mt-0.5">Andén: ${arr.plataforma || '-'}</div>
+                        </div>
+                    `, { className: 'custom-tooltip', direction: 'top', offset: [0, -12] });
+
+                if (layers.trainVehicles) {
+                    trainMarker.addTo(layers.trainVehicles);
+                    visibleCount++;
+                }
+            });
+        }
+    });
+
     return visibleCount;
 }
 
@@ -192,6 +259,7 @@ function renderMarkers() {
     layers.subteStations.clearLayers();
     layers.trainLines.clearLayers();
     layers.trainStations.clearLayers();
+    layers.trainVehicles?.clearLayers();
 
     renderBikeRoutesLayer();
 

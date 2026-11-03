@@ -42,5 +42,12 @@ globalThis.APP_CONFIG = {
         nearbyStopsRadiusMeters: 1500,
         nearbyBusRouteFetchMax: 8,
         nearbyTrainRealtimeStations: 4
+    },
+    MAP: {
+        apiKey: '',
+        // Esri World Street Map (100% libre, sin API key y funciona desde file:///, localhost y web)
+        tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        maxZoom: 19,
+        attribution: '&copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, METI, TomTom'
     }
 };

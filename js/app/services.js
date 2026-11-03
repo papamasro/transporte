@@ -17,22 +17,32 @@ function getAppPath(pathKey, fallback) {
     return (path || fallback || '').toString();
 }
 
-async function fetchAPISingleAttempt(endpoint) {
+async function fetchAPISingleAttempt(endpoint, timeoutMs = 12000) {
     const url = `${BACKEND_URL}${endpoint}`;
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) return { success: false, data: null };
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+        });
 
-    const contentType = response.headers.get("content-type");
-    if (!contentType?.includes("application/json")) {
+        if (!response.ok) return { success: false, data: null };
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType?.includes("application/json")) {
+            return { success: false, data: null };
+        }
+
+        const data = await response.json();
+        return { success: !!data, data };
+    } catch {
         return { success: false, data: null };
+    } finally {
+        clearTimeout(timer);
     }
-
-    const data = await response.json();
-    return { success: !!data, data };
 }
 
 async function fetchAPI(endpoint, overrides = {}) {
@@ -213,10 +223,18 @@ async function fetchSofseAPI(pathname, query = {}) {
     while (attempts < MAX_RETRIES) {
         attempts += 1;
         try {
-            const response = await fetch(url.toString(), {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' }
-            });
+            const sofseController = new AbortController();
+            const sofseTimer = setTimeout(() => sofseController.abort(), 12000);
+            let response;
+            try {
+                response = await fetch(url.toString(), {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    signal: sofseController.signal
+                });
+            } finally {
+                clearTimeout(sofseTimer);
+            }
 
             const payload = await readSofsePayload(response);
 
@@ -554,6 +572,17 @@ async function getTrainArrivalsForStation(stationData) {
         stationId: sofseStationRef.id,
         ramalId: sofseStationRef.ramalId || null
     };
+
+    const nowSweep = Date.now();
+    const cacheObj = globalThis.cache.trainArrivalsByStation;
+    const cacheKeys = Object.keys(cacheObj);
+    if (cacheKeys.length > 50) {
+        cacheKeys.forEach(k => {
+            if (cacheObj[k]?.expiresAt < nowSweep) {
+                delete cacheObj[k];
+            }
+        });
+    }
 
     globalThis.cache.trainArrivalsByStation[stationKey] = {
         data: result,
