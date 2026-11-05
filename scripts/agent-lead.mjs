@@ -1,32 +1,31 @@
-import { GoogleGenAI } from '@google/genai';
-import * as fs from 'fs';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import {
+  UNTRUSTED_NOTICE,
+  generate,
+  readCodeContext,
+  readOutput,
+  runAgent,
+  untrustedBlock,
+  writeOutput,
+} from './agent-common.mjs';
 
 async function runLeadAgent() {
   console.log('🏗️ [2/3] Agente Team Lead: Evaluando tickets de QA y priorizando el backlog técnico...');
 
-  let qaReport = '';
-  if (fs.existsSync('qa-report.md')) {
-    qaReport = fs.readFileSync('qa-report.md', 'utf-8');
-  } else if (fs.existsSync('business-report.md')) {
-    qaReport = fs.readFileSync('business-report.md', 'utf-8');
-  }
-
-  const codebase = process.env.CODE_CONTEXT || 'No hay contexto disponible.';
+  const qaReport = readOutput('qa-report.md') || 'No hay reporte de QA disponible.';
+  const codebase = readCodeContext(15000);
 
   const prompt = `
     Sos un Tech Lead & Software Architect experto en desarrollo web Frontend (HTML5, CSS3, JS Vanilla, Leaflet) y performance.
     
     Revisá el reporte de tickets del Agente QA y comparalo con el código para priorizar las tareas y armar el plan técnico.
 
-    Reporte de QA:
-    ${qaReport}
+    ${UNTRUSTED_NOTICE}
 
-    Código / Contexto:
-    \`\`\`text
-    ${codebase.slice(0, 15000)}
-    \`\`\`
+    Reporte de QA:
+    ${untrustedBlock('REPORTE_QA', qaReport)}
+
+    Código / Contexto (diff):
+    ${untrustedBlock('DIFF', codebase)}
 
     Estructurá tu salida así:
     ## 📐 Plan Técnico de Arquitectura & Priorización (Team Lead)
@@ -38,13 +37,9 @@ async function runLeadAgent() {
     3. **Instrucciones Directas para el Senior Frontend Developer:** [Paso a paso exacto para implementar cada fix]
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
-  });
-
-  fs.writeFileSync('lead-plan.md', response.text);
-  console.log('✅ Agente Team Lead finalizado. Plan guardado en lead-plan.md');
+  const plan = await generate(prompt);
+  const target = writeOutput('lead-plan.md', plan);
+  console.log(`✅ Agente Team Lead finalizado. Plan guardado en ${target}`);
 }
 
-runLeadAgent().catch(console.error);
+runAgent(runLeadAgent);

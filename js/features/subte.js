@@ -1,5 +1,4 @@
         function buildSubteForecastIndex(forecastData) {
-            const byStop = {};
             const byBaseStop = {};
             const byName = {};
             const headerTs = forecastData?.Header?.timestamp || 0;
@@ -28,9 +27,6 @@
                         delay: est.arrival?.delay || 0
                     };
 
-                    if (!byStop[row.stopId]) byStop[row.stopId] = [];
-                    byStop[row.stopId].push(row);
-
                     const baseStopId = getBaseStopId(row.stopId);
                     if (!byBaseStop[baseStopId]) byBaseStop[baseStopId] = [];
                     byBaseStop[baseStopId].push(row);
@@ -41,11 +37,9 @@
                 });
             });
 
-            Object.values(byStop).forEach(list => list.sort((a, b) => a.arrivalTime - b.arrivalTime));
             Object.values(byBaseStop).forEach(list => list.sort((a, b) => a.arrivalTime - b.arrivalTime));
             Object.values(byName).forEach(list => list.sort((a, b) => a.arrivalTime - b.arrivalTime));
 
-            globalThis.cache.subteForecastByStop = byStop;
             globalThis.cache.subteForecastByBaseStop = byBaseStop;
             globalThis.cache.subteForecastByName = byName;
         }
@@ -56,16 +50,9 @@
                 ? (globalThis.cache.subteForecastByName[normalizeText(station.name)] || [])
                 : [];
 
-            const merged = [...byBaseStop, ...byName]
+            // Las filas de un stop_id siempre están en byBaseStop de su id base: no hace falta otro índice.
+            return [...byBaseStop, ...byName]
                 .filter(item => item.routeId === station.routeId)
                 .sort((a, b) => a.arrivalTime - b.arrivalTime);
-
-            if (merged.length === 0) {
-                return (globalThis.cache.subteForecastByStop[station.id] || [])
-                    .filter(item => item.routeId === station.routeId)
-                    .sort((a, b) => a.arrivalTime - b.arrivalTime);
-            }
-
-            return merged;
         }
 

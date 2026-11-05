@@ -1,0 +1,8 @@
+# Copiar a worker/.dev.vars para `wrangler dev` (nunca commitear .dev.vars).
+# En producción usar: npx wrangler secret put GCBA_CLIENT_ID / GCBA_CLIENT_SECRET
+GCBA_CLIENT_ID=
+GCBA_CLIENT_SECRET=
+# Opcional, para probar contra el upstream falso (node test/mock-upstream.mjs):
+# GCBA_BASE_URL=http://127.0.0.1:8799
+# TRENES_BASE_URL=http://127.0.0.1:8799
+# BICISENDA_URL=http://127.0.0.1:8799/ciclovias.geojson

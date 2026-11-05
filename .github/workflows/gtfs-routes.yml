@@ -1,0 +1,55 @@
+name: Recorridos GTFS (data/routes)
+
+# Regenera data/routes/ con el GTFS vigente del GCBA y lo commitea si cambió.
+# Requiere los secrets del repo GCBA_CLIENT_ID y GCBA_CLIENT_SECRET.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gtfs-routes
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Tests del generador
+        run: python3 -m unittest scripts/test_build_static_routes.py
+
+      - name: Bajar GTFS y muestra en vivo
+        env:
+          GCBA_CLIENT_ID: ${{ secrets.GCBA_CLIENT_ID }}
+          GCBA_CLIENT_SECRET: ${{ secrets.GCBA_CLIENT_SECRET }}
+        run: |
+          curl -fsSL --retry 3 --retry-delay 20 --max-time 600 -o "$RUNNER_TEMP/gtfs.zip" \
+            "https://apitransporte.buenosaires.gob.ar/colectivos/feed-gtfs?client_id=$GCBA_CLIENT_ID&client_secret=$GCBA_CLIENT_SECRET"
+          curl -fsSL --retry 3 --retry-delay 20 --max-time 120 -o "$RUNNER_TEMP/live.json" \
+            "https://transporte-be.papamasro.workers.dev/colectivos/vehiclePositionsSimple"
+
+      # Si el GTFS no corresponde al feed en vivo (route_id renumerados) no se publica.
+      - name: Generar data/routes
+        run: |
+          python3 scripts/build-static-routes.py --gtfs "$RUNNER_TEMP/gtfs.zip" \
+            --realtime-sample "$RUNNER_TEMP/live.json" --min-exact-pct 90
+
+      - name: Commitear si cambió
+        run: |
+          git add data/routes
+          if git diff --cached --quiet; then
+            echo "Sin cambios en data/routes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: recorridos GTFS $(date -u +%Y-%m-%d)"
+          git push

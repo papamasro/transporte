@@ -1,11 +1,28 @@
 let isNearbyPanelOpen = false;
-let isNearbyPanelCompact = false;
+let nearbyRadiusMeters = null;
+let nearbySortMode = 'distance';
+let nearbySummaryText = '';
+// Secciones que el usuario abrió/cerró a mano (clave -> abierta); el resto se abre si tiene resultados.
+const nearbySectionOpen = new Map();
 let nearbyRefreshRequestId = 0;
 let nearbyNextGeolocationAttemptAt = 0;
+let nearbySavedActiveTypes = null;
+let nearbyPrunePending = false;
+let nearbyRenderedBikeRoutes = null;
+let nearbyAutoTooltipMarker = null;
 const NEARBY_GEO_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
+// Los datos de cercanos se reutilizan mientras no venza el intervalo de polling de cada fuente.
+const NEARBY_SUBTE_FORECAST_MAX_AGE_MS = Math.max(1000, Number(globalThis.APP_CONFIG?.POLLING?.subteIntervalMs ?? 60000));
+const NEARBY_BIKE_MAX_AGE_MS = Math.max(1000, Number(globalThis.APP_CONFIG?.POLLING?.bikeIntervalMs ?? 60000));
+const NEARBY_TRAIN_ETA_MAX_AGE_MS = Math.max(1000, Number(globalThis.APP_CONFIG?.POLLING?.trainIntervalMs ?? 60000));
+const NEARBY_BUS_CACHE_MAX_AGE_MS = Math.max(0, Number(globalThis.APP_CONFIG?.FEATURES?.nearbyBusCacheMaxAgeMs ?? 45000));
 
 if (!globalThis.nearbyLiveBusMarkers) {
     globalThis.nearbyLiveBusMarkers = new Map();
+}
+
+if (!globalThis.nearbyStopMarkers) {
+    globalThis.nearbyStopMarkers = new Map();
 }
 
 if (!globalThis.nearbyState) {
@@ -15,7 +32,8 @@ if (!globalThis.nearbyState) {
         lastRadius: 1500,
         lastResults: null,
         loading: false,
-        loadingRequestId: 0
+        loadingRequestId: 0,
+        areaCenter: null
     };
 }
 
@@ -41,80 +59,147 @@ function getNearbyFeatureConfig() {
 }
 
 function clearNearbyMapOverlay() {
+    layers?.nearbyCircle?.clearLayers?.();
     layers?.nearbyRadius?.clearLayers?.();
     layers?.nearbyStops?.clearLayers?.();
     layers?.nearbyVehicles?.clearLayers?.();
     globalThis.nearbyLiveBusMarkers?.clear?.();
+    globalThis.nearbyStopMarkers?.clear?.();
+    nearbyRenderedBikeRoutes = null;
+    nearbyAutoTooltipMarker = null;
+    nearbyPrunePending = false;
 }
 
 function deactivateMainTransportFilters() {
+    if (!nearbySavedActiveTypes) nearbySavedActiveTypes = { ...activeTypes };
     Object.keys(activeTypes || {}).forEach(type => {
         activeTypes[type] = false;
         if (typeof setTypeButtonState === 'function') setTypeButtonState(type, false);
     });
-    if (typeof renderMarkers === 'function') renderMarkers();
+    if (typeof renderMarkers === 'function') renderMarkers({ force: true });
 }
 
-function initNearbyDefaultRadius() {
-    const input = document.getElementById('nearby-radius-input');
-    if (!input) return;
-    if (input.dataset.initialized === 'true') return;
+async function restoreMainTransportFilters(savedTypes) {
+    const typesToRestore = Object.keys(savedTypes || {})
+        .filter(type => savedTypes[type] && Object.hasOwn(activeTypes, type));
+    if (typesToRestore.length === 0) return;
 
-    input.value = String(getNearbyFeatureConfig().defaultRadius);
-    input.dataset.initialized = 'true';
+    typesToRestore.forEach(type => {
+        activeTypes[type] = true;
+        if (typeof setTypeButtonState === 'function') setTypeButtonState(type, true);
+    });
+    if (typeof renderMarkers === 'function') renderMarkers({ force: true });
+
+    if (typeof activateType !== 'function') return;
+    const results = await Promise.all(typesToRestore.map(type => activateType(type).catch(() => false)));
+    if (isNearbyPanelOpen) return;
+    // Un toggleType posterior cambió los tipos: el estado final lo define ese toggle.
+    if (typesToRestore.some(type => !activeTypes[type])) return;
+
+    if (typeof renderMarkers === 'function') renderMarkers();
+    setNearbyStatusValue(results.every(Boolean) ? 'LIVE' : 'ERROR');
+}
+
+function clampNearbyRadius(value) {
+    return Math.min(5000, Math.max(200, Math.round(Number(value))));
+}
+
+function getNearbyRadius() {
+    if (!Number.isFinite(nearbyRadiusMeters)) nearbyRadiusMeters = getNearbyFeatureConfig().defaultRadius;
+    return nearbyRadiusMeters;
+}
+
+// Opciones de FEATURES.nearbyRadiusOptions + el radio inicial configurado + uno custom (setNearbyRadius).
+function getNearbyRadiusOptions() {
+    const raw = globalThis.APP_CONFIG?.FEATURES?.nearbyRadiusOptions;
+    const values = (Array.isArray(raw) && raw.length > 0 ? raw : [500, 1000, 2000])
+        .map(clampNearbyRadius)
+        .filter(Number.isFinite);
+    values.push(getNearbyFeatureConfig().defaultRadius, getNearbyRadius());
+    return [...new Set(values)].sort((a, b) => a - b);
+}
+
+function formatNearbyRadiusLabel(meters) {
+    if (meters < 1000) return `${meters} m`;
+    const km = meters / 1000;
+    return `${Number.isInteger(km) ? km : km.toFixed(1).replace('.', ',')} km`;
+}
+
+function renderNearbyRadiusChips() {
+    const group = document.getElementById('nearby-radius-group');
+    if (!group) return;
+    const options = getNearbyRadiusOptions();
+    const signature = options.join(',');
+    if (group.dataset.options !== signature) {
+        group.dataset.options = signature;
+        group.innerHTML = options
+            .map(value => `<button type="button" role="radio" class="chip" data-radius="${value}">${formatNearbyRadiusLabel(value)}</button>`)
+            .join('');
+    }
+    const current = getNearbyRadius();
+    setRadioGroupValue(group, option => Number(option.dataset.radius) === current);
 }
 
 function getNearbySortMode() {
-    const select = document.getElementById('nearby-sort-select');
-    return select?.value === 'eta' ? 'eta' : 'distance';
+    return nearbySortMode === 'eta' ? 'eta' : 'distance';
 }
 
-function initNearbySortControl() {
-    const select = document.getElementById('nearby-sort-select');
-    if (!select) return;
+// Cambiar el radio vuelve a buscar en el mismo centro (sin botón "Buscar").
+function setNearbyRadius(value) {
+    const radius = clampNearbyRadius(value);
+    if (!Number.isFinite(radius)) return;
+    const changed = radius !== getNearbyRadius();
+    nearbyRadiusMeters = radius;
+    renderNearbyRadiusChips();
+    if (changed && isNearbyPanelOpen) {
+        refreshNearbyTransport({ keepAreaCenter: true, allowLocatePrompt: false }).catch(() => {});
+    }
+}
 
-    if (select.dataset.initialized !== 'true') {
-        select.value = 'distance';
-        select.dataset.initialized = 'true';
-        select.addEventListener('change', () => {
-            const lastResults = globalThis.nearbyState?.lastResults;
-            if (!lastResults) return;
-            renderNearbyDetails(lastResults);
-        });
+// El orden no necesita pedir datos: reordena los últimos resultados.
+function setNearbySortMode(mode) {
+    nearbySortMode = mode === 'eta' ? 'eta' : 'distance';
+    setRadioGroupValue(document.getElementById('nearby-sort-group'), option => option.dataset.sort === nearbySortMode);
+    const lastResults = globalThis.nearbyState?.lastResults;
+    if (lastResults) renderNearbyDetails(lastResults);
+}
+
+function handleNearbyContainerClick(event) {
+    const summary = event.target.closest('.nearby-section > summary');
+    if (summary) {
+        const details = summary.parentElement;
+        nearbySectionOpen.set(details.dataset.section, !details.open);
         return;
     }
-
-    if (select.value !== 'distance' && select.value !== 'eta') {
-        select.value = 'distance';
+    const action = event.target.closest('[data-nearby-action]');
+    if (!action) return;
+    if (action.dataset.nearbyAction === 'expand') {
+        setNearbyRadius(Number(action.dataset.radius));
+    } else if (action.dataset.nearbyAction === 'locate') {
+        // Acción explícita: se reintenta el GPS aunque esté en el período de espera.
+        nearbyNextGeolocationAttemptAt = 0;
+        refreshNearbyTransport({}).catch(() => {});
+    } else if (action.dataset.nearbyAction === 'retry') {
+        refreshNearbyTransport({ keepAreaCenter: true }).catch(() => {});
     }
 }
 
-function parseNearbyRadiusInput() {
-    const input = document.getElementById('nearby-radius-input');
-    const fallback = getNearbyFeatureConfig().defaultRadius;
-    if (!input) return fallback;
+function initNearbyControls() {
+    renderNearbyRadiusChips();
+    setupRadioGroupKeyboard(document.getElementById('nearby-radius-group'), option => setNearbyRadius(Number(option.dataset.radius)));
+    const sortGroup = document.getElementById('nearby-sort-group');
+    setupRadioGroupKeyboard(sortGroup, option => setNearbySortMode(option.dataset.sort));
+    setRadioGroupValue(sortGroup, option => option.dataset.sort === getNearbySortMode());
 
-    const raw = Number(input.value || fallback);
-    const radius = Number.isFinite(raw) ? Math.min(5000, Math.max(200, raw)) : fallback;
-    input.value = String(radius);
-    return radius;
-}
-
-function nearbyToRadians(value) {
-    return (value * Math.PI) / 180;
-}
-
-function nearbyDistanceMeters(lat1, lon1, lat2, lon2) {
-    const earthRadius = 6371000;
-    const dLat = nearbyToRadians(lat2 - lat1);
-    const dLon = nearbyToRadians(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2
-        + Math.cos(nearbyToRadians(lat1)) * Math.cos(nearbyToRadians(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(a)));
+    const container = document.getElementById('nearby-container');
+    if (container && container.dataset.ready !== 'true') {
+        container.dataset.ready = 'true';
+        container.addEventListener('click', handleNearbyContainerClick);
+    }
 }
 
 function getNearbyCenterFromMapFallback() {
-    const center = map?.getCenter?.();
+    const center = typeof getVisibleViewCenter === 'function' ? getVisibleViewCenter() : map?.getCenter?.();
     if (!center) return null;
     const lat = Number(center.lat);
     const lon = Number(center.lng);
@@ -122,27 +207,50 @@ function getNearbyCenterFromMapFallback() {
     return { lat, lon };
 }
 
+function toNearbyCenter(location) {
+    const lat = Number(location?.lat);
+    const lon = Number(location?.lon);
+    if (!location || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+}
+
+function isNearbyLocationFresh(location) {
+    return typeof isLocationCacheFresh !== 'function' || isLocationCacheFresh(location);
+}
+
+// source: 'area' (Buscar en esta zona), 'cache' (ubicación fresca), 'gps', 'stale' (ubicación vieja), 'map'.
 async function getNearbyCenterPosition(options = {}) {
     const { allowLocatePrompt = true } = options;
-    const cached = globalThis.cache?.userLocation;
-    if (Number.isFinite(Number(cached?.lat)) && Number.isFinite(Number(cached?.lon))) {
-        return { lat: Number(cached.lat), lon: Number(cached.lon), source: 'cache' };
-    }
 
-    const canAttemptLocate = allowLocatePrompt && Date.now() >= nearbyNextGeolocationAttemptAt;
+    const areaCenter = toNearbyCenter(globalThis.nearbyState?.areaCenter);
+    if (areaCenter) return { ...areaCenter, source: 'area' };
+
+    const known = typeof getKnownUserLocation === 'function' ? getKnownUserLocation() : globalThis.cache?.userLocation;
+    const knownCenter = toNearbyCenter(known);
+    if (knownCenter && isNearbyLocationFresh(known)) return { ...knownCenter, source: 'cache' };
+
+    const geolocationEnabled = isFeatureEnabled('geolocation');
+    const canAttemptLocate = geolocationEnabled && allowLocatePrompt && Date.now() >= nearbyNextGeolocationAttemptAt;
     if (canAttemptLocate) {
         nearbyNextGeolocationAttemptAt = Date.now() + NEARBY_GEO_RETRY_COOLDOWN_MS;
 
         try {
-            const loc = await locateUser({ autoActivateNearby: false, skipPromptIfCached: true });
-            if (Number.isFinite(Number(loc?.lat)) && Number.isFinite(Number(loc?.lon))) {
-                nearbyNextGeolocationAttemptAt = 0;
-                return { lat: Number(loc.lat), lon: Number(loc.lon), source: 'gps' };
+            // Si el GPS falla, locateUser restaura la ubicación conocida (con su timestamp viejo).
+            const loc = toNearbyCenter(await locateUser({ autoActivateNearby: false, refreshNearby: false }));
+            if (loc) {
+                const current = globalThis.cache?.userLocation;
+                if (isNearbyLocationFresh(current)) {
+                    nearbyNextGeolocationAttemptAt = 0;
+                    return { ...loc, source: 'gps' };
+                }
+                return { ...loc, source: 'stale', timestamp: Number(current?.timestamp) || null };
             }
         } catch {
             // fallback below
         }
     }
+
+    if (knownCenter) return { ...knownCenter, source: 'stale', timestamp: Number(known.timestamp) || null };
 
     const mapCenter = getNearbyCenterFromMapFallback();
     if (mapCenter) return { ...mapCenter, source: 'map' };
@@ -150,7 +258,7 @@ async function getNearbyCenterPosition(options = {}) {
 }
 
 function getSubteEtaInfo(station) {
-    const referenceTs = globalThis.cache.subteTimestamp || Math.floor(Date.now() / 1000);
+    const referenceTs = Math.floor(Date.now() / 1000);
     const arrivals = getSubteStationForecast(station)
         .filter(r => r.arrivalTime > 0)
         .filter(r => r.arrivalTime >= (referenceTs - 60) && r.arrivalTime <= (referenceTs + 7200))
@@ -158,16 +266,19 @@ function getSubteEtaInfo(station) {
         .slice(0, 2);
 
     if (arrivals.length === 0) {
-        return { text: 'Sin ETA', hasData: false };
+        return { text: 'Sin ETA', hasData: false, etaMinutes: null };
     }
 
     return {
         text: arrivals.map(item => `${item.routeShort}: ${formatEtaMinutes(item.arrivalTime, referenceTs)}`).join(' · '),
-        hasData: true
+        hasData: true,
+        etaMinutes: Math.max(0, Math.round((arrivals[0].arrivalTime - referenceTs) / 60))
     };
 }
 
 function collectNearbySubteStations(center, radiusMeters) {
+    if (!isNearbySliceEnabled('subte')) return [];
+
     const subteLines = globalThis.cache.subteStatic?.lines || {};
     const subteStations = globalThis.cache.subteStatic?.stations || {};
     const items = [];
@@ -181,7 +292,7 @@ function collectNearbySubteStations(center, radiusMeters) {
             const lon = Number(station.lon);
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-            const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
+            const distance = haversineMeters(center.lat, center.lon, lat, lon);
             if (distance > radiusMeters) return;
 
             const payload = {
@@ -198,6 +309,7 @@ function collectNearbySubteStations(center, radiusMeters) {
                 type: 'subte',
                 distance,
                 etaText: etaInfo.text,
+                etaMinutes: etaInfo.etaMinutes,
                 hasRealtimeData: etaInfo.hasData
             });
         });
@@ -208,6 +320,8 @@ function collectNearbySubteStations(center, radiusMeters) {
 }
 
 function collectNearbyTrainStations(center, radiusMeters) {
+    if (!isNearbySliceEnabled('train')) return [];
+
     const trainStatic = globalThis.cache.trainStatic || {};
     const trainLines = trainStatic.lines || {};
     const trainStations = trainStatic.stations || {};
@@ -222,7 +336,7 @@ function collectNearbyTrainStations(center, radiusMeters) {
             const lon = Number(station.lon);
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-            const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
+            const distance = haversineMeters(center.lat, center.lon, lat, lon);
             if (distance > radiusMeters) return;
 
             items.push({
@@ -235,6 +349,7 @@ function collectNearbyTrainStations(center, radiusMeters) {
                 type: 'train',
                 distance,
                 etaText: 'Sin ETA',
+                etaMinutes: null,
                 hasRealtimeData: false
             });
         });
@@ -245,6 +360,8 @@ function collectNearbyTrainStations(center, radiusMeters) {
 }
 
 function collectNearbyBusVehicles(center, radiusMeters) {
+    if (!isNearbySliceEnabled('busVehicles')) return [];
+
     const buses = Array.isArray(globalThis.cache.bus) ? globalThis.cache.bus : [];
     const items = [];
 
@@ -252,7 +369,7 @@ function collectNearbyBusVehicles(center, radiusMeters) {
         const coords = getVehicleCoordinates(vehicle);
         if (!coords) return;
 
-        const distance = nearbyDistanceMeters(center.lat, center.lon, coords.lat, coords.lon);
+        const distance = haversineMeters(center.lat, center.lon, coords.lat, coords.lon);
         if (distance > radiusMeters) return;
 
         items.push({
@@ -268,21 +385,70 @@ function collectNearbyBusVehicles(center, radiusMeters) {
     return items;
 }
 
-function isPointWithinNearbyRadius(center, radiusMeters, lat, lon) {
-    const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
-    return distance <= radiusMeters;
+// Bounding box (en grados) que contiene el círculo de búsqueda.
+function getNearbyRadiusBounds(center, radiusMeters) {
+    const latDelta = radiusMeters / 111320;
+    const lonDelta = radiusMeters / (111320 * Math.max(0.01, Math.cos(toRadians(center.lat))));
+    return {
+        minLat: center.lat - latDelta,
+        maxLat: center.lat + latDelta,
+        minLon: center.lon - lonDelta,
+        maxLon: center.lon + lonDelta
+    };
+}
+
+function isPointWithinNearbyRadius(center, radiusMeters, lat, lon, bounds) {
+    if (bounds && (lat < bounds.minLat || lat > bounds.maxLat || lon < bounds.minLon || lon > bounds.maxLon)) return false;
+    return haversineMeters(center.lat, center.lon, lat, lon) <= radiusMeters;
+}
+
+// El GeoJSON de bicisendas es estático: el bbox de cada feature se calcula una sola vez.
+const nearbyBikeFeatureBounds = new WeakMap();
+
+function getBikeFeatureBounds(feature) {
+    if (nearbyBikeFeatureBounds.has(feature)) return nearbyBikeFeatureBounds.get(feature);
+
+    const geometry = feature?.geometry;
+    const lines = geometry?.type === 'MultiLineString' ? geometry.coordinates : [geometry?.coordinates];
+    const bounds = { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity };
+    (lines || []).forEach(line => {
+        if (!Array.isArray(line)) return;
+        line.forEach(pair => {
+            if (!Array.isArray(pair) || pair.length < 2) return;
+            const lon = Number(pair[0]);
+            const lat = Number(pair[1]);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+            if (lat < bounds.minLat) bounds.minLat = lat;
+            if (lat > bounds.maxLat) bounds.maxLat = lat;
+            if (lon < bounds.minLon) bounds.minLon = lon;
+            if (lon > bounds.maxLon) bounds.maxLon = lon;
+        });
+    });
+
+    const result = Number.isFinite(bounds.minLat) ? bounds : null;
+    nearbyBikeFeatureBounds.set(feature, result);
+    return result;
+}
+
+function nearbyBoundsIntersect(a, b) {
+    return a.minLat <= b.maxLat && a.maxLat >= b.minLat && a.minLon <= b.maxLon && a.maxLon >= b.minLon;
 }
 
 function clipBikeRoutesByNearbyRadius(center, radiusMeters) {
+    if (!isNearbySliceEnabled('bikeRoutes')) return null;
     const source = globalThis.cache?.bikeRoutes;
     if (!source || !Array.isArray(source.features) || source.features.length === 0) return null;
 
     const clippedFeatures = [];
+    const radiusBounds = getNearbyRadiusBounds(center, radiusMeters);
 
     source.features.forEach(feature => {
         const geometry = feature?.geometry;
         const coords = geometry?.coordinates;
         if (!geometry || !Array.isArray(coords)) return;
+
+        const featureBounds = feature && typeof feature === 'object' ? getBikeFeatureBounds(feature) : null;
+        if (!featureBounds || !nearbyBoundsIntersect(featureBounds, radiusBounds)) return;
 
         const pushSegments = (segments) => {
             segments.forEach(segment => {
@@ -308,7 +474,7 @@ function clipBikeRoutesByNearbyRadius(center, radiusMeters) {
                 const lat = Number(pair[1]);
                 if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-                const inside = isPointWithinNearbyRadius(center, radiusMeters, lat, lon);
+                const inside = isPointWithinNearbyRadius(center, radiusMeters, lat, lon, radiusBounds);
                 if (inside) {
                     current.push([lon, lat]);
                 } else if (current.length >= 2) {
@@ -340,6 +506,8 @@ function clipBikeRoutesByNearbyRadius(center, radiusMeters) {
 }
 
 function collectNearbyBikeStations(center, radiusMeters) {
+    if (!isNearbySliceEnabled('bikeStations')) return [];
+
     const bikes = Array.isArray(globalThis.cache.bike) ? globalThis.cache.bike : [];
     const items = [];
 
@@ -351,7 +519,7 @@ function collectNearbyBikeStations(center, radiusMeters) {
         const lon = Number(station?.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-        const distance = nearbyDistanceMeters(center.lat, center.lon, lat, lon);
+        const distance = haversineMeters(center.lat, center.lon, lat, lon);
         if (distance > radiusMeters) return;
 
         items.push({
@@ -375,23 +543,38 @@ function normalizeNearbyStopKey(stop) {
     return `${lat.toFixed(5)}|${lon.toFixed(5)}|${name}`;
 }
 
-function parseNearbyLatLon(point) {
-    if (!point) return null;
+const NEARBY_BUS_STOPS_CONCURRENCY = 3;
+// Rutas sin paradas (fallo o vacío) no se vuelven a pedir en cada refresh de cercanos.
+const nearbyBusStopsMissUntil = new Map();
 
-    if (Array.isArray(point) && point.length >= 2) {
-        const lat = Number(point[0]);
-        const lon = Number(point[1]);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
-    }
+function getNearbyBusStopsMissTtlMs() {
+    return Math.max(0, Number(globalThis.NETWORK_CONFIG?.busRouteNegativeCacheTtlMs ?? 120000));
+}
 
-    const lat = Number(point.lat ?? point.latitude);
-    const lon = Number(point.lon ?? point.lng ?? point.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+function isNearbyBusRouteMissed(key) {
+    const until = nearbyBusStopsMissUntil.get(key);
+    if (!until) return false;
+    if (until > Date.now()) return true;
+    nearbyBusStopsMissUntil.delete(key);
+    return false;
+}
 
-    return { lat, lon };
+async function mapWithConcurrency(items, limit, mapper) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const worker = async () => {
+        while (nextIndex < items.length) {
+            const index = nextIndex++;
+            results[index] = await mapper(items[index]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
 }
 
 async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
+    if (!isNearbySliceEnabled('busStops')) return [];
+
     const cfg = getNearbyFeatureConfig();
     const routeMap = new Map();
     const routeFetchQueue = [];
@@ -405,37 +588,42 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
         const key = `${routeId}::${lineShortName}::${direction ?? ''}`;
         if (!lineShortName && !routeId) return;
         if (routeMap.has(key)) return;
+        if (isNearbyBusRouteMissed(key)) return;
 
         routeMap.set(key, true);
-        routeFetchQueue.push({ routeId, lineShortName, tripCandidates, direction });
+        routeFetchQueue.push({ key, routeId, lineShortName, tripCandidates, direction });
     });
 
     const selectedRoutes = routeFetchQueue.slice(0, cfg.maxRouteFetch);
     const stopMap = new Map();
 
-    const routeResults = await Promise.all(selectedRoutes.map(async route => {
+    const routeResults = await mapWithConcurrency(selectedRoutes, NEARBY_BUS_STOPS_CONCURRENCY, async route => {
         const routeRequestBudget = { remaining: 2 };
-        const routeInfo = await fetchRouteInfo(
-            route.routeId,
-            route.lineShortName,
-            route.tripCandidates,
-            route.direction,
-            routeRequestBudget,
-            center
-        );
+        let routeInfo = null;
+        try {
+            routeInfo = await fetchRouteInfo(
+                route.routeId,
+                route.lineShortName,
+                route.tripCandidates,
+                route.direction,
+                routeRequestBudget,
+                center
+            );
+        } catch {
+            routeInfo = null;
+        }
 
-        return {
-            route,
-            stops: Array.isArray(routeInfo?.stops) ? routeInfo.stops : []
-        };
-    }));
+        const stops = Array.isArray(routeInfo?.stops) ? routeInfo.stops : [];
+        if (stops.length === 0) nearbyBusStopsMissUntil.set(route.key, Date.now() + getNearbyBusStopsMissTtlMs());
+        return { route, stops };
+    });
 
     routeResults.forEach(({ route, stops }) => {
         stops.forEach(stop => {
-            const parsed = parseNearbyLatLon(stop);
+            const parsed = parseLatLon(stop);
             if (!parsed) return;
 
-            const distance = nearbyDistanceMeters(center.lat, center.lon, parsed.lat, parsed.lon);
+            const distance = haversineMeters(center.lat, center.lon, parsed.lat, parsed.lon);
             if (distance > radiusMeters) return;
 
             const normalizedStop = {
@@ -463,179 +651,267 @@ async function collectNearbyBusStops(center, radiusMeters, nearbyVehicles) {
     return Array.from(stopMap.values()).sort((a, b) => a.distance - b.distance);
 }
 
+function isNearbyLayerOverlayOpen(layer) {
+    return !!(layer?.isPopupOpen?.() || isLayerTooltipOpen(layer));
+}
+
+// Quita los layers que ya no están en `seenKeys`, salvo el que tenga popup/tooltip abierto
+// (se poda al cerrarse, ver handleNearbyPopupClose).
+function pruneNearbyKeyedLayers(layerGroup, store, seenKeys) {
+    store.forEach((layer, key) => {
+        if (seenKeys.has(key)) return;
+        if (layerGroup.hasLayer(layer) && isNearbyLayerOverlayOpen(layer)) {
+            nearbyPrunePending = true;
+            return;
+        }
+        layerGroup.removeLayer(layer);
+        store.delete(key);
+    });
+}
+
 function updateNearbyLiveBusMarkers(busVehicles) {
     if (!layers?.nearbyVehicles) return;
 
+    const store = globalThis.nearbyLiveBusMarkers;
     const currentKeys = new Set();
 
-    busVehicles.forEach(item => {
-        const key = getVehicleUniqueKey(item.vehicle);
+    (busVehicles || []).forEach(item => {
         const label = item.line || '-';
-        const color = getColor('bus', label);
-
-        if (!key) {
-            // Sin clave única: agregar directamente sin tracking
-            createMarker(item.lat, item.lon, label, color, 'bus', item.vehicle)
-                .addTo(layers.nearbyVehicles);
-            return;
-        }
-
+        const key = getVehicleUniqueKey(item.vehicle)
+            || `nokey:${Number(item.lat).toFixed(5)},${Number(item.lon).toFixed(5)}|${label}`;
+        if (currentKeys.has(key)) return;
         currentKeys.add(key);
-        const existing = globalThis.nearbyLiveBusMarkers.get(key);
 
-        if (existing) {
-            // Actualizar posición en el mapa (suave gracias a CSS transition)
-            existing.setLatLng([item.lat, item.lon]);
+        const color = getColor('bus', label);
+        let marker = store.get(key);
+        if (marker) {
+            // Posición (suave por la transición CSS), icono si cambió rumbo/línea y popup/tooltip abiertos.
+            updateMarker(marker, item.lat, item.lon, label, color, item.vehicle);
         } else {
-            const marker = createMarker(item.lat, item.lon, label, color, 'bus', item.vehicle);
-            globalThis.nearbyLiveBusMarkers.set(key, marker);
-            marker.addTo(layers.nearbyVehicles);
-            // Agregar clase CSS para transición de movimiento suave
-            const el = marker.getElement();
-            if (el) el.classList.add('nearby-live-bus-icon');
-            else marker.on('add', () => {
-                const addedEl = marker.getElement();
-                if (addedEl) addedEl.classList.add('nearby-live-bus-icon');
-            });
+            marker = createMarker(item.lat, item.lon, label, color, 'bus', item.vehicle, { iconClassName: 'nearby-live-bus-icon' });
+            store.set(key, marker);
         }
+        if (!layers.nearbyVehicles.hasLayer(marker)) marker.addTo(layers.nearbyVehicles);
     });
 
     // Remover marcadores de vehículos que ya no están en el radio
-    globalThis.nearbyLiveBusMarkers.forEach((marker, key) => {
-        if (!currentKeys.has(key)) {
-            layers.nearbyVehicles.removeLayer(marker);
-            globalThis.nearbyLiveBusMarkers.delete(key);
-        }
-    });
+    pruneNearbyKeyedLayers(layers.nearbyVehicles, store, currentKeys);
+}
+
+function renderNearbyBikeRoutes(bikeRoutes) {
+    if (nearbyRenderedBikeRoutes === bikeRoutes && layers.nearbyRadius.getLayers().length > 0) return;
+
+    layers.nearbyRadius.clearLayers();
+    nearbyRenderedBikeRoutes = bikeRoutes || null;
+    if (!bikeRoutes?.features?.length) return;
+
+    L.geoJSON(bikeRoutes, {
+        style: () => ({
+            color: '#22c55e',
+            weight: 3,
+            opacity: 0.85,
+            lineCap: 'round',
+            lineJoin: 'round'
+        })
+    }).addTo(layers.nearbyRadius);
 }
 
 function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     const { showRadiusCircle = true } = options;
     if (!layers?.nearbyRadius || !layers?.nearbyStops || !layers?.nearbyVehicles) return;
 
-    layers.nearbyRadius.clearLayers();
-    layers.nearbyStops.clearLayers();
-    // nearbyVehicles se gestiona con updateNearbyLiveBusMarkers (no clearLayers acá)
+    nearbyPrunePending = false;
 
     if (showRadiusCircle) renderNearbyRadiusCircle(center, radiusMeters);
+    else getNearbyCircleLayer()?.clearLayers();
 
-    const nearbyBikeRoutes = results.bikeRoutes;
-    if (nearbyBikeRoutes?.features?.length) {
-        L.geoJSON(nearbyBikeRoutes, {
-            style: () => ({
-                color: '#22c55e',
-                weight: 3,
-                opacity: 0.85,
-                lineCap: 'round',
-                lineJoin: 'round'
-            })
-        }).addTo(layers.nearbyRadius);
+    renderNearbyBikeRoutes(results.bikeRoutes);
+    renderNearbyStopsLayer(results);
+    updateNearbyLiveBusMarkers(results.busVehicles);
+}
+
+function handleNearbyPopupClose() {
+    if (!nearbyPrunePending) return;
+    setTimeout(() => {
+        if (!nearbyPrunePending) return;
+        nearbyPrunePending = false;
+        const lastResults = globalThis.nearbyState?.lastResults;
+        if (!globalThis.nearbyState?.active || !lastResults || !layers?.nearbyStops) return;
+        renderNearbyStopsLayer(lastResults);
+        updateNearbyLiveBusMarkers(lastResults.busVehicles);
+    }, 100);
+}
+
+function upsertNearbyStationMarker(store, seenKeys, key, station, label, color, type) {
+    if (seenKeys.has(key)) return null;
+    seenKeys.add(key);
+
+    let marker = store.get(key);
+    if (marker) {
+        updateMarker(marker, station.lat, station.lon, label, color, station);
+    } else {
+        marker = createMarker(station.lat, station.lon, label, color, type, station);
+        store.set(key, marker);
     }
+    if (!layers.nearbyStops.hasLayer(marker)) layers.nearbyStops.addLayer(marker);
+    return marker;
+}
 
-    results.subteStations.forEach(station => {
-        const marker = createMarker(
-            station.lat,
-            station.lon,
-            station.name,
-            station.color || '#9333ea',
-            'subte',
-            station
-        ).addTo(layers.nearbyStops);
+function upsertNearbyApproachRing(store, seenKeys, key, station, fallbackColor) {
+    const color = safeCssColor(station.color, fallbackColor);
+    seenKeys.add(key);
 
-        if (station.hasRealtimeData) marker.openTooltip();
+    let ring = store.get(key);
+    if (ring && ring._transitSignature !== color) {
+        layers.nearbyStops.removeLayer(ring);
+        ring = null;
+    }
+    if (!ring) {
+        ring = L.marker([station.lat, station.lon], {
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="train-approach-ring" style="border-color:${color}"></div>`,
+                iconSize: [60, 60],
+                iconAnchor: [30, 30]
+            }),
+            interactive: false,
+            zIndexOffset: -50
+        });
+        ring._transitSignature = color;
+        store.set(key, ring);
+    }
+    if (!layers.nearbyStops.hasLayer(ring)) layers.nearbyStops.addLayer(ring);
+}
 
-        // Pulso visual cuando el subte llega en ≤2 min
-        const subteEtaMin = getEtaMinutes(station.etaText);
-        if (Number.isFinite(subteEtaMin) && subteEtaMin <= 2) {
-            L.marker([station.lat, station.lon], {
-                icon: L.divIcon({
-                    className: '',
-                    html: `<div class="train-approach-ring" style="border-color:${station.color || '#9333ea'}"></div>`,
-                    iconSize: [60, 60],
-                    iconAnchor: [30, 30]
-                }),
-                interactive: false,
-                zIndexOffset: -50
-            }).addTo(layers.nearbyStops);
-        }
-    });
+function buildNearbyBusStopTooltip(stop) {
+    const stopLines = Array.isArray(stop?.lines) ? stop.lines.join(', ') : '-';
+    return `${escapeHtml(stop?.name)} · Líneas: ${escapeHtml(stopLines)}`;
+}
 
-    results.trainStations.forEach(station => {
-        const marker = createMarker(
-            station.lat,
-            station.lon,
-            station.name,
-            station.color || '#0ea5e9',
-            'train',
-            station
-        ).addTo(layers.nearbyStops);
+function upsertNearbyBusStopMarker(store, seenKeys, stop) {
+    const key = `stop:${normalizeNearbyStopKey(stop)}`;
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
 
-        if (station.hasRealtimeData) marker.openTooltip();
-
-        // Pulso visual cuando el tren llega en ≤3 min
-        const trainEtaMin = getEtaMinutes(station.etaText);
-        if (Number.isFinite(trainEtaMin) && trainEtaMin <= 3) {
-            L.marker([station.lat, station.lon], {
-                icon: L.divIcon({
-                    className: '',
-                    html: `<div class="train-approach-ring" style="border-color:${station.color || '#0ea5e9'}"></div>`,
-                    iconSize: [60, 60],
-                    iconAnchor: [30, 30]
-                }),
-                interactive: false,
-                zIndexOffset: -50
-            }).addTo(layers.nearbyStops);
-        }
-    });
-
-    results.bikeStations.forEach(station => {
-        const markerColor = station.bikesAvailable === 0 ? '#ef4444' : '#10b981';
-        const label = station.bikesAvailable === 0 ? 'Sin 🚲' : `🚲 ${station.bikesAvailable}`;
-
-        createMarker(
-            station.lat,
-            station.lon,
-            label,
-            markerColor,
-            'bike',
-            station
-        ).addTo(layers.nearbyStops);
-    });
-
-    results.busStops.forEach(stop => {
-        const stopLines = Array.isArray(stop.lines) ? stop.lines.join(', ') : '-';
-
-        L.marker([stop.lat, stop.lon], {
+    let marker = store.get(key);
+    if (marker) {
+        marker._nearbyStop = stop;
+        if (isLayerTooltipOpen(marker)) marker.getTooltip().update();
+    } else {
+        marker = L.marker([stop.lat, stop.lon], {
             icon: L.divIcon({
                 className: 'nearby-bus-stop-icon-wrapper',
                 html: '<div class="nearby-bus-stop-icon" title="Parada de bondi">🚏</div>',
                 iconSize: [26, 26],
                 iconAnchor: [13, 13]
             })
-        })
-            .bindTooltip(`${stop.name} · Líneas: ${stopLines}`, {
-                className: 'custom-tooltip',
-                direction: 'top',
-                offset: [0, -8],
-                opacity: 0.95
-            })
-            .addTo(layers.nearbyStops);
-    });
-
-    updateNearbyLiveBusMarkers(results.busVehicles);
+        });
+        marker._nearbyStop = stop;
+        marker.bindTooltip(layer => buildNearbyBusStopTooltip(layer._nearbyStop), {
+            className: 'custom-tooltip',
+            direction: 'top',
+            offset: [0, -8],
+            opacity: 0.95
+        });
+        store.set(key, marker);
+    }
+    if (!layers.nearbyStops.hasLayer(marker)) layers.nearbyStops.addLayer(marker);
 }
 
-function renderNearbyRadiusCircle(center, radiusMeters) {
-    if (!layers?.nearbyRadius) return;
+function isTouchPrimaryDevice() {
+    return globalThis.matchMedia?.('(hover: none), (pointer: coarse)')?.matches === true;
+}
 
-    layers.nearbyRadius.clearLayers();
+// Abre como máximo un tooltip automático (la estación con ETA más cercana) y solo cuando cambia;
+// en dispositivos táctiles ninguno, porque taparía el mapa.
+function syncNearbyAutoTooltip(marker) {
+    const target = isTouchPrimaryDevice() ? null : marker;
+    if (target === nearbyAutoTooltipMarker) return;
+
+    const previous = nearbyAutoTooltipMarker;
+    if (previous && isLayerTooltipOpen(previous)) previous.closeTooltip();
+    nearbyAutoTooltipMarker = target;
+    if (target && !isLayerTooltipOpen(target)) target.openTooltip();
+}
+
+function renderNearbyStopsLayer(results) {
+    const store = globalThis.nearbyStopMarkers;
+    const seenKeys = new Set();
+    let autoTooltipCandidate = null;
+    const considerAutoTooltip = (marker, station) => {
+        if (!station.hasRealtimeData) return;
+        const distance = Number(station.distance);
+        if (!Number.isFinite(distance)) return;
+        if (!autoTooltipCandidate || distance < autoTooltipCandidate.distance) {
+            autoTooltipCandidate = { marker, distance };
+        }
+    };
+
+    (results.subteStations || []).forEach(station => {
+        const key = `subte:${station.routeId || ''}:${station.id}`;
+        const marker = upsertNearbyStationMarker(store, seenKeys, key, station, station.name, station.color || '#9333ea', 'subte');
+        if (!marker) return;
+
+        considerAutoTooltip(marker, station);
+
+        // Pulso visual cuando el subte llega en ≤2 min
+        const subteEtaMin = getNearbyItemEtaMinutes(station);
+        if (Number.isFinite(subteEtaMin) && subteEtaMin <= 2) {
+            upsertNearbyApproachRing(store, seenKeys, `ring:${key}`, station, '#9333ea');
+        }
+    });
+
+    (results.trainStations || []).forEach(station => {
+        const key = `train:${station.lineId || ''}:${station.id}`;
+        const marker = upsertNearbyStationMarker(store, seenKeys, key, station, station.name, station.color || '#0ea5e9', 'train');
+        if (!marker) return;
+
+        considerAutoTooltip(marker, station);
+
+        // Pulso visual cuando el tren llega en ≤3 min
+        const trainEtaMin = getNearbyItemEtaMinutes(station);
+        if (Number.isFinite(trainEtaMin) && trainEtaMin <= 3) {
+            upsertNearbyApproachRing(store, seenKeys, `ring:${key}`, station, '#0ea5e9');
+        }
+    });
+
+    // collectNearbyBikeStations solo devuelve estaciones con bicis disponibles.
+    (results.bikeStations || []).forEach(station => {
+        const key = `bike:${station.station_id ?? `${station.lat},${station.lon}`}`;
+        upsertNearbyStationMarker(store, seenKeys, key, station, `🚲 ${station.bikesAvailable}`, '#10b981', 'bike');
+    });
+
+    (results.busStops || []).forEach(stop => upsertNearbyBusStopMarker(store, seenKeys, stop));
+
+    syncNearbyAutoTooltip(autoTooltipCandidate?.marker || null);
+    pruneNearbyKeyedLayers(layers.nearbyStops, store, seenKeys);
+}
+
+function getNearbyCircleLayer() {
+    if (!layers) return null;
+    if (!layers.nearbyCircle && map) layers.nearbyCircle = L.layerGroup().addTo(map);
+    return layers.nearbyCircle;
+}
+
+// El círculo vive en su propia capa: redibujarlo no borra las bicisendas de nearbyRadius.
+function renderNearbyRadiusCircle(center, radiusMeters) {
+    const circleLayer = getNearbyCircleLayer();
+    if (!circleLayer) return;
+
+    const existing = circleLayer.getLayers()[0];
+    if (existing) {
+        existing.setLatLng([center.lat, center.lon]);
+        existing.setRadius(radiusMeters);
+        return;
+    }
+
     L.circle([center.lat, center.lon], {
         radius: radiusMeters,
         color: '#6366f1',
         weight: 2,
         fillColor: '#6366f1',
         fillOpacity: 0.08
-    }).addTo(layers.nearbyRadius);
+    }).addTo(circleLayer);
 }
 
 function formatDistance(distance) {
@@ -656,7 +932,7 @@ function getEtaMinutes(etaText) {
     if (!raw) return Number.POSITIVE_INFINITY;
 
     const normalized = normalizeText(raw);
-    if (/arrib|ya|ahora|inmediat/.test(normalized)) return 0;
+    if (/(^|[^a-z])(arrib\w*|ya|ahora|inmediat\w*|proximo)($|[^a-z])/.test(normalized)) return 0;
 
     const minutesMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*(min|m|minuto|minutos)\b/);
     if (minutesMatch) {
@@ -669,6 +945,14 @@ function getEtaMinutes(etaText) {
     }
 
     return Number.POSITIVE_INFINITY;
+}
+
+function getNearbyItemEtaMinutes(item) {
+    const etaMinutes = item?.etaMinutes;
+    if (etaMinutes !== null && etaMinutes !== undefined && Number.isFinite(Number(etaMinutes))) {
+        return Number(etaMinutes);
+    }
+    return getEtaMinutes(item?.etaText);
 }
 
 function sortNearbyItems(items, sortMode, getEtaValue) {
@@ -698,203 +982,302 @@ function sortNearbyItems(items, sortMode, getEtaValue) {
     return sorted;
 }
 
-function escapeNearbyHtml(value) {
-    return String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+function formatNearbyEta(minutes) {
+    if (!Number.isFinite(minutes)) return '';
+    if (minutes <= 0) return 'Próximo';
+    return `${Math.round(minutes)} min`;
 }
 
+// item: { badge, badgeColor?, badgeIcon?, title, meta?, value?, valueTone?, distance?, fav? }. Todo dato de API se escapa.
 function buildNearbyItemHtml(item) {
-    const itemTitle = escapeNearbyHtml(item?.title || '-');
-    const itemMeta = item?.meta ? `<div class="nearby-item-meta">${escapeNearbyHtml(item.meta)}</div>` : '';
-
+    const star = item.fav && typeof buildFavoriteStarHtml === 'function' ? buildFavoriteStarHtml(item.fav) : '';
+    const badgeStyle = item.badgeColor ? ` style="background:${safeCssColor(item.badgeColor)}"` : '';
+    let badgeClass = item.badgeIcon ? 'line-badge is-icon' : 'line-badge';
+    if (item.badgeIcon && !item.badgeColor) badgeClass += ' is-neutral';
+    const badgeA11y = item.badgeIcon ? ' aria-hidden="true"' : '';
+    const meta = item.meta ? `<span class="nearby-item-meta">${escapeHtml(item.meta)}</span>` : '';
+    const value = item.value
+        ? `<span class="nearby-item-value${item.valueTone ? ` is-${item.valueTone}` : ''}">${escapeHtml(item.value)}</span>`
+        : '<span class="nearby-item-value is-muted">Sin ETA</span>';
+    const distance = item.distance ? `<span class="nearby-item-distance">${escapeHtml(item.distance)}</span>` : '';
     return `
-        <article class="nearby-item">
-            <div class="nearby-item-title">${itemTitle}</div>
-            ${itemMeta}
-        </article>
-    `;
+        <li class="nearby-item">
+            <span class="${badgeClass}"${badgeStyle}${badgeA11y}>${escapeHtml(item.badge)}</span>
+            <span class="nearby-item-main">
+                <span class="nearby-item-title">${escapeHtml(item.title || '-')}</span>
+                ${meta}
+            </span>
+            <span class="nearby-item-side">${value}${distance}</span>
+            ${star}
+        </li>`;
+}
+
+function isNearbySectionOpen(section) {
+    return nearbySectionOpen.has(section.key) ? nearbySectionOpen.get(section.key) : section.items.length > 0;
 }
 
 function buildNearbySectionHtml(section) {
-    const itemsHtml = section.items.length > 0
-        ? section.items.map(item => buildNearbyItemHtml(item)).join('')
-        : '<div class="nearby-empty">Sin resultados en este radio.</div>';
+    const listHtml = section.items.length > 0
+        ? `<ul class="nearby-list">${section.items.map(item => buildNearbyItemHtml(item)).join('')}</ul>`
+        : '<p class="nearby-empty">Nada en este radio.</p>';
+    const hidden = section.total - section.items.length;
+    const moreHtml = hidden > 0 ? `<p class="nearby-more">y ${hidden} más en el mapa</p>` : '';
 
     return `
-        <section class="nearby-section ${section.sectionClass}">
-            <div class="nearby-section-header">
-                <span class="nearby-section-title">${section.icon} ${section.title}</span>
-                <span class="nearby-section-count">${section.total}</span>
-            </div>
-            <div class="nearby-section-list">${itemsHtml}</div>
-        </section>
-    `;
+        <details class="nearby-section nearby-section-${section.key}" data-section="${section.key}"${isNearbySectionOpen(section) ? ' open' : ''}>
+            <summary class="nearby-section-header">
+                <span class="nearby-section-title"><span aria-hidden="true">${section.icon}</span> ${section.title}</span>
+                <span class="nearby-section-count">${section.total}<span class="sr-only"> resultados</span></span>
+            </summary>
+            ${listHtml}
+            ${moreHtml}
+        </details>`;
 }
 
+function buildNearbyLocationHintHtml(center) {
+    const source = center?.source;
+    let text = '';
+    let actionLabel = '';
+    if (source === 'area') {
+        text = 'Mostrando la zona elegida en el mapa.';
+        actionLabel = 'Usar mi ubicación';
+    } else if (source === 'map') {
+        text = 'Sin tu ubicación: mostramos el centro del mapa.';
+        actionLabel = 'Usar mi ubicación';
+    } else if (source === 'stale') {
+        const timestamp = Number(center.timestamp);
+        const ageMinutes = Number.isFinite(timestamp) && timestamp > 0
+            ? Math.max(1, Math.round((Date.now() - timestamp) / 60000))
+            : null;
+        const ageText = ageMinutes === null ? '' : ` (hace ${ageMinutes >= 120 ? `${Math.round(ageMinutes / 60)} h` : `${ageMinutes} min`})`;
+        text = `Ubicación aproximada${ageText}.`;
+        actionLabel = 'Actualizar';
+    }
+    if (!text) return '';
+    const action = isFeatureEnabled('geolocation')
+        ? `<button type="button" class="chip chip-small" data-nearby-action="locate">${actionLabel}</button>`
+        : '';
+    return `<div class="nearby-location-hint"><span>${text}</span>${action}</div>`;
+}
+
+function buildNearbyEmptyHtml(radiusMeters) {
+    const nextRadius = getNearbyRadiusOptions().find(value => value > radiusMeters);
+    const expand = nextRadius
+        ? `<button type="button" class="chip" data-nearby-action="expand" data-radius="${nextRadius}">Ampliar a ${formatNearbyRadiusLabel(nextRadius)}</button>`
+        : '';
+    return `
+        <div class="nearby-empty-state">
+            <p class="nearby-empty-title">No encontramos nada a menos de ${formatNearbyRadiusLabel(radiusMeters)}.</p>
+            <p class="nearby-empty-text">Probá con un radio más grande o buscá en otra zona del mapa.</p>
+            ${expand}
+        </div>`;
+}
+
+function buildNearbySkeletonHtml(rows = 4) {
+    const row = '<div class="skeleton-row"><span class="skeleton-badge"></span><span class="skeleton-lines"><span></span><span></span></span><span class="skeleton-side"></span></div>';
+    return `<div class="skeleton-list" aria-hidden="true">${row.repeat(rows)}</div>`;
+}
+
+function buildNearbySections(results, sortMode) {
+    const sortedSubteStations = sortNearbyItems(results.subteStations, sortMode, getNearbyItemEtaMinutes);
+    const sortedTrainStations = sortNearbyItems(results.trainStations, sortMode, getNearbyItemEtaMinutes);
+    const sortedBusVehicles = sortNearbyItems(results.busVehicles, 'distance');
+    const sortedBusStops = sortNearbyItems(results.busStops, 'distance');
+    const sortedBikeStations = sortNearbyItems(results.bikeStations, 'distance');
+    const etaTone = minutes => (Number.isFinite(minutes) && minutes <= 2 ? 'soon' : '');
+    const favTarget = (type, data) => (typeof getStationFavoriteTarget === 'function' ? getStationFavoriteTarget(type, data) : null);
+    const stationItem = (station, fallbackColor, meta) => {
+        const etaMinutes = getNearbyItemEtaMinutes(station);
+        return {
+            badge: station.lineShort || '?',
+            badgeColor: station.color || fallbackColor,
+            title: station.name || 'Estación',
+            meta,
+            value: formatNearbyEta(etaMinutes),
+            valueTone: etaTone(etaMinutes),
+            distance: formatDistance(station.distance),
+            fav: favTarget(station.type, station)
+        };
+    };
+
+    const sections = [];
+    if (isNearbySliceEnabled('busVehicles') || isNearbySliceEnabled('busStops')) {
+        const vehicleItems = sortedBusVehicles.slice(0, 5).map(item => ({
+            badge: item.line || '?',
+            badgeColor: getColor('bus', item.line),
+            title: item.vehicle?.trip_headsign ? `Hacia ${item.vehicle.trip_headsign}` : 'Sin destino',
+            meta: 'En circulación',
+            value: formatDistance(item.distance),
+            valueTone: 'distance',
+            fav: typeof getBusLineFavoriteTarget === 'function' ? getBusLineFavoriteTarget(item.line) : null
+        }));
+        const stopItems = sortedBusStops.slice(0, 4).map(stop => ({
+            badge: '🚏',
+            badgeIcon: true,
+            title: stop.name || 'Parada',
+            meta: Array.isArray(stop.lines) && stop.lines.length > 0 ? `Líneas ${stop.lines.slice(0, 4).join(', ')}` : 'Parada',
+            value: formatDistance(stop.distance),
+            valueTone: 'distance',
+            fav: favTarget('stop', stop)
+        }));
+        sections.push({
+            key: 'bus',
+            icon: '🚌',
+            title: 'Colectivos',
+            total: sortedBusVehicles.length + sortedBusStops.length,
+            items: [...vehicleItems, ...stopItems]
+        });
+    }
+
+    if (isNearbySliceEnabled('subte')) {
+        sections.push({
+            key: 'subte',
+            icon: '🚇',
+            title: 'Subte',
+            total: sortedSubteStations.length,
+            items: sortedSubteStations.slice(0, 5).map(st => stationItem(st, '#9333ea', st.lineShort ? `Línea ${st.lineShort}` : 'Subte'))
+        });
+    }
+
+    if (isNearbySliceEnabled('train')) {
+        sections.push({
+            key: 'train',
+            icon: '🚆',
+            title: 'Trenes',
+            total: sortedTrainStations.length,
+            items: sortedTrainStations.slice(0, 5).map(st => stationItem(st, '#0ea5e9', st.lineName || (st.lineShort ? `Línea ${st.lineShort}` : 'Tren')))
+        });
+    }
+
+    if (isNearbySliceEnabled('bike')) {
+        sections.push({
+            key: 'bike',
+            icon: '🚲',
+            title: 'Ecobici',
+            total: sortedBikeStations.length,
+            items: sortedBikeStations.slice(0, 6).map(st => {
+                const bikes = Math.max(0, Number(st.bikesAvailable || 0));
+                return {
+                    badge: '🚲',
+                    badgeIcon: true,
+                    badgeColor: '#10b981',
+                    title: st.name || 'Estación',
+                    value: `${bikes} ${bikes === 1 ? 'bici' : 'bicis'}`,
+                    valueTone: 'bike',
+                    distance: formatDistance(st.distance),
+                    fav: favTarget('bike', st)
+                };
+            })
+        });
+    }
+    return sections;
+}
+
+// Re-render completo del contenedor (son pocas filas); se conserva el foco en la sección enfocada.
 function renderNearbyDetails(results) {
     const container = document.getElementById('nearby-container');
     if (!container) return;
 
     const sortMode = getNearbySortMode();
-    const sortedSubteStations = sortNearbyItems(results.subteStations, sortMode, item => getEtaMinutes(item?.etaText));
-    const sortedTrainStations = sortNearbyItems(results.trainStations, sortMode, item => getEtaMinutes(item?.etaText));
-    const sortedBusVehicles = sortNearbyItems(results.busVehicles, 'distance');
-    const sortedBusStops = sortNearbyItems(results.busStops, 'distance');
-    const sortedBikeStations = sortNearbyItems(results.bikeStations, 'distance');
-
-    const busVehicleItems = sortedBusVehicles.slice(0, 5).map(item => ({
-        title: `Linea ${item.line || '-'}`,
-        meta: `${formatDistance(item.distance)} · ${item.vehicle?.trip_headsign || 'Sin destino'}`
-    }));
-
-    const busStopItems = sortedBusStops.slice(0, 4).map(st => {
-        const stopLines = Array.isArray(st.lines)
-            ? st.lines.slice(0, 3).join(', ')
-            : '-';
-
-        return {
-            title: `Parada ${st.name || 'Sin nombre'}`,
-            meta: `${formatDistance(st.distance)} · Lineas ${stopLines}`
-        };
-    });
-
-    const bondiItems = [...busVehicleItems, ...busStopItems];
-
-    const sections = [
-        {
-            icon: '🚆',
-            title: 'Trenes',
-            sectionClass: 'nearby-section-train',
-            total: sortedTrainStations.length,
-            items: sortedTrainStations.slice(0, 5).map(st => {
-                const lineSuffix = st.lineShort ? ` · ${st.lineShort}` : '';
-                return {
-                    title: st.name || 'Estacion',
-                    meta: `${formatDistance(st.distance)} · ${st.etaText || 'Sin ETA'}${lineSuffix}`
-                };
-            })
-        },
-        {
-            icon: '🚌',
-            title: 'Bondis',
-            sectionClass: 'nearby-section-bus',
-            total: sortedBusVehicles.length + sortedBusStops.length,
-            items: bondiItems
-        },
-        {
-            icon: '🚇',
-            title: 'Subte',
-            sectionClass: 'nearby-section-subte',
-            total: sortedSubteStations.length,
-            items: sortedSubteStations.slice(0, 5).map(st => {
-                const lineSuffix = st.lineShort ? ` · ${st.lineShort}` : '';
-                return {
-                    title: st.name || 'Estacion',
-                    meta: `${formatDistance(st.distance)} · ${st.etaText || 'Sin ETA'}${lineSuffix}`
-                };
-            })
-        },
-        {
-            icon: '🚲',
-            title: 'Ecobici',
-            sectionClass: 'nearby-section-bike',
-            total: sortedBikeStations.length,
-            items: sortedBikeStations.slice(0, 6).map(st => ({
-                title: st.name || 'Estacion',
-                meta: `${formatDistance(st.distance)} · ${Math.max(0, Number(st.bikesAvailable || 0))} disponibles`
-            }))
-        }
-    ];
+    const sections = buildNearbySections(results, sortMode);
+    if (sections.length === 0) {
+        container.innerHTML = '<p class="nearby-empty">No hay funcionalidades de cercanos habilitadas.</p>';
+        return;
+    }
 
     const totalMatches = sections.reduce((acc, section) => acc + section.total, 0);
-    const renderedMatches = sections.reduce((acc, section) => acc + section.items.length, 0);
-    const radiusLabel = formatDistance(results.radiusMeters || globalThis.nearbyState?.lastRadius || getNearbyFeatureConfig().defaultRadius);
-    const sortLabel = sortMode === 'eta' ? 'ETA mas proximo' : 'distancia';
+    const radiusMeters = Number(results.radiusMeters) || getNearbyRadius();
+    const radiusLabel = formatNearbyRadiusLabel(radiusMeters);
+    const isLoading = !!globalThis.nearbyState?.loading;
+    nearbySummaryText = totalMatches > 0
+        ? `${totalMatches} ${totalMatches === 1 ? 'resultado' : 'resultados'} a menos de ${radiusLabel}`
+        : `Sin resultados a menos de ${radiusLabel}`;
+    if (isNearbyPanelOpen && typeof setMapStatusNearbyCount === 'function') setMapStatusNearbyCount(totalMatches, { loading: isLoading });
 
-    const summaryText = totalMatches > 0
-        ? `${totalMatches} hallazgos dentro de ${radiusLabel}. Mostrando ${renderedMatches}. Orden: ${sortLabel}.`
-        : `Sin resultados dentro de ${radiusLabel}. Orden: ${sortLabel}.`;
+    const focusedSection = document.activeElement?.closest?.('#nearby-container .nearby-section > summary')
+        ? document.activeElement.parentElement.dataset.section
+        : null;
 
-    const sectionsHtml = sections.map(section => buildNearbySectionHtml(section)).join('');
+    let bodyHtml;
+    if (totalMatches === 0) {
+        bodyHtml = isLoading ? buildNearbySkeletonHtml(3) : buildNearbyEmptyHtml(radiusMeters);
+    } else {
+        const sortLabel = sortMode === 'eta' ? 'por llegada' : 'por distancia';
+        bodyHtml = `
+            <p class="nearby-summary">${nearbySummaryText} · ${sortLabel}</p>
+            <div class="nearby-sections">${sections.map(section => buildNearbySectionHtml(section)).join('')}</div>`;
+    }
 
-    container.innerHTML = `
-        <div class="nearby-summary">${summaryText}</div>
-        <div class="nearby-sections">${sectionsHtml}</div>
-    `;
+    container.innerHTML = `${buildNearbyLocationHintHtml(results.center)}${bodyHtml}`;
+    if (focusedSection) container.querySelector(`[data-section="${focusedSection}"] > summary`)?.focus({ preventScroll: true });
 }
 
-async function enrichTrainEtas(trainStations) {
+async function enrichTrainEtas(trainStations, options = {}) {
+    if (!Array.isArray(trainStations) || trainStations.length === 0) return;
+
+    if (!isFeatureEnabled('trainRealtime')) {
+        trainStations.forEach(station => {
+            station.etaText = 'Sin ETA';
+            station.hasRealtimeData = false;
+        });
+        return;
+    }
+
     const cfg = getNearbyFeatureConfig();
-    const sample = trainStations.slice(0, cfg.maxTrainRealtime);
+    trainStations.filter(station => !trainLineHasRealtime(station.lineId)).forEach(station => {
+        station.etaText = 'Sin horarios en vivo';
+        station.etaMinutes = null;
+        station.hasRealtimeData = false;
+    });
+    const withRealtime = trainStations.filter(station => trainLineHasRealtime(station.lineId));
+    const sample = withRealtime.slice(0, cfg.maxTrainRealtime);
 
     await Promise.all(sample.map(async station => {
-        const arrivalsRes = await getTrainArrivalsForStation(station);
+        const arrivalsRes = await getTrainArrivalsForStation(station, options);
         if (!arrivalsRes?.success) {
             station.etaText = 'Sin ETA';
+            station.etaMinutes = null;
             station.hasRealtimeData = false;
             return;
         }
 
         const arrivals = arrivalsRes.data?.arrivals || [];
         const first = arrivals[0];
+        const hasEtaSeconds = first?.etaSeconds !== null && first?.etaSeconds !== undefined;
         station.etaText = first ? formatTrainEta(first.etaSeconds) : 'Sin ETA';
+        station.etaMinutes = hasEtaSeconds ? Math.max(0, Math.round(Number(first.etaSeconds) / 60)) : null;
         station.hasRealtimeData = !!first;
     }));
 
-    trainStations.slice(cfg.maxTrainRealtime).forEach(station => {
+    withRealtime.slice(cfg.maxTrainRealtime).forEach(station => {
         station.etaText = 'Sin ETA';
+        station.etaMinutes = null;
         station.hasRealtimeData = false;
     });
-}
-
-async function computeNearbyTransport(center, radiusMeters) {
-    await Promise.all([
-        loadSubteStaticFromKV(),
-        loadTrainStaticFromKV()
-    ]);
-
-    const subteStations = collectNearbySubteStations(center, radiusMeters);
-    const trainStations = collectNearbyTrainStations(center, radiusMeters);
-    const busVehicles = collectNearbyBusVehicles(center, radiusMeters);
-    const bikeStations = collectNearbyBikeStations(center, radiusMeters);
-    const busStops = await collectNearbyBusStops(center, radiusMeters, busVehicles);
-
-    await enrichTrainEtas(trainStations);
-
-    return {
-        center,
-        radiusMeters,
-        subteStations,
-        trainStations,
-        busVehicles,
-        bikeStations,
-        busStops
-    };
 }
 
 function setNearbyLoadingState() {
     const container = document.getElementById('nearby-container');
     if (!container) return;
+    container.setAttribute('aria-busy', 'true');
+    container.innerHTML = buildNearbySkeletonHtml(4);
+    setNearbyLiveText('Buscando transportes cercanos…');
+}
 
-    container.innerHTML = `
-        <div class="text-[10px] text-slate-500 text-center py-4 flex flex-col items-center gap-1">
-            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i>
-            Buscando transportes cercanos...
-        </div>`;
-    lucide.createIcons();
+function setNearbyLiveText(text) {
+    const live = document.getElementById('nearby-live');
+    if (live && live.textContent !== text) live.textContent = text;
 }
 
 async function ensureNearbyBusDataReady() {
-    if (Array.isArray(globalThis.cache.bus) && globalThis.cache.bus.length > 0) return;
+    if (!isNearbySliceEnabled('busVehicles')) return;
 
-    const busVehiclePositionsPath = globalThis.APP_CONFIG?.PATHS?.busVehiclePositions || '/colectivos/vehiclePositionsSimple';
-    const busRes = await fetchAPI(busVehiclePositionsPath);
-    if (busRes?.success && Array.isArray(busRes.data)) {
-        updateBusCache(busRes.data);
+    const busCacheAgeMs = Date.now() - Number(globalThis.cache.busFetchedAt || 0);
+    if (Array.isArray(globalThis.cache.bus) && busCacheAgeMs < NEARBY_BUS_CACHE_MAX_AGE_MS) return;
+
+    const snapshot = await fetchBusSnapshot();
+    if (snapshot) {
+        updateBusCache(snapshot);
         return;
     }
 
@@ -902,9 +1285,13 @@ async function ensureNearbyBusDataReady() {
 }
 
 async function ensureNearbyBikeDataReady() {
+    if (!isNearbySliceEnabled('bike')) return;
+
+    const bikeAgeMs = Date.now() - Number(globalThis.cache.bikeFetchedAt || 0);
+    const stationsStale = isNearbySliceEnabled('bikeStations') && bikeAgeMs >= NEARBY_BIKE_MAX_AGE_MS;
     const [stationsOk] = await Promise.all([
-        refreshBikeNow({ force: true }),
-        refreshBikeRoutesNow()
+        stationsStale ? refreshBikeNow({ force: true }) : true,
+        isNearbySliceEnabled('bikeRoutes') ? refreshBikeRoutesNow() : null
     ]);
 
     if (!stationsOk && !Array.isArray(globalThis.cache.bike)) globalThis.cache.bike = [];
@@ -912,11 +1299,13 @@ async function ensureNearbyBikeDataReady() {
 
 async function ensureNearbyStaticDataReady() {
     const pendingLoads = [];
-    if (!globalThis.cache.subteStatic?.lines || !globalThis.cache.subteStatic?.stations) {
+    if (isNearbySliceEnabled('subte')
+        && (!globalThis.cache.subteStatic?.lines || !globalThis.cache.subteStatic?.stations)) {
         pendingLoads.push(loadSubteStaticFromKV());
     }
 
-    if (!globalThis.cache.trainStatic?.lines || !globalThis.cache.trainStatic?.stations) {
+    if (isNearbySliceEnabled('train')
+        && (!globalThis.cache.trainStatic?.lines || !globalThis.cache.trainStatic?.stations)) {
         pendingLoads.push(loadTrainStaticFromKV());
     }
 
@@ -930,7 +1319,12 @@ function isCurrentNearbyRefresh(requestId) {
 function renderNearbyErrorState() {
     const container = document.getElementById('nearby-container');
     if (!container) return;
-    container.innerHTML = '<div class="text-[10px] text-red-500 font-bold text-center py-2">No se pudo obtener ubicación o datos cercanos.</div>';
+    container.innerHTML = `
+        <div class="nearby-empty-state is-error">
+            <p class="nearby-empty-title">No pudimos cargar lo cercano</p>
+            <p class="nearby-empty-text">No se pudo obtener ubicación o datos cercanos.</p>
+            <button type="button" class="chip" data-nearby-action="retry">Reintentar</button>
+        </div>`;
 }
 
 function storeNearbyResults(center, radiusMeters, results) {
@@ -938,24 +1332,6 @@ function storeNearbyResults(center, radiusMeters, results) {
     globalThis.nearbyState.lastCenter = center;
     globalThis.nearbyState.lastRadius = radiusMeters;
     globalThis.nearbyState.lastResults = results;
-}
-
-function shouldOpenNearbyCompactByDefault() {
-    return globalThis.matchMedia?.('(max-width: 767px)')?.matches === true;
-}
-
-function setNearbyPanelCompact(shouldCompact) {
-    const panel = document.getElementById('nearby-panel');
-    if (!panel) return;
-
-    const compact = !!shouldCompact;
-    isNearbyPanelCompact = compact;
-    panel.classList.toggle('is-compact', compact);
-
-    const chevron = document.getElementById('nearby-panel-chevron');
-    if (chevron?.style) {
-        chevron.style.transform = compact ? 'rotate(180deg)' : 'rotate(0deg)';
-    }
 }
 
 function focusMapOnNearbyArea(center, radiusMeters) {
@@ -971,7 +1347,7 @@ function focusMapOnNearbyArea(center, radiusMeters) {
     if (clampedRadius <= 700) targetZoom = 16.5;
 
     if (map?.flyTo) {
-        map.flyTo([center.lat, center.lon], targetZoom, {
+        moveMapTo(map, getVisibleMapCenter([center.lat, center.lon], targetZoom), targetZoom, {
             animate: true,
             duration: 1.75,
             easeLinearity: 0.14,
@@ -985,7 +1361,7 @@ function focusMapOnNearbyArea(center, radiusMeters) {
     map.fitBounds(fallbackBounds, {
         padding: [12, 12],
         maxZoom: targetZoom,
-        animate: true,
+        animate: !prefersReducedMotion(),
         duration: 1.65,
         easeLinearity: 0.14
     });
@@ -996,7 +1372,7 @@ function applyNearbyResults(center, radiusMeters, results, silent, overlayOption
     renderNearbyMapOverlay(center, radiusMeters, results, overlayOptions);
     renderNearbyDetails(results);
 
-    if (!silent) {
+    if (!silent && center?.source !== 'area') {
         focusMapOnNearbyArea(center, radiusMeters);
     }
 }
@@ -1027,6 +1403,15 @@ function endNearbyRefreshStatus(requestId, state) {
     globalThis.nearbyState.loading = false;
     globalThis.nearbyState.loadingRequestId = 0;
     setNearbyStatusValue(state);
+    document.getElementById('nearby-container')?.removeAttribute('aria-busy');
+    if (state === 'ERROR') {
+        setNearbyLiveText('No se pudieron cargar los transportes cercanos.');
+        return;
+    }
+    // El último render pudo ser el esqueleto (sin resultados mientras cargaba): se vuelve a dibujar.
+    const lastResults = globalThis.nearbyState.lastResults;
+    if (isNearbyPanelOpen && lastResults) renderNearbyDetails(lastResults);
+    setNearbyLiveText(nearbySummaryText);
 }
 
 function waitForNearbyMapStabilization(timeoutMs = 3200) {
@@ -1159,7 +1544,7 @@ async function resolveNearbyRefreshContext(requestId, allowLocatePrompt, previou
         shouldReuseTrainStations = false
     } = options;
 
-    const radiusMeters = parseNearbyRadiusInput();
+    const radiusMeters = getNearbyRadius();
     const [center] = await Promise.all([
         getNearbyCenterPosition({ allowLocatePrompt }),
         ensureNearbyStaticDataReady()
@@ -1168,9 +1553,11 @@ async function resolveNearbyRefreshContext(requestId, allowLocatePrompt, previou
     if (!center) throw new Error('Sin ubicación disponible');
     if (!isCurrentNearbyRefresh(requestId)) return null;
 
-    const shouldDelayRadiusCircle = !silent;
+    // "Buscar en esta zona" no mueve el mapa y con movimiento reducido el salto es instantáneo:
+    // en ambos casos no hay animación que esperar para dibujar el círculo.
+    const shouldDelayRadiusCircle = !silent && center.source !== 'area' && !prefersReducedMotion();
 
-    return buildNearbyProgressiveContext(
+    const context = buildNearbyProgressiveContext(
         requestId,
         center,
         radiusMeters,
@@ -1183,6 +1570,8 @@ async function resolveNearbyRefreshContext(requestId, allowLocatePrompt, previou
             shouldReuseTrainStations
         }
     );
+    context.silent = silent;
+    return context;
 }
 
 async function runNearbyProgressiveTasks(context) {
@@ -1206,6 +1595,10 @@ async function runNearbyBikeProgressiveTask(context) {
     if (!isCurrentNearbyRefresh(context.requestId)) return;
 
     context.results.bikeStations = collectNearbyBikeStations(context.center, context.radiusMeters);
+    // En la primera apertura las bicisendas recién se descargan acá (el contexto se armó sin ellas).
+    if (!context.results.bikeRoutes?.features?.length) {
+        context.results.bikeRoutes = clipBikeRoutesByNearbyRadius(context.center, context.radiusMeters);
+    }
     renderNearbyProgressiveUpdate(context);
 }
 
@@ -1235,7 +1628,12 @@ async function runNearbyBusProgressiveTask(context) {
 }
 
 async function runNearbySubteProgressiveTask(context) {
-    const shouldRefreshSubteForecast = !Array.isArray(globalThis.cache.subteForecast) || globalThis.cache.subteForecast.length === 0;
+    if (!isNearbySliceEnabled('subte')) return;
+
+    const subteForecastAgeMs = Date.now() - Number(globalThis.cache.subteFetchedAt || 0);
+    const shouldRefreshSubteForecast = !Array.isArray(globalThis.cache.subteForecast)
+        || globalThis.cache.subteForecast.length === 0
+        || subteForecastAgeMs > NEARBY_SUBTE_FORECAST_MAX_AGE_MS;
     if (shouldRefreshSubteForecast) {
         await refreshSubteNow({ force: true });
         if (!isCurrentNearbyRefresh(context.requestId)) return;
@@ -1249,17 +1647,22 @@ async function runNearbySubteProgressiveTask(context) {
 }
 
 async function runNearbyTrainProgressiveTask(context) {
-    await enrichTrainEtas(context.results.trainStations);
+    // Refresh silencioso: los arribos se renuevan al ritmo de POLLING.trainIntervalMs, no en cada ciclo.
+    const options = context.silent ? { maxAgeMs: NEARBY_TRAIN_ETA_MAX_AGE_MS } : {};
+    await enrichTrainEtas(context.results.trainStations, options);
     if (!isCurrentNearbyRefresh(context.requestId)) return;
 
     renderNearbyProgressiveUpdate(context);
 }
 
 async function refreshNearbyTransport(options = {}) {
-    const { silent = false, allowLocatePrompt = !silent } = options;
+    if (!isFeatureEnabled('nearbyPanel')) return;
+
+    const { silent = false, allowLocatePrompt = !silent, keepAreaCenter = false } = options;
     const requestId = ++nearbyRefreshRequestId;
-    initNearbyDefaultRadius();
-    initNearbySortControl();
+    // Una búsqueda explícita vuelve a centrar en el usuario; los refresh silenciosos mantienen la zona.
+    if (!silent && !keepAreaCenter) globalThis.nearbyState.areaCenter = null;
+    initNearbyControls();
 
     const previousResults = {
         busStops: Array.isArray(globalThis.nearbyState?.lastResults?.busStops)
@@ -1283,6 +1686,7 @@ async function refreshNearbyTransport(options = {}) {
 
     beginNearbyRefreshStatus(requestId, silent);
 
+    let finalStatus = 'LIVE';
     try {
         const progressiveContext = await resolveNearbyRefreshContext(
             requestId,
@@ -1303,35 +1707,64 @@ async function refreshNearbyTransport(options = {}) {
         await runNearbyProgressiveTasks(progressiveContext);
         await circleSyncPromise;
         revealNearbyRadiusCircle(progressiveContext);
-        endNearbyRefreshStatus(requestId, 'LIVE');
     } catch (error) {
-        endNearbyRefreshStatus(requestId, 'ERROR');
+        if (isCurrentNearbyRefresh(requestId)) finalStatus = 'ERROR';
         handleNearbyRefreshError(requestId, silent, error);
+    } finally {
+        endNearbyRefreshStatus(requestId, finalStatus);
+        reportNearbyRefreshResult(requestId, silent, finalStatus);
     }
 }
 
-function closeNearbyPanel() {
+// Un refresh visible que falla ya muestra el error (con Reintentar) en la vista; uno silencioso,
+// con resultados viejos en pantalla, lo avisa arriba de la hoja.
+function reportNearbyRefreshResult(requestId, silent, finalStatus) {
+    if (!isCurrentNearbyRefresh(requestId) || typeof reportSourceResult !== 'function') return;
+    if (finalStatus !== 'ERROR') {
+        globalThis.nearbyState.updatedAt = Date.now();
+        reportSourceResult('nearby', true);
+    } else if (silent) {
+        reportSourceResult('nearby', false);
+    }
+}
+
+function closeNearbyPanel(options = {}) {
+    const { restoreFilters = true } = options;
+    const wasOpen = isNearbyPanelOpen;
     nearbyRefreshRequestId += 1;
     isNearbyPanelOpen = false;
-    isNearbyPanelCompact = false;
     if (typeof setDashboardActionActive === 'function') {
         setDashboardActionActive('nearby', false);
     }
 
     const panel = document.getElementById('nearby-panel');
     if (panel) {
-        panel.classList.remove('is-open', 'is-compact');
+        panel.classList.remove('is-open');
     }
 
     clearNearbyMapOverlay();
     globalThis.nearbyState.active = false;
     globalThis.nearbyState.lastResults = null;
+    globalThis.nearbyState.areaCenter = null;
     globalThis.nearbyState.loading = false;
     globalThis.nearbyState.loadingRequestId = 0;
+    if (typeof setMapStatusNearbyCount === 'function') setMapStatusNearbyCount(null);
+    if (typeof clearSourceError === 'function') clearSourceError('nearby');
+
+    const savedTypes = nearbySavedActiveTypes;
+    nearbySavedActiveTypes = null;
+    if (!wasOpen) return;
+
+    setNearbyStatusValue('LIVE');
+    if (restoreFilters && savedTypes) {
+        restoreMainTransportFilters(savedTypes).catch(() => {});
+    }
 }
 
 async function openNearbyPanel(options = {}) {
-    const { silentRefresh = false } = options;
+    if (!isFeatureEnabled('nearbyPanel')) return;
+
+    const { silentRefresh = false, keepAreaCenter = false } = options;
 
     const alertsPanel = document.getElementById('alerts-panel');
     const isAlertsOpen = alertsPanel?.classList?.contains('is-open');
@@ -1349,18 +1782,27 @@ async function openNearbyPanel(options = {}) {
 
     deactivateMainTransportFilters();
     panel.classList.add('is-open');
-    setNearbyPanelCompact(shouldOpenNearbyCompactByDefault());
-    initNearbyDefaultRadius();
-    initNearbySortControl();
-    await refreshNearbyTransport({ silent: silentRefresh });
+    if (typeof setMapStatusNearbyCount === 'function') setMapStatusNearbyCount(0, { loading: true });
+    initNearbyControls();
+    await refreshNearbyTransport({ silent: silentRefresh, keepAreaCenter });
 }
 
-function toggleNearbyPanelCompact() {
-    if (!isNearbyPanelOpen) return;
-    setNearbyPanelCompact(!isNearbyPanelCompact);
+async function searchNearbyInMapArea() {
+    if (!isFeatureEnabled('nearbyPanel')) return;
+    const center = getNearbyCenterFromMapFallback();
+    if (!center) return;
+
+    globalThis.nearbyState.areaCenter = center;
+    if (!isNearbyPanelOpen) {
+        await openNearbyPanel({ keepAreaCenter: true });
+        return;
+    }
+    await refreshNearbyTransport({ allowLocatePrompt: false, keepAreaCenter: true });
 }
 
 async function toggleNearbyPanel() {
+    if (!isFeatureEnabled('nearbyPanel')) return;
+
     if (isNearbyPanelOpen) {
         closeNearbyPanel();
         return;
@@ -1370,6 +1812,8 @@ async function toggleNearbyPanel() {
 }
 
 async function activateNearbyFromLocation() {
+    if (!isFeatureEnabled('nearbyPanel')) return;
+
     if (!isNearbyPanelOpen) {
         await openNearbyPanel();
         return;

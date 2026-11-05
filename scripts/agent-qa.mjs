@@ -1,12 +1,9 @@
-import { GoogleGenAI } from '@google/genai';
-import * as fs from 'fs';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { UNTRUSTED_NOTICE, generate, readCodeContext, runAgent, untrustedBlock, writeOutput } from './agent-common.mjs';
 
 async function runQAAgent() {
   console.log('🔍 [1/3] Agente QA & Tester: Auditando funcionalidades, mapa y experiencia de usuario...');
 
-  const codebase = process.env.CODE_CONTEXT || 'No hay contexto disponible.';
+  const codebase = readCodeContext(15000);
 
   const prompt = `
     Sos un QA Lead & Software Tester Senior especializado en aplicaciones web frontend interactivas con Leaflet, APIs REST en tiempo real y UI/UX de mapas.
@@ -30,20 +27,15 @@ async function runQAAgent() {
     - **Comportamiento Esperado:** [Lo que debería suceder]
     - **Criterio de Aceptación:** [Condición para darlo por resuelto]
 
-    Código / Contexto:
-    \`\`\`text
-    ${codebase.slice(0, 15000)}
-    \`\`\`
+    ${UNTRUSTED_NOTICE}
+
+    Código / Contexto (diff):
+    ${untrustedBlock('DIFF', codebase)}
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
-  });
-
-  fs.writeFileSync('qa-report.md', response.text);
-  console.log('✅ Agente QA finalizado. Tickets guardados en qa-report.md');
+  const report = await generate(prompt);
+  const target = writeOutput('qa-report.md', report);
+  console.log(`✅ Agente QA finalizado. Tickets guardados en ${target}`);
 }
 
-runQAAgent().catch(console.error);
-
+runAgent(runQAAgent);

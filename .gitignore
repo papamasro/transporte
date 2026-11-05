@@ -1,0 +1,28 @@
+# Cloudflare Worker: el código se versiona; secrets y artefactos locales no.
+worker/.dev.vars
+worker/node_modules/
+worker/.wrangler/
+worker/test/.local-d1.sql
+.wrangler/
+
+# Dependencias
+node_modules/
+
+# Salidas de Playwright
+/playwright-report/
+/test-results/
+/blob-report/
+
+# Secretos / variables de entorno
+.env
+.env.*
+.dev.vars
+
+# Logs y archivos del sistema
+*.log
+.DS_Store
+
+# Salidas del pipeline multiagente (scripts/agent-*.mjs)
+/*-report.md
+/lead-plan.md
+/FINAL_MULTIAGENT_REPORT.md

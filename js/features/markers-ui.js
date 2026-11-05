@@ -4,9 +4,23 @@ function getStationIconSize(zoom) {
     return 12;
 }
 
-function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize, bearing) {
+// Con zoom bajo las estaciones se dibujan como puntos chicos (sin emoji ni etiqueta) para no taparse.
+const STATION_DOT_BELOW_ZOOM = { bike: 14, subte: 13, train: 13 };
+const STATION_DOT_SIZE = 14;
+
+function isStationDotZoom(type, zoom) {
+    return Object.hasOwn(STATION_DOT_BELOW_ZOOM, type) && zoom < STATION_DOT_BELOW_ZOOM[type];
+}
+
+function buildStationDotHtml(type, color) {
+    const style = type === 'bike' ? `background:${color}` : `border-color:${color}`;
+    return `<div class="marker-container marker-kind-${type}"><div class="station-dot station-dot-${type}" style="${style}"></div></div>`;
+}
+
+function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize, bearing, dot = false) {
+    if (dot) return buildStationDotHtml(type, color);
     if (type === 'bus') {
-        const busLabel = label || '?';
+        const busLabel = (label || '?').toString();
         const labelLen = busLabel.length;
         let busFontSize = 11;
         if (labelLen > 3) busFontSize = 9;
@@ -15,33 +29,33 @@ function buildMarkerHtml(type, label, color, stationIconSize, stationFontSize, b
         const arrowHtml = (bearing !== null && bearing !== undefined)
             ? `<div class="bus-dir-arrow" style="transform:rotate(${Math.round(bearing)}deg) translateY(-14px)"></div>`
             : '';
-        return `<div class="marker-container"><div class="bus-chip" style="background:${color};min-width:${busWidth}px;font-size:${busFontSize}px;">${busLabel}</div>${arrowHtml}</div>`;
+        return `<div class="marker-container"><div class="bus-chip" style="background:${color};min-width:${busWidth}px;font-size:${busFontSize}px;">${escapeHtml(busLabel)}</div>${arrowHtml}</div>`;
     }
 
     if (type === 'bike') {
         const bikeIconSize = stationIconSize + 14;
         const bikeFontSize = stationFontSize + 5;
-        return `<div class="marker-container"><div style="width:${bikeIconSize}px;height:${bikeIconSize}px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.35);font-size:${bikeFontSize}px;color:white;font-weight:900;">🚲</div></div>`;
+        return `<div class="marker-container marker-kind-bike"><div style="width:${bikeIconSize}px;height:${bikeIconSize}px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.35);font-size:${bikeFontSize}px;color:white;font-weight:900;">🚲</div></div>`;
     }
 
     if (type === 'train') {
         const trainIconSize = stationIconSize + 14;
         const trainFontSize = stationFontSize + 5;
-        return `<div class="marker-container"><div style="width:${trainIconSize}px;height:${trainIconSize}px;border-radius:8px;background:white;border:2.5px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-size:${trainFontSize}px;">🚆</div><div class="vehicle-label">${label}</div></div>`;
+        return `<div class="marker-container marker-kind-train"><div style="width:${trainIconSize}px;height:${trainIconSize}px;border-radius:8px;background:white;border:2.5px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-size:${trainFontSize}px;">🚆</div><div class="vehicle-label">${escapeHtml(label)}</div></div>`;
     }
 
     const subteIconSize = stationIconSize + 14;
     const subteFontSize = stationFontSize + 5;
-    return `<div class="marker-container"><div style="width:${subteIconSize}px;height:${subteIconSize}px;border-radius:8px;background:white;border:2.5px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-size:${subteFontSize}px;">🚇</div><div class="vehicle-label">${label}</div></div>`;
+    return `<div class="marker-container marker-kind-subte"><div style="width:${subteIconSize}px;height:${subteIconSize}px;border-radius:8px;background:white;border:2.5px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-size:${subteFontSize}px;">🚇</div><div class="vehicle-label">${escapeHtml(label)}</div></div>`;
 }
 
 function buildBusTooltip(data, color, label) {
     const speed = Math.max(0, Math.round((Number(data.speed) || 0) * 3.6));
-    const shortName = (getVehicleShortName(data) || label || '-').toString();
-    const agencyName = data.agency_name || 'Servicio AMBA';
-    const agencyDisplay = agencyName.length > 34 ? `${agencyName.slice(0, 34).trim()}…` : agencyName;
-    const agencyTitle = agencyName.replaceAll('"', '&quot;');
-    const headsign = data.trip_headsign || 'Sin destino';
+    const shortName = escapeHtml((getVehicleShortName(data) || label || '-').toString());
+    const agencyName = (data.agency_name || 'Servicio AMBA').toString();
+    const agencyDisplay = escapeHtml(agencyName.length > 34 ? `${agencyName.slice(0, 34).trim()}…` : agencyName);
+    const agencyTitle = escapeHtml(agencyName);
+    const headsign = escapeHtml(data.trip_headsign || 'Sin destino');
     return `
         <div class="tooltip-dark p-3 rounded-2xl shadow-xl min-w-[220px]">
             <div class="flex items-center gap-2 mb-2">
@@ -86,7 +100,7 @@ function buildBikeTooltip(data, color) {
                     <i data-lucide="bike" class="w-3.5 h-3.5"></i>
                 </div>
                 <div>
-                    <h4 class="text-[10px] font-black text-slate-200 leading-none">${data.name}</h4>
+                    <h4 class="text-[10px] font-black text-slate-200 leading-none">${escapeHtml(data.name)}</h4>
                     <span class="text-[7px] font-bold uppercase tracking-tighter" style="color: ${color};">${statusText}</span>
                 </div>
             </div>
@@ -133,10 +147,10 @@ function buildSubteTooltip(data, color) {
                 html: `
                     <div class="py-1 border-b border-slate-600/30 last:border-b-0">
                         <div class="flex items-center justify-between gap-2">
-                            <span class="text-[9px] font-black text-slate-200">Línea ${routeShort}</span>
+                            <span class="text-[9px] font-black text-slate-200">Línea ${escapeHtml(routeShort)}</span>
                             <span class="text-[8px] font-bold border rounded-md px-1.5 py-0.5 ${tone.badgeClass}">${formatDelay(maxDelay)}</span>
                         </div>
-                        <div class="text-[9px] font-bold text-indigo-400 leading-tight">Hacia ${destination}</div>
+                        <div class="text-[9px] font-bold text-indigo-400 leading-tight">Hacia ${escapeHtml(destination)}</div>
                         <div class="text-[8px] font-mono text-slate-400">${etaParts}</div>
                     </div>`
             };
@@ -162,8 +176,8 @@ function buildSubteTooltip(data, color) {
                     <i data-lucide="train-front" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <h4 class="text-[11px] font-black text-slate-200 leading-none">Estación de Subte: ${data.name}</h4>
-                    <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Línea ${data.lineShort}</span>
+                    <h4 class="text-[11px] font-black text-slate-200 leading-none">Estación de Subte: ${escapeHtml(data.name)}</h4>
+                    <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Línea ${escapeHtml(data.lineShort)}</span>
                 </div>
             </div>
             <div class="bg-slate-800/60 p-2 rounded-lg border border-slate-600/40">
@@ -192,10 +206,10 @@ function buildTrainArrivalsRows(arrivals) {
     return arrivals
         .slice(0, 4)
         .map(arrival => {
-            const eta = formatTrainEta(arrival.etaSeconds);
+            const eta = escapeHtml(formatTrainEta(arrival.etaSeconds));
             const etaTsText = arrival.estimatedArrivalTs ? formatTimestamp(arrival.estimatedArrivalTs) : '--:--';
-            const platform = arrival.plataforma || '-';
-            const destination = arrival.destino || 'Sin destino';
+            const platform = escapeHtml(arrival.plataforma || '-');
+            const destination = escapeHtml(arrival.destino || 'Sin destino');
             return `
                 <div class="py-1 border-b border-slate-600/30 last:border-b-0">
                     <div class="flex items-center justify-between gap-2">
@@ -209,15 +223,19 @@ function buildTrainArrivalsRows(arrivals) {
 }
 
 function buildTrainTooltip(data, color, realtimeState = null) {
-    const lineName = data.lineName || data.lineShort || 'Tren';
+    const lineName = escapeHtml(data.lineName || data.lineShort || 'Tren');
     const latText = Number(data.lat).toFixed(5);
     const lonText = Number(data.lon).toFixed(5);
-    const sofseStation = data.sofseStationId ? `ID SOFSE ${data.sofseStationId}` : 'Sin ID SOFSE';
+    const sofseStationId = data.sofseStationId || realtimeState?.arrivals?.stationId;
+    const sofseStation = sofseStationId ? `ID SOFSE ${escapeHtml(sofseStationId)}` : 'Sin ID SOFSE';
 
     let realtimeBlock = '<div class="text-[9px] font-medium text-slate-400 py-1">Sin datos en vivo.</div>';
     let realtimeFooter = 'SOFSE en tiempo real no disponible';
 
-    if (realtimeState?.loading) {
+    if (!trainLineHasRealtime(data.lineId)) {
+        realtimeBlock = '<div class="text-[9px] font-medium text-slate-400 py-1">Esta línea no tiene horarios en vivo.</div>';
+        realtimeFooter = 'El operador no publica arribos en tiempo real';
+    } else if (realtimeState?.loading) {
         realtimeBlock = '<div class="text-[9px] font-medium text-slate-400 py-1">Consultando arribos...</div>';
         realtimeFooter = 'Consultando API SOFSE';
     } else if (realtimeState?.error) {
@@ -236,7 +254,7 @@ function buildTrainTooltip(data, color, realtimeState = null) {
                     <i data-lucide="train-track" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <h4 class="text-[11px] font-black text-slate-200 leading-none">Estación de Tren: ${data.name}</h4>
+                    <h4 class="text-[11px] font-black text-slate-200 leading-none">Estación de Tren: ${escapeHtml(data.name)}</h4>
                     <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${lineName}</span>
                 </div>
             </div>
@@ -261,46 +279,130 @@ function buildTooltipHtml(type, data, color, label) {
 }
 
 function buildSubteCompactTooltip(data, color) {
-    const lineName = data.lineShort ? `Línea ${data.lineShort}` : 'Subte';
+    const lineName = data.lineShort ? `Línea ${escapeHtml(data.lineShort)}` : 'Subte';
     return `
         <div class="tooltip-dark px-2.5 py-1.5 rounded-xl shadow-lg" style="border-left: 3px solid ${color}; min-width: 120px;">
-            <div class="text-[10px] font-black text-slate-200 leading-tight">Estación de Subte: ${data.name}</div>
+            <div class="text-[10px] font-black text-slate-200 leading-tight">Estación de Subte: ${escapeHtml(data.name)}</div>
             <div class="text-[8px] font-bold text-indigo-400 leading-snug mt-0.5">${lineName} · Tocá para ver llegadas</div>
         </div>`;
 }
 
 function buildTrainCompactTooltip(data, color) {
-    const lineName = data.lineName || data.lineShort || 'Tren';
+    const lineName = escapeHtml(data.lineName || data.lineShort || 'Tren');
+    const hint = trainLineHasRealtime(data.lineId) ? 'Tocá para ver arribos' : 'Sin horarios en vivo';
     return `
         <div class="tooltip-dark px-2.5 py-1.5 rounded-xl shadow-lg" style="border-left: 3px solid ${color}; min-width: 120px;">
-            <div class="text-[10px] font-black text-slate-200 leading-tight">Estación de Tren: ${data.name}</div>
-            <div class="text-[8px] font-bold text-indigo-400 leading-snug mt-0.5">${lineName} · Tocá para ver arribos</div>
+            <div class="text-[10px] font-black text-slate-200 leading-tight">Estación de Tren: ${escapeHtml(data.name)}</div>
+            <div class="text-[8px] font-bold text-indigo-400 leading-snug mt-0.5">${lineName} · ${hint}</div>
         </div>`;
 }
 
-function createMarker(lat, lng, label, color, type, data = null) {
+const MARKER_TOOLTIP_TYPES = new Set(['bus', 'bike', 'subte', 'train']);
+
+function getMarkerIconSpec(type, label, color, data) {
     const zoom = map?.getZoom?.() || 14;
     const stationIconSize = getStationIconSize(zoom);
     const stationFontSize = zoom <= 12 ? 11 : 9;
+    const dot = isStationDotZoom(type, zoom);
     let markerBoxSize = stationIconSize + 22;
     if (type === 'bus') markerBoxSize = 32;
-    if (type === 'bike') markerBoxSize = stationIconSize + 22;
-    const bearing = (type === 'bus' && data) ? getVehicleBearing(data) : null;
-    const markerHtml = buildMarkerHtml(type, label, color, stationIconSize, stationFontSize, bearing);
+    else if (dot) markerBoxSize = STATION_DOT_SIZE + 10;
+    const rawBearing = (type === 'bus' && data) ? getVehicleBearing(data) : null;
+    const bearing = rawBearing === null ? null : Math.round(rawBearing);
+    const signature = type === 'bus'
+        ? `${type}|${label}|${color}|${bearing ?? ''}`
+        : `${type}|${label}|${color}|${stationIconSize}|${stationFontSize}|${dot ? 'dot' : ''}`;
+    return { stationIconSize, stationFontSize, markerBoxSize, bearing, signature, dot };
+}
+
+function buildMarkerIcon(type, label, color, spec, className = '') {
+    return L.divIcon({
+        className,
+        html: buildMarkerHtml(type, label, color, spec.stationIconSize, spec.stationFontSize, spec.bearing, spec.dot),
+        iconSize: [spec.markerBoxSize, spec.markerBoxSize],
+        iconAnchor: [Math.round(spec.markerBoxSize / 2), Math.round(spec.markerBoxSize / 2)]
+    });
+}
+
+function getMarkerFavoriteTarget(type, data, label) {
+    if (type === 'bus') return getBusLineFavoriteTarget(getBusDisplayLine(data) || label);
+    return getStationFavoriteTarget(type, data);
+}
+
+function buildMarkerPopupBody(state) {
+    const { type, data, color, label } = state;
+    if (type === 'bus') return buildBusTooltip(data, color, label);
+    if (type === 'bike') return buildBikeTooltip(data, color);
+    if (type === 'subte') return buildSubteTooltip(data, color);
+    if (type === 'train') return buildTrainTooltip(data, color, state.realtime);
+    return '';
+}
+
+// La ☆ va arriba a la derecha, junto a la X de Leaflet.
+function buildMarkerPopupHtml(state) {
+    if (!state.data) return '';
+    const body = buildMarkerPopupBody(state);
+    if (!body) return '';
+    const star = buildFavoriteStarHtml(getMarkerFavoriteTarget(state.type, state.data, state.label));
+    return star ? `<div class="popup-with-fav">${star}${body}</div>` : body;
+}
+
+// Popup.update()/setLatLng() hacen autoPan: al refrescar en segundo plano no hay que mover el mapa.
+function withoutPopupAutoPan(layer, fn) {
+    const popup = layer?.isPopupOpen?.() ? layer.getPopup() : null;
+    if (!popup) return fn();
+    const previousAutoPan = popup.options.autoPan;
+    popup.options.autoPan = false;
+    try {
+        return fn();
+    } finally {
+        popup.options.autoPan = previousAutoPan;
+    }
+}
+
+// Layer#isTooltipOpen() lanza si el layer no tiene tooltip bindeado.
+function isLayerTooltipOpen(layer) {
+    return !!layer?.getTooltip?.()?.isOpen();
+}
+
+function refreshOpenMarkerOverlays(layer) {
+    if (layer?.isPopupOpen?.()) {
+        const popup = layer.getPopup();
+        withoutPopupAutoPan(layer, () => popup.update());
+    }
+    if (isLayerTooltipOpen(layer)) layer.getTooltip().update();
+}
+
+// Cada vez que Leaflet re-renderiza el contenido (abrir, update(), reabrir) se crean los
+// iconos solo dentro de ese popup/tooltip, en vez de lucide.createIcons() sobre todo el DOM.
+function bindLazyIconOverlays(marker) {
+    [marker.getPopup(), marker.getTooltip()].forEach(overlay => {
+        overlay?.on('contentupdate', () => createLucideIconsIn(overlay.getElement()));
+    });
+}
+
+function createMarker(lat, lng, label, color, type, data = null, options = {}) {
+    const safeColor = safeCssColor(color);
+    const state = {
+        type,
+        label,
+        color: safeColor,
+        data,
+        realtime: null,
+        iconSignature: '',
+        iconClassName: options.iconClassName || ''
+    };
+    const spec = getMarkerIconSpec(type, label, safeColor, data);
+    state.iconSignature = spec.signature;
 
     const marker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: '',
-            html: markerHtml,
-            iconSize: [markerBoxSize, markerBoxSize],
-            iconAnchor: [Math.round(markerBoxSize / 2), Math.round(markerBoxSize / 2)]
-        })
+        icon: buildMarkerIcon(type, label, safeColor, spec, state.iconClassName)
     });
+    marker._transitMarker = state;
 
-    // Compact tooltip on hover for all types
-    const tooltipHtml = buildTooltipHtml(type, data, color, label);
-    if (tooltipHtml) {
-        marker.bindTooltip(tooltipHtml, {
+    // Contenido lazy: se arma al abrir (y al refrescar si está abierto) con los datos vigentes.
+    if (data && MARKER_TOOLTIP_TYPES.has(type)) {
+        marker.bindTooltip(() => buildTooltipHtml(state.type, state.data, state.color, state.label), {
             className: 'custom-tooltip',
             direction: 'top',
             offset: [0, -10],
@@ -309,48 +411,42 @@ function createMarker(lat, lng, label, color, type, data = null) {
     }
 
     // Full popup on click (stays pinned, closes with X or clicking another marker)
-    const isExpandable = type === 'subte' || type === 'train';
-    const showPopupOnClick = true;
+    marker.bindPopup(() => buildMarkerPopupHtml(state), {
+        className: 'custom-popup',
+        closeButton: true,
+        autoClose: true,
+        closeOnClick: false,
+        maxWidth: 300,
+        offset: [0, -10]
+    });
 
-    if (showPopupOnClick) {
-        const getFullPopupHtml = (realtimeState) => {
-            if (type === 'bus' && data) return buildBusTooltip(data, color, label);
-            if (type === 'bike' && data) return buildBikeTooltip(data, color);
-            if (type === 'subte' && data) return buildSubteTooltip(data, color);
-            if (type === 'train' && data) return buildTrainTooltip(data, color, realtimeState);
-            return '';
-        };
+    marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        marker.closeTooltip();
+        marker.openPopup();
 
-        marker.bindPopup(getFullPopupHtml(isExpandable ? { loading: false } : null), {
-            className: 'custom-popup',
-            closeButton: true,
-            autoClose: true,
-            closeOnClick: false,
-            maxWidth: 300,
-            offset: [0, -10]
-        });
-
-        marker.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            marker.closeTooltip();
-            marker.openPopup();
-            lucide.createIcons();
-
-            // Bus route overlay
-            if (type === 'bus' && data) {
-                globalThis.markerState.selectedBusVehicleKey = getVehicleUniqueKey(data);
-                if (typeof updateSelectedBusOverlay === 'function') {
-                    updateSelectedBusOverlay(data).catch(() => {
-                        updateBusRouteOverlay('').catch(() => {});
-                    });
-                } else {
+        // Bus route overlay
+        if (state.type === 'bus' && state.data) {
+            const selectedVehicle = state.data;
+            globalThis.markerState.selectedBusVehicleKey = getVehicleUniqueKey(selectedVehicle);
+            if (typeof updateSelectedBusOverlay === 'function') {
+                updateSelectedBusOverlay(selectedVehicle).catch(() => {
                     updateBusRouteOverlay('').catch(() => {});
-                }
+                });
+            } else {
+                updateBusRouteOverlay('').catch(() => {});
             }
-        });
+        }
+    });
 
-        marker.on('popupopen', () => lucide.createIcons());
+    if (type === 'bus') {
+        marker.on('popupopen', () => {
+            globalThis.markerState.openBusPopupKey = getVehicleUniqueKey(state.data);
+        });
+        marker.on('popupclose', () => handleBusPopupClosed(state.data));
     }
+
+    bindLazyIconOverlays(marker);
 
     // Train real-time arrivals fetch on popup open
     if (type === 'train' && data) {
@@ -358,23 +454,21 @@ function createMarker(lat, lng, label, color, type, data = null) {
         let hoverFetchTimer = null;
         let hoverFetchRequestId = 0;
 
+        const setRealtimeState = (realtime) => {
+            state.realtime = realtime;
+            refreshOpenMarkerOverlays(marker);
+        };
+
         const runTrainArrivalsFetch = async (requestId) => {
+            if (!isFeatureEnabled('trainRealtime') || !trainLineHasRealtime(state.data?.lineId)) return;
             if (!marker.isPopupOpen() || requestId !== hoverFetchRequestId) return;
 
-            marker.setPopupContent(buildTrainTooltip(data, color, { loading: true }));
-            lucide.createIcons();
+            setRealtimeState({ loading: true });
 
-            const result = await getTrainArrivalsForStation(data);
+            const result = await getTrainArrivalsForStation(state.data);
             if (!marker.isPopupOpen() || requestId !== hoverFetchRequestId) return;
 
-            if (!result?.success) {
-                marker.setPopupContent(buildTrainTooltip(data, color, { error: true }));
-                lucide.createIcons();
-                return;
-            }
-
-            marker.setPopupContent(buildTrainTooltip(data, color, { arrivals: result.data }));
-            lucide.createIcons();
+            setRealtimeState(result?.success ? { arrivals: result.data } : { error: true });
         };
 
         marker.on('popupopen', () => {
@@ -395,6 +489,33 @@ function createMarker(lat, lng, label, color, type, data = null) {
         });
     }
 
-    marker.on('tooltipopen', () => lucide.createIcons());
+    return marker;
+}
+
+// Actualiza un marker existente: posición siempre, icono solo si cambia su firma visual,
+// y el contenido del popup/tooltip solo si están abiertos (si no, se arma al abrir).
+// options.animate: la posición la lleva bus-animation.js (si la animación está activa).
+function updateMarker(marker, lat, lng, label, color, data = null, options = {}) {
+    const state = marker?._transitMarker;
+    if (!state) return marker;
+
+    const safeColor = safeCssColor(color);
+    state.label = label;
+    state.color = safeColor;
+    state.data = data;
+
+    const animated = !!options.animate && busAnimMoveMarker(marker, lat, lng);
+    const current = marker.getLatLng();
+    if (!animated && (current.lat !== lat || current.lng !== lng)) {
+        withoutPopupAutoPan(marker, () => marker.setLatLng([lat, lng]));
+    }
+
+    const spec = getMarkerIconSpec(state.type, label, safeColor, data);
+    if (spec.signature !== state.iconSignature) {
+        state.iconSignature = spec.signature;
+        marker.setIcon(buildMarkerIcon(state.type, label, safeColor, spec, state.iconClassName));
+    }
+
+    refreshOpenMarkerOverlays(marker);
     return marker;
 }

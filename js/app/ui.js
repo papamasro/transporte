@@ -1,7 +1,8 @@
-let isPanelOpen = false;
 let deferredInstallPrompt = null;
 const USER_LOCATION_STORAGE_KEY = 'radaramba.user-location-v1';
 const USER_LOCATION_CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+// Privacidad: una ubicación guardada más vieja que esto se borra del localStorage.
+const USER_LOCATION_STORAGE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function setDashboardActionActive(actionKey, isActive) {
     const actionMap = {
@@ -30,15 +31,20 @@ function setInstallButtonState({ label, disabled = false, ready = false, title =
     installLabel.innerText = label || 'Instalar app';
 }
 
-function togglePanel() {
-    isPanelOpen = !isPanelOpen;
-    const content = document.getElementById('panel-content');
-    const chevron = document.getElementById('panel-chevron');
-    if (!content || !chevron) return;
-    content.style.maxHeight = isPanelOpen ? 'min(420px, calc(100vh - 120px))' : '0px';
-    content.style.overflowY = isPanelOpen ? 'auto' : 'hidden';
-    content.style.opacity = isPanelOpen ? '1' : '0';
-    chevron.style.transform = isPanelOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+// iPadOS 13+ se presenta como "Macintosh" en el user agent; se distingue por el touch.
+function isIosDevice() {
+    const ua = navigator.userAgent || '';
+    if (/iphone|ipad|ipod/i.test(ua)) return true;
+    return Number(navigator.maxTouchPoints) > 1 && /Mac/.test(ua);
+}
+
+function setInstallButtonWaitingForPrompt() {
+    setInstallButtonState({
+        label: 'Instalar app',
+        disabled: true,
+        ready: false,
+        title: 'El navegador volverá a ofrecer la instalación más adelante'
+    });
 }
 
 function setupInstallPrompt() {
@@ -56,7 +62,7 @@ function setupInstallPrompt() {
         return;
     }
 
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isIos = isIosDevice();
     const isAndroid = /android/i.test(navigator.userAgent);
     const isStandalone = globalThis.matchMedia('(display-mode: standalone)').matches || globalThis.navigator.standalone;
 
@@ -126,15 +132,23 @@ async function installApp() {
         return;
     }
 
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isIos = isIosDevice();
     const isAndroid = /android/i.test(navigator.userAgent);
     const isStandalone = globalThis.matchMedia('(display-mode: standalone)').matches || globalThis.navigator.standalone;
 
     if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        const choice = await deferredInstallPrompt.userChoice;
+        // prompt() solo se puede usar una vez por evento: se descarta siempre y el botón queda
+        // deshabilitado hasta un nuevo beforeinstallprompt (o appinstalled).
+        const promptEvent = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        let choice = null;
+        try {
+            promptEvent.prompt();
+            choice = await promptEvent.userChoice;
+        } catch (error) {
+            console.warn('No se pudo mostrar el prompt de instalación', error);
+        }
         if (choice?.outcome === 'accepted') {
-            deferredInstallPrompt = null;
             setInstallButtonState({
                 label: 'App instalada',
                 disabled: true,
@@ -142,13 +156,8 @@ async function installApp() {
                 title: 'La app ya está instalada'
             });
         } else {
-            console.log('Instalación cancelada por el usuario');
-            setInstallButtonState({
-                label: 'Instalar app',
-                disabled: false,
-                ready: true,
-                title: 'Instalar aplicación'
-            });
+            if (choice) console.log('Instalación cancelada por el usuario');
+            if (!deferredInstallPrompt) setInstallButtonWaitingForPrompt();
         }
         return;
     }
@@ -166,27 +175,36 @@ async function installApp() {
     alert('Para instalar en compu: abrí el menú del navegador y buscá la opción “Instalar app” (o el ícono de instalación junto a la barra de direcciones).');
 }
 
-function setStatus(state) {
+// Estado interno (LIVE | CARGANDO | ERROR) separado del texto visible: la lógica compara el estado
+// (data-status / getStatus()), nunca la etiqueta. Sin conexión, todo lo que no sea CARGANDO es OFFLINE.
+const STATUS_BADGES = {
+    LIVE: { label: 'EN VIVO', tone: 'is-live' },
+    CARGANDO: { label: 'CARGANDO', tone: 'is-loading' },
+    ERROR: { label: 'ERROR', tone: 'is-error' },
+    OFFLINE: { label: 'SIN CONEXIÓN', tone: 'is-offline' }
+};
+let requestedStatus = 'CARGANDO';
+
+function getStatus() {
+    const offline = typeof isAppOffline === 'function' && isAppOffline();
+    return offline && requestedStatus !== 'CARGANDO' ? 'OFFLINE' : requestedStatus;
+}
+
+function renderStatusBadge() {
     const dot = document.getElementById('status-dot');
     const text = document.getElementById('status-text');
-    const pulse = document.getElementById('status-pulse');
+    if (!dot || !text) return;
+    const state = getStatus();
+    const badge = STATUS_BADGES[state];
+    dot.className = `status-badge ${badge.tone}`;
+    dot.dataset.status = state;
+    // #status-text es aria-live: solo se reescribe si cambia, para no repetir el anuncio.
+    if (text.textContent !== badge.label) text.textContent = badge.label;
+}
 
-    if (state === 'ERROR') {
-        dot.className = 'flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded-full border border-red-500/10';
-        text.className = 'text-[9px] font-black text-red-600';
-        text.innerText = 'ERROR';
-        pulse.className = 'w-1.5 h-1.5 rounded-full bg-red-500';
-    } else if (state === 'CARGANDO') {
-        dot.className = 'flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 rounded-full border border-amber-500/10';
-        text.className = 'text-[9px] font-black text-amber-600';
-        text.innerText = 'CARGANDO';
-        pulse.className = 'w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse';
-    } else {
-        dot.className = 'flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/10';
-        text.className = 'text-[9px] font-black text-emerald-600';
-        text.innerText = 'LIVE';
-        pulse.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
-    }
+function setStatus(state) {
+    requestedStatus = Object.hasOwn(STATUS_BADGES, state) && state !== 'OFFLINE' ? state : 'LIVE';
+    renderStatusBadge();
 }
 
 function buildUserLocationTooltip(position) {
@@ -203,6 +221,28 @@ function buildUserLocationTooltip(position) {
         </div>`;
 }
 
+function drawUserMarker(lat, lon, tooltipPosition = null) {
+    if (!userLayer) return null;
+    userLayer.clearLayers();
+    const userMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+            className: 'user-location-icon',
+            html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
+        })
+    }).addTo(userLayer);
+
+    const tooltipData = tooltipPosition || { coords: { latitude: lat, longitude: lon } };
+    userMarker.bindTooltip(buildUserLocationTooltip(tooltipData), {
+        className: 'custom-tooltip',
+        direction: 'top',
+        offset: [0, -20],
+        opacity: 1
+    });
+    return userMarker;
+}
+
 function readStoredUserLocation() {
     try {
         const raw = globalThis.localStorage?.getItem(USER_LOCATION_STORAGE_KEY);
@@ -212,16 +252,22 @@ function readStoredUserLocation() {
         const lat = Number(parsed?.lat);
         const lon = Number(parsed?.lon);
         const timestamp = Number(parsed?.timestamp || 0);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        const isExpired = !Number.isFinite(timestamp) || timestamp <= 0
+            || (Date.now() - timestamp) > USER_LOCATION_STORAGE_MAX_AGE_MS;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || isExpired) {
+            globalThis.localStorage?.removeItem(USER_LOCATION_STORAGE_KEY);
+            return null;
+        }
 
-        return {
-            lat,
-            lon,
-            timestamp: Number.isFinite(timestamp) ? timestamp : Date.now()
-        };
+        return { lat, lon, timestamp };
     } catch {
         return null;
     }
+}
+
+// Al cargar: purga la ubicación guardada si venció (readStoredUserLocation la borra).
+function purgeExpiredStoredUserLocation() {
+    readStoredUserLocation();
 }
 
 function persistUserLocation(location) {
@@ -281,6 +327,7 @@ async function getGeolocationPermissionState() {
 async function locateUser(options = {}) {
     const {
         autoActivateNearby = true,
+        refreshNearby = true,
         skipPromptIfCached = false,
         maxCachedAgeMs = USER_LOCATION_CACHE_MAX_AGE_MS
     } = options;
@@ -301,26 +348,10 @@ async function locateUser(options = {}) {
             persistUserLocation(payload);
         }
 
-        userLayer?.clearLayers?.();
-        const userMarker = L.marker([lat, lon], {
-            icon: L.divIcon({
-                className: 'user-location-icon',
-                html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
-                iconSize: [38, 38],
-                iconAnchor: [19, 19]
-            })
-        }).addTo(userLayer);
-
-        const tooltipData = tooltipPosition || { coords: { latitude: lat, longitude: lon } };
-        userMarker.bindTooltip(buildUserLocationTooltip(tooltipData), {
-            className: 'custom-tooltip',
-            direction: 'top',
-            offset: [0, -20],
-            opacity: 1
-        });
+        drawUserMarker(lat, lon, tooltipPosition);
 
         map?.stop?.();
-        map?.flyTo?.([lat, lon], 15, {
+        moveMapTo(map, getVisibleMapCenter([lat, lon], 15), 15, {
             animate: true,
             duration: 1.05,
             easeLinearity: 0.15,
@@ -330,7 +361,7 @@ async function locateUser(options = {}) {
         try {
             if (autoActivateNearby && typeof activateNearbyFromLocation === 'function') {
                 await activateNearbyFromLocation();
-            } else if (globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
+            } else if (refreshNearby && globalThis.nearbyState?.active && typeof refreshNearbyTransport === 'function') {
                 await refreshNearbyTransport({ silent: true });
             }
         } catch {
@@ -381,7 +412,7 @@ async function locateUser(options = {}) {
             }
 
             resolve(null);
-        }, { enableHighAccuracy: true });
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     });
 }
 
@@ -391,14 +422,62 @@ let _locationPromptMarker = null;
 let _locationPromptPicked = null;
 let _locationPromptMapHandler = null;
 let _locationPromptResolve = null;
+let _locationPromptSession = 0;
+
+let _locationPromptReturnFocus = null;
+
+function _getLocationPromptFocusables() {
+    const modal = document.getElementById('location-prompt-modal');
+    if (!modal) return [];
+    return Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+        .filter(el => !el.disabled && el.getClientRects().length > 0);
+}
+
+function _isLocationPromptVisible() {
+    const overlay = document.getElementById('location-prompt-overlay');
+    return !!overlay && !overlay.classList.contains('hidden');
+}
 
 function _showLocationPromptOverlay(show) {
     const overlay = document.getElementById('location-prompt-overlay');
     if (!overlay) return;
+    const wasVisible = _isLocationPromptVisible();
     if (show) {
         overlay.classList.remove('hidden');
+        if (!wasVisible) {
+            const active = document.activeElement;
+            _locationPromptReturnFocus = active instanceof HTMLElement && active !== document.body ? active : null;
+            const initialFocus = document.getElementById('location-prompt-confirm');
+            const target = initialFocus && !initialFocus.disabled ? initialFocus : _getLocationPromptFocusables()[0];
+            target?.focus({ preventScroll: true });
+        }
     } else {
         overlay.classList.add('hidden');
+        if (wasVisible) {
+            const returnTo = _locationPromptReturnFocus;
+            _locationPromptReturnFocus = null;
+            if (returnTo?.isConnected && !returnTo.closest('[inert]')) returnTo.focus({ preventScroll: true });
+            else focusAppHome();
+        }
+    }
+}
+
+function _trapLocationPromptTab(e) {
+    const focusables = _getLocationPromptFocusables();
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables.at(-1);
+    const modal = document.getElementById('location-prompt-modal');
+    const active = document.activeElement;
+    if (!modal?.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+    } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
     }
 }
 
@@ -454,6 +533,7 @@ function _disableMapPick() {
 }
 
 function _cleanupLocationPrompt() {
+    _locationPromptSession += 1;
     _disableMapPick();
     if (_locationPromptMarker && map) {
         map.removeLayer(_locationPromptMarker);
@@ -468,6 +548,7 @@ async function locationPromptUseGPS() {
     const gpsLabel = document.getElementById('location-prompt-gps-label');
     const promptText = document.getElementById('location-prompt-text');
 
+    const session = _locationPromptSession;
     if (gpsBtn) gpsBtn.classList.add('is-loading');
     if (gpsLabel) gpsLabel.textContent = 'Buscando GPS...';
 
@@ -480,14 +561,16 @@ async function locationPromptUseGPS() {
 
     navigator.geolocation.getCurrentPosition(
         (pos) => {
+            if (session !== _locationPromptSession) return;
             const { latitude, longitude } = pos.coords;
             _placePickMarker(latitude, longitude);
-            map?.flyTo([latitude, longitude], 15, { animate: true, duration: 0.8 });
+            moveMapTo(map, [latitude, longitude], 15, { animate: true, duration: 0.8 });
             if (gpsLabel) gpsLabel.textContent = 'Reintentar GPS';
             if (gpsBtn) gpsBtn.classList.remove('is-loading');
             if (promptText) promptText.textContent = 'Verificá que el marcador esté bien. Podés arrastrarlo o tocar el mapa para corregir.';
         },
         (err) => {
+            if (session !== _locationPromptSession) return;
             console.warn('Location prompt GPS error', err);
             if (gpsLabel) gpsLabel.textContent = 'GPS falló - tocá el mapa';
             if (gpsBtn) gpsBtn.classList.remove('is-loading');
@@ -510,39 +593,18 @@ function locationPromptConfirm() {
     globalThis.cache.userLocation = location;
     persistUserLocation(location);
 
-    // Draw user marker
-    userLayer?.clearLayers?.();
-    const lat = location.lat;
-    const lon = location.lon;
-    const userMarker = L.marker([lat, lon], {
-        icon: L.divIcon({
-            className: 'user-location-icon',
-            html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
-            iconSize: [38, 38],
-            iconAnchor: [19, 19]
-        })
-    }).addTo(userLayer);
-
-    const tooltipData = { coords: { latitude: lat, longitude: lon } };
-    userMarker.bindTooltip(buildUserLocationTooltip(tooltipData), {
-        className: 'custom-tooltip',
-        direction: 'top',
-        offset: [0, -20],
-        opacity: 1
-    });
-
-    map?.flyTo([lat, lon], 15, { animate: true, duration: 1.05, easeLinearity: 0.15 });
+    drawUserMarker(location.lat, location.lon);
+    moveMapTo(map, getVisibleMapCenter([location.lat, location.lon], 15), 15, { animate: true, duration: 1.05, easeLinearity: 0.15 });
 
     _cleanupLocationPrompt();
 
     // Activate nearby transport around confirmed location
     try {
         if (typeof activateNearbyFromLocation === 'function') {
-            activateNearbyFromLocation();
+            activateNearbyFromLocation().catch(() => {});
         }
     } catch {}
 
-    // Now start loading services
     if (_locationPromptResolve) {
         _locationPromptResolve(location);
         _locationPromptResolve = null;
@@ -558,22 +620,30 @@ function locationPromptDismiss() {
 }
 
 function showLocationPrompt() {
+    const knownLocation = getKnownUserLocation();
+    if (knownLocation && isLocationCacheFresh(knownLocation)) {
+        return locateUser({ skipPromptIfCached: true })
+            .catch(() => null)
+            .then(() => knownLocation);
+    }
+
     return new Promise((resolve) => {
-        let safetyTimer = null;
+        const session = ++_locationPromptSession;
+        let fallbackTimer = null;
+        const isCurrentSession = () => session === _locationPromptSession;
+        const revealOverlay = () => {
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+            if (!isCurrentSession()) return;
+            _showLocationPromptOverlay(true);
+        };
         const wrappedResolve = (val) => {
-            if (safetyTimer) clearTimeout(safetyTimer);
+            if (fallbackTimer) clearTimeout(fallbackTimer);
             resolve(val);
         };
 
         _locationPromptResolve = wrappedResolve;
         _locationPromptPicked = null;
-
-        safetyTimer = setTimeout(() => {
-            if (_locationPromptResolve === wrappedResolve) {
-                console.log('Location prompt: auto-dismiss por inactividad.');
-                locationPromptDismiss();
-            }
-        }, 15000);
 
         const confirmBtn = document.getElementById('location-prompt-confirm');
         const coordsEl = document.getElementById('location-prompt-coords');
@@ -590,22 +660,31 @@ function showLocationPrompt() {
         _enableMapPick();
 
         // Re-render lucide icons inside the modal
-        try { lucide?.createIcons?.(); } catch {}
+        try { createLucideIconsIn(document.getElementById('location-prompt-modal')); } catch {}
 
         // Try GPS automatically first, then show modal
         if (navigator.geolocation) {
+            // El permiso del navegador puede quedar sin responder: no dejar el modal oculto indefinidamente.
+            fallbackTimer = setTimeout(() => {
+                if (!isCurrentSession()) return;
+                if (promptText) promptText.textContent = 'Seguimos buscando tu ubicación. Tocá el mapa para indicar dónde estás, o reintentá el GPS.';
+                revealOverlay();
+            }, 15000);
+
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
+                    if (!isCurrentSession()) return;
                     const { latitude, longitude } = pos.coords;
                     _placePickMarker(latitude, longitude);
-                    map?.flyTo([latitude, longitude], 15, { animate: true, duration: 0.8 });
+                    moveMapTo(map, [latitude, longitude], 15, { animate: true, duration: 0.8 });
                     if (promptText) promptText.textContent = 'Verificá que el marcador esté bien. Podés arrastrarlo o tocar el mapa para corregir.';
-                    _showLocationPromptOverlay(true);
+                    revealOverlay();
                 },
                 (err) => {
+                    if (!isCurrentSession()) return;
                     console.warn('Auto GPS failed', err);
                     if (promptText) promptText.textContent = 'No se pudo obtener tu ubicación. Tocá el mapa para indicar dónde estás, o reintentá el GPS.';
-                    _showLocationPromptOverlay(true);
+                    revealOverlay();
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
             );
@@ -616,11 +695,15 @@ function showLocationPrompt() {
     });
 }
 
+// Escape equivale a "Omitir por ahora"; Tab queda atrapado dentro del modal mientras está visible.
 globalThis.addEventListener('keydown', (e) => {
+    if (!_isLocationPromptVisible()) return;
     if (e.key === 'Escape') {
-        const overlay = document.getElementById('location-prompt-overlay');
-        if (overlay && !overlay.classList.contains('hidden')) {
-            locationPromptDismiss();
-        }
+        e.preventDefault();
+        locationPromptDismiss();
+    } else if (e.key === 'Tab') {
+        _trapLocationPromptTab(e);
     }
 });
+
+purgeExpiredStoredUserLocation();

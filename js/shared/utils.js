@@ -1,3 +1,67 @@
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+// Solo colores que no pueden romper un atributo style: hex o hsl()/rgb() numéricos.
+const SAFE_CSS_COLOR_PATTERN = /^(#[0-9a-f]{3,8}|(?:hsl|rgb)a?\(\s*[\d.]+%?(?:\s*,\s*[\d.]+%?){2,3}\s*\))$/i;
+
+function safeCssColor(value, fallback = '#64748b') {
+    const raw = (value ?? '').toString().trim();
+    if (!raw) return fallback;
+    return SAFE_CSS_COLOR_PATTERN.test(raw) ? raw : fallback;
+}
+
+function toRadians(value) {
+    return (value * Math.PI) / 180;
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+    const earthRadius = 6371000;
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+// Acepta [lat, lon] o { lat|latitude, lon|lng|longitude }.
+function parseLatLon(point) {
+    if (!point) return null;
+
+    if (Array.isArray(point) && point.length >= 2) {
+        const latFromArray = Number(point[0]);
+        const lonFromArray = Number(point[1]);
+        if (Number.isFinite(latFromArray) && Number.isFinite(lonFromArray)) {
+            return { lat: latFromArray, lon: lonFromArray };
+        }
+    }
+
+    const lat = Number(point?.lat ?? point?.latitude);
+    const lon = Number(point?.lon ?? point?.lng ?? point?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+}
+
+function prefersReducedMotion() {
+    return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+}
+
+// flyTo anima un zoom/paneo largo: con "reducir movimiento" se salta directo a la vista.
+function moveMapTo(targetMap, latLng, zoom, flyOptions = {}) {
+    if (!targetMap) return;
+    if (prefersReducedMotion() || typeof targetMap.flyTo !== 'function') {
+        targetMap.setView(latLng, zoom, { animate: false });
+        return;
+    }
+    targetMap.flyTo(latLng, zoom, flyOptions);
+}
+
 function formatLineName(name) {
     if (!name) return "??";
     return name.toString().replace(/^0+/, '') || name;
@@ -74,6 +138,44 @@ function normalizeText(value) {
 
 function normalizeLineToken(value) {
     return normalizeText(value).replaceAll(/[^a-z0-9]+/g, '');
+}
+
+// Coincidencia de línea por token exacto o prefijo con límite dígito/letra:
+// "60" matchea "60", "60A", "60 Ramal" pero no "160", "460" ni "601".
+function matchesLineToken(lineToken, filterToken) {
+    if (!filterToken) return true;
+    if (!lineToken) return false;
+    if (lineToken === filterToken) return true;
+    if (!lineToken.startsWith(filterToken)) return false;
+    const isDigit = ch => ch >= '0' && ch <= '9';
+    return isDigit(filterToken.at(-1)) !== isDigit(lineToken[filterToken.length]);
+}
+
+function toLucideComponentName(iconName) {
+    return iconName.replaceAll(/(\w)(\w*)(_|-|\s*)/g, (_match, first, rest) => first.toUpperCase() + rest.toLowerCase());
+}
+
+// lucide@0.321 no soporta `root` en createIcons(): reemplaza solo los <i data-lucide> dentro de `root`.
+function createLucideIconsIn(root) {
+    const lucideLib = globalThis.lucide;
+    if (!root || !lucideLib) return;
+    if (typeof lucideLib.createElement !== 'function' || !lucideLib.icons) {
+        lucideLib.createIcons?.();
+        return;
+    }
+
+    root.querySelectorAll('[data-lucide]:not(svg)').forEach(element => {
+        const iconName = element.getAttribute('data-lucide');
+        const iconNode = iconName ? lucideLib.icons[toLucideComponentName(iconName)] : null;
+        if (!iconNode) return;
+
+        const [tag, iconAttributes, children] = iconNode;
+        const elementAttrs = {};
+        Array.from(element.attributes).forEach(attr => { elementAttrs[attr.name] = attr.value; });
+        const className = ['lucide', `lucide-${iconName}`, elementAttrs.class].filter(Boolean).join(' ');
+        const svgElement = lucideLib.createElement([tag, { ...iconAttributes, ...elementAttrs, 'data-lucide': iconName, class: className }, children]);
+        element.replaceWith(svgElement);
+    });
 }
 
 function formatTimestamp(ts) {

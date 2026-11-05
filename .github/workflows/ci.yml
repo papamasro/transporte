@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias (package-lock.json)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # tailwind.css se versiona (GitHub Pages sirve el repo tal cual): tiene que estar regenerado.
+      - name: tailwind.css al día
+        run: |
+          npm run build:css
+          git diff --exit-code -- assets/styles/tailwind.css || {
+            echo "::error file=assets/styles/tailwind.css::tailwind.css desactualizado: correr 'npm run build:css' y commitear."
+            exit 1
+          }
+
+      - name: Sintaxis JS (node --check)
+        run: npm run check:js
+
+      - name: Tests unitarios del front
+        run: npm run test:unit
+
+      # Sin dependencias: worker/test/unit.mjs solo usa módulos de Node (no hace falta wrangler).
+      - name: Tests unitarios del worker
+        run: npm run test:worker
+
+      - name: Instalar Chromium para Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests e2e (Playwright, mobile + desktop)
+        run: npm run test:e2e
+
+      - name: Subir reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

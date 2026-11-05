@@ -1,0 +1,1735 @@
+{
+  "Header": {
+    "timestamp": 1793750149
+  },
+  "Entity": [
+    {
+      "ID": "LineaA_A11",
+      "Linea": {
+        "Trip_Id": "A11",
+        "Route_Id": "LineaA",
+        "Direction_ID": 1,
+        "start_time": "19:23:00",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1059N",
+            "stop_name": "San Pedrito",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1060N",
+            "stop_name": "San José de Flores",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          },
+          {
+            "stop_id": "1061N",
+            "stop_name": "Carabobo",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1062N",
+            "stop_name": "Puán",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1063N",
+            "stop_name": "Primera Junta",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1064N",
+            "stop_name": "Acoyte",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1065N",
+            "stop_name": "Río de Janeiro",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1066N",
+            "stop_name": "Castro Barros",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1067N",
+            "stop_name": "Loria",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1068N",
+            "stop_name": "Plaza Miserere",
+            "arrival": {
+              "time": 1793750929,
+              "delay": 780
+            },
+            "departure": {
+              "time": 1793750953,
+              "delay": 804
+            }
+          },
+          {
+            "stop_id": "1070N",
+            "stop_name": "Pasco",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1071N",
+            "stop_name": "Congreso",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1072N",
+            "stop_name": "Sáenz Peña",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1073N",
+            "stop_name": "Lima",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1074N",
+            "stop_name": "Piedras",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1075N",
+            "stop_name": "Perú",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1076N",
+            "stop_name": "Plaza de Mayo",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaA_A01",
+      "Linea": {
+        "Trip_Id": "A01",
+        "Route_Id": "LineaA",
+        "Direction_ID": 0,
+        "start_time": "19:23:00",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1076S",
+            "stop_name": "Plaza de Mayo",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1075S",
+            "stop_name": "Perú",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1074S",
+            "stop_name": "Piedras",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1073S",
+            "stop_name": "Lima",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1072S",
+            "stop_name": "Sáenz Peña",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1071S",
+            "stop_name": "Congreso",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1069S",
+            "stop_name": "Alberti",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1068S",
+            "stop_name": "Plaza Miserere",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1067S",
+            "stop_name": "Loria",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1066S",
+            "stop_name": "Castro Barros",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1065S",
+            "stop_name": "Río de Janeiro",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1064S",
+            "stop_name": "Acoyte",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1063S",
+            "stop_name": "Primera Junta",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1062S",
+            "stop_name": "Puán",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1061S",
+            "stop_name": "Carabobo",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1060S",
+            "stop_name": "San José de Flores",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1059S",
+            "stop_name": "San Pedrito",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaB_B11",
+      "Linea": {
+        "Trip_Id": "B11",
+        "Route_Id": "LineaB",
+        "Direction_ID": 1,
+        "start_time": "20:37:00",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1077N",
+            "stop_name": "Juan Manuel de Rosas",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1078N",
+            "stop_name": "Echeverría",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1079N",
+            "stop_name": "De Los Incas - Parque Chas",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1080N",
+            "stop_name": "Tronador - Villa Ortúzar",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1081N",
+            "stop_name": "Federico Lacroze",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1082N",
+            "stop_name": "Dorrego",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1084N",
+            "stop_name": "Malabia",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1083N",
+            "stop_name": "Ángel Gallardo",
+            "arrival": {
+              "time": 1793750449,
+              "delay": 300
+            },
+            "departure": {
+              "time": 1793750473,
+              "delay": 324
+            }
+          },
+          {
+            "stop_id": "1085N",
+            "stop_name": "Medrano",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1086N",
+            "stop_name": "Carlos Gardel",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1087N",
+            "stop_name": "Pueyrredón",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1088N",
+            "stop_name": "Pasteur",
+            "arrival": {
+              "time": 1793750449,
+              "delay": 300
+            },
+            "departure": {
+              "time": 1793750473,
+              "delay": 324
+            }
+          },
+          {
+            "stop_id": "1089N",
+            "stop_name": "Callao",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1090N",
+            "stop_name": "Uruguay",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1091N",
+            "stop_name": "Carlos Pelegrini",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1092N",
+            "stop_name": "Florida",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1093N",
+            "stop_name": "Leandro N. Alem",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaB_B01",
+      "Linea": {
+        "Trip_Id": "B01",
+        "Route_Id": "LineaB",
+        "Direction_ID": 0,
+        "start_time": "20:37:00",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1093S",
+            "stop_name": "Leandro N. Alem",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1092S",
+            "stop_name": "Florida",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1091S",
+            "stop_name": "Carlos Pelegrini",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1090S",
+            "stop_name": "Uruguay",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1089S",
+            "stop_name": "Callao",
+            "arrival": {
+              "time": 1793750449,
+              "delay": 300
+            },
+            "departure": {
+              "time": 1793750473,
+              "delay": 324
+            }
+          },
+          {
+            "stop_id": "1088S",
+            "stop_name": "Pasteur",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          },
+          {
+            "stop_id": "1087S",
+            "stop_name": "Pueyrredón",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1086S",
+            "stop_name": "Carlos Gardel",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1085S",
+            "stop_name": "Medrano",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1083S",
+            "stop_name": "Ángel Gallardo",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1084S",
+            "stop_name": "Malabia",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1082S",
+            "stop_name": "Dorrego",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1081S",
+            "stop_name": "Federico Lacroze",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1080S",
+            "stop_name": "Tronador - Villa Ortúzar",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1079S",
+            "stop_name": "De Los Incas - Parque Chas",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1078S",
+            "stop_name": "Echeverría",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1077S",
+            "stop_name": "Juan Manuel de Rosas",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaD_D11",
+      "Linea": {
+        "Trip_Id": "D11",
+        "Route_Id": "LineaD",
+        "Direction_ID": 1,
+        "start_time": "19:35:00",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1103N",
+            "stop_name": "Congreso de Tucumán",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          },
+          {
+            "stop_id": "1104N",
+            "stop_name": "Juramento",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1105N",
+            "stop_name": "José Hernández",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1106N",
+            "stop_name": "Olleros",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1107N",
+            "stop_name": "Ministro Carranza",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1108N",
+            "stop_name": "Palermo",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1109N",
+            "stop_name": "Plaza Italia",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1110N",
+            "stop_name": "Scalabrini Ortíz",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1111N",
+            "stop_name": "Bulnes",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1112N",
+            "stop_name": "Agüero",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1113N",
+            "stop_name": "Pueyrredón",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1114N",
+            "stop_name": "Facultad de Medicina",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1115N",
+            "stop_name": "Callao",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1116N",
+            "stop_name": "Tribunales",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1117N",
+            "stop_name": "9 de Julio",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1118N",
+            "stop_name": "Catedral",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaD_D01",
+      "Linea": {
+        "Trip_Id": "D01",
+        "Route_Id": "LineaD",
+        "Direction_ID": 0,
+        "start_time": "19:35:00",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1118S",
+            "stop_name": "Catedral",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1117S",
+            "stop_name": "9 de Julio",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1116S",
+            "stop_name": "Tribunales",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1115S",
+            "stop_name": "Callao",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1114S",
+            "stop_name": "Facultad de Medicina",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1113S",
+            "stop_name": "Pueyrredón",
+            "arrival": {
+              "time": 1793750569,
+              "delay": 420
+            },
+            "departure": {
+              "time": 1793750593,
+              "delay": 444
+            }
+          },
+          {
+            "stop_id": "1112S",
+            "stop_name": "Agüero",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1111S",
+            "stop_name": "Bulnes",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1110S",
+            "stop_name": "Scalabrini Ortíz",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1109S",
+            "stop_name": "Plaza Italia",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1108S",
+            "stop_name": "Palermo",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1107S",
+            "stop_name": "Ministro Carranza",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1106S",
+            "stop_name": "Olleros",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1105S",
+            "stop_name": "José Hernández",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1104S",
+            "stop_name": "Juramento",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1103S",
+            "stop_name": "Congreso de Tucumán",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaE_E11",
+      "Linea": {
+        "Trip_Id": "E11",
+        "Route_Id": "LineaE",
+        "Direction_ID": 1,
+        "start_time": "20:16:30",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1133N",
+            "stop_name": "Plaza de los Virreyes",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          },
+          {
+            "stop_id": "1132N",
+            "stop_name": "Varela",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1131N",
+            "stop_name": "Medalla Milagrosa",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1130N",
+            "stop_name": "Emilio Mitre",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1129N",
+            "stop_name": "Moreno",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1128N",
+            "stop_name": "Av. La Plata",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1127N",
+            "stop_name": "Boedo",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1126N",
+            "stop_name": "General Urquiza",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1125N",
+            "stop_name": "Jujuy",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1124N",
+            "stop_name": "Pichincha",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          },
+          {
+            "stop_id": "1123N",
+            "stop_name": "Entre Ríos",
+            "arrival": {
+              "time": 1793750149,
+              "delay": 0
+            },
+            "departure": {
+              "time": 1793750173,
+              "delay": 24
+            }
+          },
+          {
+            "stop_id": "1122N",
+            "stop_name": "San José",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1121N",
+            "stop_name": "Independencia",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1120N",
+            "stop_name": "Belgrano",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1119N",
+            "stop_name": "Bolivar",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1166N",
+            "stop_name": "Correo Central",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1165N",
+            "stop_name": "Catalinas",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1164N",
+            "stop_name": "Retiro",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ID": "LineaE_E01",
+      "Linea": {
+        "Trip_Id": "E01",
+        "Route_Id": "LineaE",
+        "Direction_ID": 0,
+        "start_time": "20:16:30",
+        "start_date": "20261103",
+        "Estaciones": [
+          {
+            "stop_id": "1164S",
+            "stop_name": "Retiro",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1165S",
+            "stop_name": "Catalinas",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1166S",
+            "stop_name": "Correo Central",
+            "arrival": {
+              "time": 1793751769,
+              "delay": 1620
+            },
+            "departure": {
+              "time": 1793751793,
+              "delay": 1644
+            }
+          },
+          {
+            "stop_id": "1119S",
+            "stop_name": "Bolivar",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1120S",
+            "stop_name": "Belgrano",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1121S",
+            "stop_name": "Independencia",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1122S",
+            "stop_name": "San José",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1123S",
+            "stop_name": "Entre Ríos",
+            "arrival": {
+              "time": 1793750269,
+              "delay": 120
+            },
+            "departure": {
+              "time": 1793750293,
+              "delay": 144
+            }
+          },
+          {
+            "stop_id": "1124S",
+            "stop_name": "Pichincha",
+            "arrival": {
+              "time": 1793750389,
+              "delay": 240
+            },
+            "departure": {
+              "time": 1793750413,
+              "delay": 264
+            }
+          },
+          {
+            "stop_id": "1125S",
+            "stop_name": "Jujuy",
+            "arrival": {
+              "time": 1793750449,
+              "delay": 300
+            },
+            "departure": {
+              "time": 1793750473,
+              "delay": 324
+            }
+          },
+          {
+            "stop_id": "1126S",
+            "stop_name": "General Urquiza",
+            "arrival": {
+              "time": 1793750569,
+              "delay": 420
+            },
+            "departure": {
+              "time": 1793750593,
+              "delay": 444
+            }
+          },
+          {
+            "stop_id": "1127S",
+            "stop_name": "Boedo",
+            "arrival": {
+              "time": 1793750629,
+              "delay": 480
+            },
+            "departure": {
+              "time": 1793750653,
+              "delay": 504
+            }
+          },
+          {
+            "stop_id": "1128S",
+            "stop_name": "Av. La Plata",
+            "arrival": {
+              "time": 1793750749,
+              "delay": 600
+            },
+            "departure": {
+              "time": 1793750773,
+              "delay": 624
+            }
+          },
+          {
+            "stop_id": "1129S",
+            "stop_name": "Moreno",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1130S",
+            "stop_name": "Emilio Mitre",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1131S",
+            "stop_name": "Medalla Milagrosa",
+            "arrival": {
+              "time": 1793750209,
+              "delay": 60
+            },
+            "departure": {
+              "time": 1793750233,
+              "delay": 84
+            }
+          },
+          {
+            "stop_id": "1132S",
+            "stop_name": "Varela",
+            "arrival": {
+              "time": 1793750329,
+              "delay": 180
+            },
+            "departure": {
+              "time": 1793750353,
+              "delay": 204
+            }
+          },
+          {
+            "stop_id": "1133S",
+            "stop_name": "Plaza de los Virreyes",
+            "arrival": {
+              "time": 1793750509,
+              "delay": 360
+            },
+            "departure": {
+              "time": 1793750533,
+              "delay": 384
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

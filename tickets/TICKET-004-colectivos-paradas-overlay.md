@@ -14,3 +14,11 @@ Al buscar una línea de colectivo (ej. "60", "152"), se dibujaba el trazado de l
 
 ## 3. Solución implementada
 Se añadió el recorrido y dibujo automático de las paradas asociadas a cada variante en `renderLineSearchOverlay`, utilizando `circleMarker` con deduplicación por coordenadas para mostrar todas las paradas oficiales del ramal con sus nombres respectivos al pasar el cursor.
+
+## 4. Seguimiento (2026-11-04)
+El overlay ahora puede tomar recorridos y paradas de archivos estáticos (`data/routes/`, generados con `scripts/build-static-routes.py`) en lugar de `/buscar-linea` e `/info-trayecto`, que consumían la cuota de D1. Si los archivos no existen, vuelve al worker. Además:
+- La búsqueda prioriza la coincidencia exacta: "60" muestra 60 y 60A, pero no 160 ni 600.
+- Los recorridos se cachean 10 min (los vacíos o fallidos, 2 min) en lugar de invalidarse en cada refresco.
+- El recorrido se oculta al cerrar el popup del colectivo, salvo que se haya abierto con una búsqueda de línea.
+
+Ver [TICKET-006](TICKET-006-gtfs-actualizacion-automatica.md) para la generación de `data/routes/`.

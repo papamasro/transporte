@@ -1,0 +1,47 @@
+# Config de deploy del backend (https://transporte-be.papamasro.workers.dev).
+# Uso (desde worker/):  npm install  &&  npx wrangler deploy
+#
+# IMPORTANTE: `wrangler deploy` reemplaza los bindings y vars configurados a mano en el
+# dashboard por los de este archivo (los secrets se conservan). Completá los ids antes:
+#   npx wrangler d1 list                 -> database_name / database_id de MY_FEED
+#   npx wrangler kv namespace list       -> id del namespace que hoy está bindeado como MY_REDIS
+# o copialos de Dashboard > Workers > transporte-be > Settings > Bindings.
+
+name = "transporte-be"
+main = "index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+# Workers Cache (wrangler >= 4.69): Cloudflare responde desde su caché sin ejecutar el Worker
+# cuando la respuesta sigue fresca según su Cache-Control. Un HIT no consume CPU, D1 ni KV
+# (sí cuenta como request en la cuota diaria).
+[cache]
+enabled = true
+
+[vars]
+# Orígenes que pueden llamar a la API desde el navegador. "*" o vacío = cualquiera.
+ALLOWED_ORIGINS = "https://papamasro.github.io,http://localhost:*,http://127.0.0.1:*"
+# Subirlo después de recargar el GTFS en D1 (invalida la caché interna de recorridos).
+GTFS_VERSION = "1"
+
+[[d1_databases]]
+binding = "MY_FEED"
+database_name = "transporte-feed"
+database_id = "b47766f5-8efd-4144-b005-1ae9234ced2f"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "MY_REDIS"
+id = "12f406c397d24a05870c542490f853dd"
+
+[observability]
+enabled = true
+head_sampling_rate = 0.05
+
+# Workers Logs guarda solo console.log/console.error (reportes de POST /client-errors y errores
+# del worker), todos: sin el log automático de cada request el volumen queda chico.
+[observability.logs]
+enabled = true
+invocation_logs = false
+head_sampling_rate = 1

@@ -1,59 +1,136 @@
 name: Pipeline Multagente Gemini
 
+# Sólo `pull_request` (nunca `pull_request_target`): los PRs desde forks no reciben
+# GEMINI_API_KEY ni un token con escritura.
 on:
   push:
     branches: [ main ]
   pull_request:
     types: [opened, synchronize]
 
+permissions: {}
+
+concurrency:
+  group: multi-agent-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   multi-agent-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+    outputs:
+      has_report: ${{ steps.pipeline.outputs.has_report }}
 
     steps:
       - name: Checkout del repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          fetch-depth: 0
+          fetch-depth: 2
+          persist-credentials: false
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
 
-      - name: Instalar SDK de Gemini
-        run: npm install @google/genai
+      - name: Instalar dependencias (versiones fijadas en package-lock.json)
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Obtener contexto del código (git diff o estructura)
-        id: code_context
+      # El diff es contenido no confiable: va a un archivo, nunca a GITHUB_ENV/GITHUB_OUTPUT.
+      - name: Obtener contexto del código (git diff)
+        env:
+          DIFF_FILE: ${{ runner.temp }}/code-diff.txt
         run: |
-          DIFF=$(git diff HEAD~1 HEAD 2>/dev/null || git log -1)
-          echo "CODE_DIFF<<EOF" >> $GITHUB_ENV
-          echo "$DIFF" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          if git rev-parse --verify --quiet HEAD~1 >/dev/null; then
+            git diff HEAD~1 HEAD -- . \
+              ':(exclude)package-lock.json' \
+              ':(exclude)assets/vendor/**' \
+              ':(exclude)assets/styles/tailwind.css' > "$DIFF_FILE"
+          else
+            git show --stat HEAD > "$DIFF_FILE"
+          fi
+          echo "Diff generado: $(wc -c < "$DIFF_FILE") bytes"
 
       - name: Ejecutar Pipeline Multagente (QA -> TL -> Dev)
+        id: pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          CODE_CONTEXT: ${{ env.CODE_DIFF }}
+          CODE_CONTEXT_FILE: ${{ runner.temp }}/code-diff.txt
+          AGENT_OUTPUT_DIR: ${{ runner.temp }}/agent-output
         run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::notice::GEMINI_API_KEY no disponible (p. ej. PR desde un fork); se omite el pipeline."
+            exit 0
+          fi
           node ./scripts/agent-qa.mjs
           node ./scripts/agent-lead.mjs
           node ./scripts/agent-coder.mjs
+          echo "has_report=true" >> "$GITHUB_OUTPUT"
 
-      - name: Publicar reporte en el Pull Request (Opcional)
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+      - name: Subir reportes como artefacto
+        if: steps.pipeline.outputs.has_report == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: multi-agent-report
+          path: ${{ runner.temp }}/agent-output/*.md
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-comment:
+    needs: multi-agent-audit
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.multi-agent-audit.outputs.has_report == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Descargar reporte
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: multi-agent-report
+          path: ${{ runner.temp }}/agent-output
+
+      # La salida del modelo se trata como texto: sólo se lee y se publica, nunca se ejecuta.
+      - name: Publicar reporte en el Pull Request
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          REPORT_PATH: ${{ runner.temp }}/agent-output/FINAL_MULTIAGENT_REPORT.md
         with:
           script: |
             const fs = require('fs');
-            const report = fs.readFileSync('FINAL_MULTIAGENT_REPORT.md', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
+            const MARKER = '<!-- multi-agent-report -->';
+            const MAX_REPORT_CHARS = 60000;
+
+            let report = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
+            // Evita que el modelo mencione (y notifique) usuarios o equipos.
+            report = report.replace(/@(?=[\w-])/g, '@\u200b');
+            if (report.length > MAX_REPORT_CHARS) {
+              report = report.slice(0, MAX_REPORT_CHARS) + '\n\n_[Reporte truncado; ver el artefacto `multi-agent-report` del workflow.]_';
+            }
+
+            const body = [
+              MARKER,
+              '> [!WARNING]',
+              '> **Contenido generado automáticamente** por modelos de IA (Gemini) a partir del diff de este PR.',
+              '> Puede contener errores u omisiones: revisalo antes de aplicar cualquier sugerencia. Ningún código propuesto se ejecuta automáticamente.',
+              '',
+              report,
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const previous = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(MARKER));
+
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

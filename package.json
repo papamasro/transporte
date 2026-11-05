@@ -1,0 +1,23 @@
+{
+  "name": "radar-amba",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard de transporte en tiempo real para AMBA (PWA estática).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i assets/styles/tailwind.input.css -o assets/styles/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i assets/styles/tailwind.input.css -o assets/styles/tailwind.css --watch",
+    "check:js": "for f in sw.js js/*/*.js scripts/*.mjs tests/*/*.mjs tests/*.mjs playwright.config.mjs worker/index.js; do node --check \"$f\" || exit 1; done",
+    "test": "npm run test:unit && npm run test:worker && npm run test:e2e",
+    "test:unit": "node --test \"tests/unit/**/*.test.mjs\"",
+    "test:e2e": "playwright test",
+    "test:worker": "cd worker && npm run test:unit"
+  },
+  "devDependencies": {
+    "@google/genai": "2.32.0",
+    "@playwright/test": "1.64.1",
+    "tailwindcss": "3.4.17"
+  }
+}
