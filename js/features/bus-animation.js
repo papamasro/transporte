@@ -85,7 +85,14 @@ function busAnimIngestSnapshot(vehicles, prevVehicles = null, meta = {}) {
     }
     if (observedMs !== null && observedMs >= 1000) {
         const clamped = busAnimClamp(observedMs, cfg.minSegmentMs, cfg.maxSegmentMs);
-        busAnimState.segmentMs = busAnimState.segmentMs === null ? clamped : (busAnimState.segmentMs * 0.6 + clamped * 0.4);
+        if (busAnimState.segmentMs === null) {
+            busAnimState.segmentMs = clamped;
+        } else {
+            // Si el intervalo observado es bastante más largo que el estimado, adaptarse más rápido
+            // para evitar que la animación termine mucho antes de que llegue el siguiente snapshot.
+            const weight = clamped > busAnimState.segmentMs * 1.5 ? 0.7 : 0.4;
+            busAnimState.segmentMs = busAnimState.segmentMs * (1 - weight) + clamped * weight;
+        }
     }
     busAnimState.lastSnapshotAt = now;
 

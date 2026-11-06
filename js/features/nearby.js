@@ -685,8 +685,8 @@ function updateNearbyLiveBusMarkers(busVehicles) {
         const color = getColor('bus', label);
         let marker = store.get(key);
         if (marker) {
-            // Posición (suave por la transición CSS), icono si cambió rumbo/línea y popup/tooltip abiertos.
-            updateMarker(marker, item.lat, item.lon, label, color, item.vehicle);
+            // Posición animada (bus-animation.js), icono si cambió rumbo/línea y popup/tooltip abiertos.
+            updateMarker(marker, item.lat, item.lon, label, color, item.vehicle, { animate: true });
         } else {
             marker = createMarker(item.lat, item.lon, label, color, 'bus', item.vehicle, { iconClassName: 'nearby-live-bus-icon' });
             store.set(key, marker);
