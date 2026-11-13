@@ -25,6 +25,10 @@ if (!globalThis.nearbyStopMarkers) {
     globalThis.nearbyStopMarkers = new Map();
 }
 
+if (!globalThis.nearbyLineStore) {
+    globalThis.nearbyLineStore = new Map();
+}
+
 if (!globalThis.nearbyState) {
     globalThis.nearbyState = {
         active: false,
@@ -61,10 +65,12 @@ function getNearbyFeatureConfig() {
 function clearNearbyMapOverlay() {
     layers?.nearbyCircle?.clearLayers?.();
     layers?.nearbyRadius?.clearLayers?.();
+    layers?.nearbyLines?.clearLayers?.();
     layers?.nearbyStops?.clearLayers?.();
     layers?.nearbyVehicles?.clearLayers?.();
     globalThis.nearbyLiveBusMarkers?.clear?.();
     globalThis.nearbyStopMarkers?.clear?.();
+    globalThis.nearbyLineStore?.clear?.();
     nearbyRenderedBikeRoutes = null;
     nearbyAutoTooltipMarker = null;
     nearbyPrunePending = false;
@@ -716,6 +722,122 @@ function renderNearbyBikeRoutes(bikeRoutes) {
     }).addTo(layers.nearbyRadius);
 }
 
+function getNearbyLinesLayer() {
+    if (!layers) return null;
+    if (!layers.nearbyLines && map) layers.nearbyLines = L.layerGroup().addTo(map);
+    return layers.nearbyLines;
+}
+
+function upsertNearbyTransitPolyline(layerGroup, store, key, coords, style) {
+    const signature = `${style.color}|${style.weight}|${coords.length}|${coords[0]}|${coords.at(-1)}`;
+    let polyline = store.get(key);
+    if (polyline && polyline._transitSignature !== signature) {
+        layerGroup.removeLayer(polyline);
+        polyline = null;
+    }
+    if (!polyline) {
+        polyline = L.polyline(coords, {
+            ...style,
+            interactive: false
+        });
+        polyline._transitSignature = signature;
+        store.set(key, polyline);
+    }
+    if (!layerGroup.hasLayer(polyline)) layerGroup.addLayer(polyline);
+}
+
+function renderNearbyTransitLines(results) {
+    const layerGroup = getNearbyLinesLayer();
+    if (!layerGroup) return;
+
+    const store = globalThis.nearbyLineStore;
+    const seenKeys = new Set();
+
+    if (isNearbySliceEnabled('subte')) {
+        const subteStations = Array.isArray(results?.subteStations) ? results.subteStations : [];
+        if (subteStations.length > 0) {
+            const subteStatic = globalThis.cache.subteStatic || {};
+            const subteLines = subteStatic.lines || {};
+            const allSubteStations = subteStatic.stations || {};
+
+            const nearbyRouteIds = new Set();
+            subteStations.forEach(st => {
+                if (st.routeId) nearbyRouteIds.add(st.routeId);
+            });
+
+            nearbyRouteIds.forEach(routeId => {
+                const line = subteLines[routeId];
+                if (!line || !Array.isArray(line.stations)) return;
+
+                const coords = line.stations
+                    .map(stopId => {
+                        const st = allSubteStations[stopId];
+                        if (!st) return null;
+                        const lat = Number(st.lat);
+                        const lon = Number(st.lon);
+                        return Number.isFinite(lat) && Number.isFinite(lon) ? [lat, lon] : null;
+                    })
+                    .filter(Boolean);
+
+                if (coords.length >= 2) {
+                    const key = `subte:${routeId}`;
+                    seenKeys.add(key);
+                    upsertNearbyTransitPolyline(layerGroup, store, key, coords, {
+                        color: safeCssColor(line.color, '#9333ea'),
+                        weight: 5,
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    });
+                }
+            });
+        }
+    }
+
+    if (isNearbySliceEnabled('train')) {
+        const trainStations = Array.isArray(results?.trainStations) ? results.trainStations : [];
+        if (trainStations.length > 0) {
+            const trainStatic = globalThis.cache.trainStatic || {};
+            const trainLines = trainStatic.lines || {};
+            const allTrainStations = trainStatic.stations || {};
+
+            const nearbyLineIds = new Set();
+            trainStations.forEach(st => {
+                if (st.lineId) nearbyLineIds.add(st.lineId);
+            });
+
+            nearbyLineIds.forEach(lineId => {
+                const line = trainLines[lineId];
+                if (!line || !Array.isArray(line.stations)) return;
+
+                const coords = line.stations
+                    .map(stopId => {
+                        const st = allTrainStations[stopId];
+                        if (!st) return null;
+                        const lat = Number(st.lat);
+                        const lon = Number(st.lon);
+                        return Number.isFinite(lat) && Number.isFinite(lon) ? [lat, lon] : null;
+                    })
+                    .filter(Boolean);
+
+                if (coords.length >= 2) {
+                    const key = `train:${lineId}`;
+                    seenKeys.add(key);
+                    upsertNearbyTransitPolyline(layerGroup, store, key, coords, {
+                        color: safeCssColor(line.color, '#0ea5e9'),
+                        weight: 4,
+                        opacity: 0.85,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    });
+                }
+            });
+        }
+    }
+
+    pruneNearbyKeyedLayers(layerGroup, store, seenKeys);
+}
+
 function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     const { showRadiusCircle = true } = options;
     if (!layers?.nearbyRadius || !layers?.nearbyStops || !layers?.nearbyVehicles) return;
@@ -726,6 +848,7 @@ function renderNearbyMapOverlay(center, radiusMeters, results, options = {}) {
     else getNearbyCircleLayer()?.clearLayers();
 
     renderNearbyBikeRoutes(results.bikeRoutes);
+    renderNearbyTransitLines(results);
     renderNearbyStopsLayer(results);
     updateNearbyLiveBusMarkers(results.busVehicles);
 }
@@ -737,6 +860,7 @@ function handleNearbyPopupClose() {
         nearbyPrunePending = false;
         const lastResults = globalThis.nearbyState?.lastResults;
         if (!globalThis.nearbyState?.active || !lastResults || !layers?.nearbyStops) return;
+        renderNearbyTransitLines(lastResults);
         renderNearbyStopsLayer(lastResults);
         updateNearbyLiveBusMarkers(lastResults.busVehicles);
     }, 100);

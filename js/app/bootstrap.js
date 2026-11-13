@@ -36,6 +36,7 @@
             busStops: null,
             nearbyRadius: null,
             nearbyCircle: null,
+            nearbyLines: null,
             nearbyStops: null,
             nearbyVehicles: null
         };
@@ -109,6 +110,7 @@
             layers.busStops = L.layerGroup().addTo(map);
             layers.nearbyCircle = L.layerGroup().addTo(map);
             layers.nearbyRadius = L.layerGroup().addTo(map);
+            layers.nearbyLines = L.layerGroup().addTo(map);
             layers.nearbyStops = L.layerGroup().addTo(map);
             layers.nearbyVehicles = L.layerGroup().addTo(map);
             userLayer = L.layerGroup().addTo(map);
