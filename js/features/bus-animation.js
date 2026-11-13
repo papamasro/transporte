@@ -90,7 +90,7 @@ function busAnimIngestSnapshot(vehicles, prevVehicles = null, meta = {}) {
         } else {
             // Si el intervalo observado es bastante más largo que el estimado, adaptarse más rápido
             // para evitar que la animación termine mucho antes de que llegue el siguiente snapshot.
-            const weight = clamped > busAnimState.segmentMs * 1.5 ? 0.7 : 0.4;
+            const weight = (observedMs >= busAnimState.segmentMs * 1.5 || clamped >= busAnimState.segmentMs * 1.5) ? 0.7 : 0.4;
             busAnimState.segmentMs = busAnimState.segmentMs * (1 - weight) + clamped * weight;
         }
     }

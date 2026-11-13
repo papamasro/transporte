@@ -29,16 +29,27 @@ test('la duración sigue al intervalo medido (EMA) dentro de [min, max]', () => 
     const { app, advance } = loadAnimation();
     app.busAnimIngestSnapshot([bus('1', -34.6, -58.4)]);
     assert.equal(app.busAnimGetStats().segmentMs, null);
+
+    // Primer intervalo medido: inicializa segmentMs (30 s)
     advance(30_000);
     app.busAnimIngestSnapshot([bus('1', -34.6, -58.4)]);
     assert.equal(app.busAnimGetStats().segmentMs, 30_000);
+
+    // Variación moderada (< 1.5x): peso estándar 0.4 (30000 * 0.6 + 35000 * 0.4 = 32000)
+    advance(35_000);
+    app.busAnimIngestSnapshot([bus('1', -34.6, -58.4)]);
+    assert.equal(app.busAnimGetStats().segmentMs, 32_000);
+
+    // Intervalo significativamente más largo (>= 1.5x): adaptación rápida con peso 0.7
+    // para evitar que la animación termine mucho antes de que llegue el siguiente snapshot.
+    // 60 s se acota a maxSegmentMs = 45 s: 32000 * 0.3 + 45000 * 0.7 = 9600 + 31500 = 41100.
     advance(60_000);
     app.busAnimIngestSnapshot([bus('1', -34.6, -58.4)]);
-    // 60 s se acota a maxSegmentMs = 45 s: 30 * 0.6 + 45 * 0.4.
-    assert.equal(app.busAnimGetStats().segmentMs, 36_000);
+    assert.equal(app.busAnimGetStats().segmentMs, 41_100);
+
     advance(500);
     app.busAnimIngestSnapshot([bus('1', -34.6, -58.4)]);
-    assert.equal(app.busAnimGetStats().segmentMs, 36_000, 'intervalos < 1 s (refresh manual doble) no cuentan');
+    assert.equal(app.busAnimGetStats().segmentMs, 41_100, 'intervalos < 1 s (refresh manual doble) no cuentan');
 });
 
 test('rumbo derivado del movimiento (cuantizado a 5°) solo si el dato no trae bearing', () => {
