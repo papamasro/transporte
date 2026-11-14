@@ -82,12 +82,12 @@ function createDirectionsApp(cacheOverride = {}) {
     return { app, mockElements };
 }
 
-test('computeDirectionsRoutes calcula opción caminando', () => {
+test('computeDirectionsRoutes calcula opción caminando', async () => {
     const { app } = createDirectionsApp();
     const origin = { lat: -34.6037, lon: -58.3816, label: 'Obelisco' };
     const destination = { lat: -34.6083, lon: -58.3721, label: 'Plaza de Mayo' };
 
-    const routes = app.computeDirectionsRoutes(origin, destination);
+    const routes = await app.computeDirectionsRoutes(origin, destination);
     assert.ok(Array.isArray(routes));
     assert.ok(routes.length >= 1);
 
@@ -99,14 +99,14 @@ test('computeDirectionsRoutes calcula opción caminando', () => {
     assert.ok(walkRoute.legs.length === 1);
 });
 
-test('computeDirectionsRoutes encuentra Subte directo si hay estaciones en rango', () => {
+test('computeDirectionsRoutes encuentra Subte directo si hay estaciones en rango', async () => {
     const { app } = createDirectionsApp();
     // Origen cerca de Tribunales (D3)
     const origin = { lat: -34.6020, lon: -58.3850, label: 'Teatro Colón' };
     // Destino cerca de Facultad de Medicina (D5)
     const destination = { lat: -34.5980, lon: -58.3990, label: 'Hospital de Clínicas' };
 
-    const routes = app.computeDirectionsRoutes(origin, destination);
+    const routes = await app.computeDirectionsRoutes(origin, destination);
     const subteRoute = routes.find(r => r.type === 'subte');
 
     assert.ok(subteRoute, 'Debe encontrar ruta de subte');
@@ -116,14 +116,14 @@ test('computeDirectionsRoutes encuentra Subte directo si hay estaciones en rango
     assert.ok(subteRoute.steps.length >= 3);
 });
 
-test('computeDirectionsRoutes encuentra Tren si hay estaciones en rango', () => {
+test('computeDirectionsRoutes encuentra Tren si hay estaciones en rango', async () => {
     const { app } = createDirectionsApp();
     // Origen cerca de Retiro (T1)
     const origin = { lat: -34.5920, lon: -58.3750, label: 'Torre de los Ingleses' };
     // Destino cerca de Belgrano C (T2)
     const destination = { lat: -34.5590, lon: -58.4510, label: 'Barrancas de Belgrano' };
 
-    const routes = app.computeDirectionsRoutes(origin, destination);
+    const routes = await app.computeDirectionsRoutes(origin, destination);
     const trainRoute = routes.find(r => r.type === 'train');
 
     assert.ok(trainRoute, 'Debe encontrar ruta de tren');
@@ -131,14 +131,14 @@ test('computeDirectionsRoutes encuentra Tren si hay estaciones en rango', () => 
     assert.ok(trainRoute.legs.some(l => l.mode === 'train'));
 });
 
-test('computeDirectionsRoutes encuentra Ecobici si hay estaciones con disponibilidad', () => {
+test('computeDirectionsRoutes encuentra Ecobici si hay estaciones con disponibilidad', async () => {
     const { app } = createDirectionsApp();
     // Origen cerca de B1
     const origin = { lat: -34.6022, lon: -58.3848, label: 'Lavalle y Talcahuano' };
     // Destino cerca de B2
     const destination = { lat: -34.5982, lon: -58.3982, label: 'Paraguay y Uriburu' };
 
-    const routes = app.computeDirectionsRoutes(origin, destination);
+    const routes = await app.computeDirectionsRoutes(origin, destination);
     const bikeRoute = routes.find(r => r.type === 'bike');
 
     assert.ok(bikeRoute, 'Debe encontrar ruta de ecobici');
@@ -170,4 +170,24 @@ test('clearDirectionsField y resetDirectionsForm limpian el estado', () => {
     assert.equal(app.directionsState.origin, null);
     assert.equal(app.directionsState.destination, null);
     assert.equal(app.directionsState.routes.length, 0);
+});
+
+test('computeDirectionsRoutes encuentra colectivo por fallback si no hay estáticos', async () => {
+    const { app } = createDirectionsApp({
+        bus: [
+            {
+                latitude: -34.6030,
+                longitude: -34.6030, // cerca
+                route_short_name: '60'
+            }
+        ]
+    });
+    // Puntos separados más de 1200 metros
+    const origin = { lat: -34.6037, lon: -58.3816, label: 'Obelisco' };
+    const destination = { lat: -34.5590, lon: -58.4510, label: 'Belgrano' };
+
+    const routes = await app.computeDirectionsRoutes(origin, destination);
+    const busRoute = routes.find(r => r.type === 'bus');
+    assert.ok(busRoute, 'Debe incluir opción de colectivo para distancias > 1200m');
+    assert.equal(busRoute.type, 'bus');
 });

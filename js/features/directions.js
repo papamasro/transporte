@@ -489,7 +489,7 @@
             await Promise.all(loadPromises);
         }
 
-        const routes = computeRoutes(origin, destination);
+        const routes = await computeRoutes(origin, destination);
         directionsState.routes = routes;
         directionsState.selectedRouteIndex = 0;
         directionsState.isRouting = false;
@@ -503,7 +503,7 @@
         }
     }
 
-    function computeRoutes(origin, destination) {
+    async function computeRoutes(origin, destination) {
         const distDirect = typeof haversineMeters === 'function'
             ? haversineMeters(origin.lat, origin.lon, destination.lat, destination.lon)
             : 1000;
@@ -555,10 +555,10 @@
         const bikeRoute = findBikeRoute(origin, destination, distDirect);
         if (bikeRoute) routes.push(bikeRoute);
 
-        // 6. Opción Colectivo (estimación realista de recorrido urbano)
+        // 6. Opción Colectivo (con recorridos reales del GTFS si están disponibles)
         if (distDirect > 1200) {
-            const busRoute = findBusRouteOption(origin, destination, distDirect);
-            if (busRoute) routes.push(busRoute);
+            const busRoutes = await findBusRouteOptions(origin, destination, distDirect);
+            busRoutes.forEach(r => routes.push(r));
         }
 
         // Ordenar por duración ascendente (la más rápida primero)
@@ -989,7 +989,267 @@
         };
     }
 
-    function findBusRouteOption(origin, destination, distDirect) {
+    // ─── Búsqueda de colectivos usando recorridos GTFS estáticos ────────────────
+    // Usa loadStaticRouteFile y decodeStaticPolyline de markers-bus-overlay.js.
+    // Fallback a estimación si los archivos estáticos no están disponibles.
+
+    // Radio máximo en metros para considerar que un shape "pasa cerca" de un punto.
+    const BUS_STOP_RADIUS_M = 400;
+    // Mínima fracción del recorrido (0-1) que debe haber entre el punto de subida y bajada.
+    // Evita rutas donde origen y destino están en el mismo segmento extremo del recorrido.
+    const BUS_MIN_COVERAGE = 0.05;
+    // Máximo de líneas candidatas a evaluar (por performance)
+    const BUS_MAX_CANDIDATES = 60;
+    // Máximo de líneas en el resultado
+    const BUS_MAX_RESULTS = 2;
+
+    // Encuentra el índice del punto del shape más cercano a un punto geográfico,
+    // dentro del radio dado. Devuelve -1 si ningún punto está en rango.
+    function findNearestShapePoint(shape, lat, lon, radiusM) {
+        let bestIdx = -1;
+        let bestDist = radiusM;
+        for (let i = 0; i < shape.length; i++) {
+            const pt = shape[i];
+            const d = haversineMeters(lat, lon, pt.lat, pt.lon);
+            if (d < bestDist) {
+                bestDist = d;
+                bestIdx = i;
+            }
+        }
+        return { idx: bestIdx, dist: bestDist };
+    }
+
+    // Calcula la distancia acumulada en metros de un segmento del shape (de idxA a idxB inclusive).
+    function shapeSegmentLengthM(shape, idxA, idxB) {
+        let total = 0;
+        const start = Math.min(idxA, idxB);
+        const end = Math.max(idxA, idxB);
+        for (let i = start; i < end; i++) {
+            total += haversineMeters(shape[i].lat, shape[i].lon, shape[i + 1].lat, shape[i + 1].lon);
+        }
+        return total;
+    }
+
+    // Intenta encontrar líneas de colectivo con recorridos reales que conecten origen y destino.
+    // Devuelve array de opciones (puede ser vacío si los estáticos no están disponibles).
+    async function findBusRoutesFromStatic(origin, destination) {
+        // Verificar que las funciones de markers-bus-overlay.js están disponibles
+        if (typeof loadStaticRouteFile !== 'function' ||
+            typeof decodeStaticPolyline !== 'function' ||
+            typeof getStaticRouteFileBase !== 'function') {
+            return [];
+        }
+
+        // Verificar que los recorridos estáticos están disponibles (HEAD a index.json)
+        let available = false;
+        try {
+            available = await areStaticRoutesAvailable();
+        } catch {
+            return [];
+        }
+        if (!available) return [];
+
+        // Leer el index para obtener la lista de líneas
+        let indexData = null;
+        try {
+            const result = await fetchStaticRouteResource('index.json');
+            if (result.ok && result.data && typeof result.data.lines === 'object') {
+                indexData = result.data;
+            }
+        } catch {
+            return [];
+        }
+        if (!indexData) return [];
+
+        const lineNames = Object.keys(indexData.lines || {});
+        // Limitar candidatos para no hacer demasiados fetch
+        const candidates = lineNames.slice(0, BUS_MAX_CANDIDATES);
+
+        // Archivos únicos a cargar (varias líneas pueden compartir archivo por número base)
+        const fileBases = new Set(candidates.map(name => {
+            const info = indexData.lines[name];
+            return info && info.file ? info.file : getStaticRouteFileBase(name);
+        }));
+
+        const results = [];
+
+        for (const base of fileBases) {
+            if (results.length >= BUS_MAX_RESULTS) break;
+            let file = null;
+            try {
+                file = await loadStaticRouteFile(base);
+            } catch {
+                continue;
+            }
+            if (!file || !file.variants) continue;
+
+            // Evaluar cada variante del archivo
+            for (const [variantId, variant] of Object.entries(file.variants)) {
+                if (results.length >= BUS_MAX_RESULTS) break;
+                const encoded = variant.shape;
+                if (!encoded) continue;
+
+                // Decodificar shape (cacheado en _decodedShape por adaptStaticRouteVariant)
+                if (!variant._decodedShape) {
+                    variant._decodedShape = decodeStaticPolyline(encoded);
+                }
+                const shape = variant._decodedShape;
+                if (!shape || shape.length < 4) continue;
+
+                // Buscar punto del shape más cercano al origen
+                const nearO = findNearestShapePoint(shape, origin.lat, origin.lon, BUS_STOP_RADIUS_M);
+                if (nearO.idx === -1) continue;
+
+                // Buscar punto del shape más cercano al destino
+                const nearD = findNearestShapePoint(shape, destination.lat, destination.lon, BUS_STOP_RADIUS_M);
+                if (nearD.idx === -1) continue;
+
+                // El colectivo debe recorrer el trayecto en la dirección correcta
+                // (el índice de bajada debe ser mayor que el de subida)
+                if (nearD.idx <= nearO.idx) continue;
+
+                // Verificar que hay suficiente recorrido entre los dos puntos
+                const coverage = (nearD.idx - nearO.idx) / (shape.length - 1);
+                if (coverage < BUS_MIN_COVERAGE) continue;
+
+                // Calcular distancias y tiempos
+                const walk1Dist = Math.round(nearO.dist * 1.25);
+                const walk1Min = Math.max(1, Math.round(walk1Dist / 80));
+                const walk2Dist = Math.round(nearD.dist * 1.25);
+                const walk2Min = Math.max(1, Math.round(walk2Dist / 80));
+
+                // Distancia real del recorrido en colectivo (siguiendo el shape)
+                const busDist = Math.round(shapeSegmentLengthM(shape, nearO.idx, nearD.idx) * 1.05);
+                const busMin = Math.max(3, Math.round(busDist / 220)); // ~13 km/h promedio en CABA
+
+                const totalDurationMin = walk1Min + 5 + busMin + walk2Min; // 5 min espera promedio
+
+                const lineShort = variant.short || base;
+                const headsign = variant.headsign || '';
+
+                // Coordenadas reales del tramo en colectivo (subconjunto del shape)
+                const busCoords = shape.slice(nearO.idx, nearD.idx + 1).map(pt => [pt.lat, pt.lon]);
+
+                // Punto de subida (parada más cercana al origen, o punto del shape)
+                const boardPt = shape[nearO.idx];
+                // Punto de bajada
+                const alightPt = shape[nearD.idx];
+
+                // Buscar paradas del variant cerca del punto de subida y bajada
+                let boardStop = null;
+                let alightStop = null;
+                if (Array.isArray(variant.stops) && file.stops) {
+                    // Encontrar parada más cercana al punto nearO.idx
+                    let bestBoardDist = 300;
+                    let bestAlightDist = 300;
+                    for (const stopId of variant.stops) {
+                        const stopData = file.stops[stopId];
+                        if (!Array.isArray(stopData) || stopData.length < 3) continue;
+                        const sLat = stopData[1];
+                        const sLon = stopData[2];
+                        const dBoard = haversineMeters(boardPt.lat, boardPt.lon, sLat, sLon);
+                        const dAlight = haversineMeters(alightPt.lat, alightPt.lon, sLat, sLon);
+                        if (dBoard < bestBoardDist) {
+                            bestBoardDist = dBoard;
+                            boardStop = { name: stopData[0], lat: sLat, lon: sLon };
+                        }
+                        if (dAlight < bestAlightDist) {
+                            bestAlightDist = dAlight;
+                            alightStop = { name: stopData[0], lat: sLat, lon: sLon };
+                        }
+                    }
+                }
+
+                const boardName = boardStop?.name || `Parada ${lineShort}`;
+                const alightName = alightStop?.name || `Parada ${lineShort} (bajada)`;
+                const boardLatLon = boardStop ? [boardStop.lat, boardStop.lon] : [boardPt.lat, boardPt.lon];
+                const alightLatLon = alightStop ? [alightStop.lat, alightStop.lon] : [alightPt.lat, alightPt.lon];
+
+                // Color de la línea (desde cache activo de colectivos si está disponible)
+                let badgeColor = '#4f46e5';
+                if (typeof getColor === 'function') badgeColor = getColor('bus', lineShort);
+
+                // Evitar duplicados: si ya hay una variante de la misma línea base, saltear
+                const lineBase = lineShort.replace(/[^0-9]/g, '') || lineShort;
+                const alreadyAdded = results.some(r => (r._lineBase || '') === lineBase);
+                if (alreadyAdded) continue;
+
+                const route = {
+                    id: `bus-${variantId}`,
+                    type: 'bus',
+                    title: `Línea ${lineShort}`,
+                    _lineBase: lineBase,
+                    durationMin: totalDurationMin,
+                    distanceMeters: walk1Dist + busDist + walk2Dist,
+                    summaryPills: [
+                        { icon: '🚶', text: `${walk1Min}m`, color: '#64748b' },
+                        { icon: '🚌', text: `Línea ${lineShort}${headsign ? ` → ${headsign}` : ''}`, color: badgeColor },
+                        { icon: '🚶', text: `${walk2Min}m`, color: '#64748b' }
+                    ],
+                    legs: [
+                        {
+                            mode: 'walk',
+                            distanceMeters: walk1Dist,
+                            durationMin: walk1Min,
+                            fromName: origin.label || 'Origen',
+                            toName: boardName,
+                            coords: [[origin.lat, origin.lon], boardLatLon]
+                        },
+                        {
+                            mode: 'bus',
+                            lineName: `Línea ${lineShort}`,
+                            color: badgeColor,
+                            durationMin: busMin,
+                            distanceMeters: busDist,
+                            headsign,
+                            fromName: boardName,
+                            toName: alightName,
+                            coords: busCoords,
+                            stops: [
+                                boardStop ? { name: boardStop.name, lat: boardStop.lat, lon: boardStop.lon, role: 'board' } : null,
+                                alightStop ? { name: alightStop.name, lat: alightStop.lat, lon: alightStop.lon, role: 'alight' } : null
+                            ].filter(Boolean)
+                        },
+                        {
+                            mode: 'walk',
+                            distanceMeters: walk2Dist,
+                            durationMin: walk2Min,
+                            fromName: alightName,
+                            toName: destination.label || 'Destino',
+                            coords: [alightLatLon, [destination.lat, destination.lon]]
+                        }
+                    ],
+                    steps: [
+                        { icon: '🚶', text: `Caminar ${formatDistanceText(walk1Dist)} hasta la parada de Línea ${lineShort} (~${walk1Min} min)` },
+                        { icon: '🚌', text: `Tomar Línea ${lineShort}${headsign ? ` hacia ${headsign}` : ''} (~${busMin} min, ${formatDistanceText(busDist)})` },
+                        { icon: '🚶', text: `Bajar en ${alightName} y caminar ${formatDistanceText(walk2Dist)} hasta destino (~${walk2Min} min)` }
+                    ]
+                };
+
+                results.push(route);
+            }
+        }
+
+        // Limpiar campo interno antes de devolver
+        results.forEach(r => { delete r._lineBase; });
+        return results;
+    }
+
+    // Punto de entrada para opciones de colectivo:
+    // primero intenta con recorridos GTFS reales, si no hay, usa estimación de fallback.
+    async function findBusRouteOptions(origin, destination, distDirect) {
+        try {
+            const staticRoutes = await findBusRoutesFromStatic(origin, destination);
+            if (staticRoutes.length > 0) return staticRoutes;
+        } catch {
+            // Silenciar errores y caer en el fallback
+        }
+        // Fallback: estimación con colectivos activos en cache
+        const fallback = findBusRouteFallback(origin, destination, distDirect);
+        return fallback ? [fallback] : [];
+    }
+
+    function findBusRouteFallback(origin, destination, distDirect) {
         // Encontrar si hay colectivos activos en el radio
         const buses = Array.isArray(globalThis.cache?.bus) ? globalThis.cache.bus : [];
         let recommendedLine = 'Colectivo';
