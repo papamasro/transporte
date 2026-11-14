@@ -9,7 +9,8 @@ function setDashboardActionActive(actionKey, isActive) {
         alerts: 'action-alerts',
         nearby: 'action-nearby',
         locate: 'action-locate',
-        refresh: 'action-refresh'
+        refresh: 'action-refresh',
+        directions: 'action-directions'
     };
 
     const buttonId = actionMap[actionKey];
@@ -225,6 +226,7 @@ function drawUserMarker(lat, lon, tooltipPosition = null) {
     if (!userLayer) return null;
     userLayer.clearLayers();
     const userMarker = L.marker([lat, lon], {
+        draggable: true,
         icon: L.divIcon({
             className: 'user-location-icon',
             html: '<div class="user-person-marker"><div class="user-person-pulse"></div><div class="user-person-body">🧍</div></div>',
@@ -240,6 +242,32 @@ function drawUserMarker(lat, lon, tooltipPosition = null) {
         offset: [0, -20],
         opacity: 1
     });
+
+    userMarker.bindPopup(`
+        <div class="user-marker-popup p-1 text-center">
+            <p class="font-bold text-xs text-slate-800 dark:text-white mb-1">🧍 Tu ubicación</p>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 mb-2">Arrastrá el muñequito para moverlo o tocalo para reubicarlo.</p>
+            <button type="button" onclick="startRelocateUser()" class="btn-reubicar-popup text-xs font-semibold px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">Reubicar muñequito</button>
+        </div>
+    `, { className: 'custom-popup', offset: [0, -15] });
+
+    userMarker.on('dragend', () => {
+        const pos = userMarker.getLatLng();
+        const payload = {
+            lat: pos.lat,
+            lon: pos.lng,
+            timestamp: Date.now()
+        };
+        globalThis.cache.userLocation = payload;
+        persistUserLocation(payload);
+        userMarker.setTooltipContent(buildUserLocationTooltip({ coords: { latitude: pos.lat, longitude: pos.lng } }));
+        try {
+            if (typeof activateNearbyFromLocation === 'function') {
+                activateNearbyFromLocation().catch(() => {});
+            }
+        } catch {}
+    });
+
     return userMarker;
 }
 
@@ -619,6 +647,44 @@ function locationPromptDismiss() {
     }
 }
 
+function startRelocateUser() {
+    if (typeof closeAppMenu === 'function') closeAppMenu();
+    const promptModal = document.getElementById('location-prompt-modal');
+    const promptText = document.getElementById('location-prompt-text');
+    const coordsEl = document.getElementById('location-prompt-coords');
+    const confirmBtn = document.getElementById('location-prompt-confirm');
+    const gpsBtn = document.getElementById('location-prompt-gps');
+    const gpsLabel = document.getElementById('location-prompt-gps-label');
+
+    if (promptText) {
+        promptText.textContent = 'Tocá el mapa o arrastrá el marcador para indicar la nueva posición de tu muñequito.';
+    }
+    if (gpsLabel) gpsLabel.textContent = 'Reintentar GPS';
+    if (gpsBtn) gpsBtn.classList.remove('is-loading');
+
+    _enableMapPick();
+
+    const known = getKnownUserLocation();
+    if (known && Number.isFinite(known.lat) && Number.isFinite(known.lon)) {
+        _placePickMarker(known.lat, known.lon);
+        if (confirmBtn) confirmBtn.disabled = false;
+        if (coordsEl) {
+            coordsEl.textContent = `${known.lat.toFixed(6)}, ${known.lon.toFixed(6)}`;
+            coordsEl.classList.remove('hidden');
+        }
+        moveMapTo(map, [known.lat, known.lon], 15, { animate: true, duration: 0.8 });
+    } else {
+        const center = map?.getCenter?.();
+        if (center) {
+            _placePickMarker(center.lat, center.lng);
+            if (confirmBtn) confirmBtn.disabled = false;
+        }
+    }
+
+    _showLocationPromptOverlay(true);
+    try { createLucideIconsIn(promptModal); } catch {}
+}
+
 function showLocationPrompt() {
     const knownLocation = getKnownUserLocation();
     if (knownLocation && isLocationCacheFresh(knownLocation)) {
@@ -705,5 +771,7 @@ globalThis.addEventListener('keydown', (e) => {
         _trapLocationPromptTab(e);
     }
 });
+
+globalThis.startRelocateUser = startRelocateUser;
 
 purgeExpiredStoredUserLocation();

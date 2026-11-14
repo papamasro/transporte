@@ -11,7 +11,8 @@ const MAP_STATUS_TICK_MS = 5000;
 
 const SHEET_VIEWS = [
     { name: 'nearby', panelId: 'nearby-panel', openerId: 'action-nearby' },
-    { name: 'alerts', panelId: 'alerts-panel', openerId: 'action-alerts' }
+    { name: 'alerts', panelId: 'alerts-panel', openerId: 'action-alerts' },
+    { name: 'directions', panelId: 'directions-panel', openerId: 'action-directions' }
 ];
 
 const layoutState = {

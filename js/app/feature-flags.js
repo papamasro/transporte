@@ -12,6 +12,7 @@
         autoRefresh: true,
         alertsPanel: true,
         nearbyPanel: true,
+        directionsPanel: true,
 
         // Modos principales
         busLayer: true,
@@ -106,6 +107,9 @@
         ['t-bike', () => isTransportTypeEnabled('bike')],
         ['action-locate', () => isFeatureEnabled('geolocation')],
         ['map-locate-fab', () => isFeatureEnabled('geolocation')],
+        ['map-relocate-fab', () => isFeatureEnabled('geolocation')],
+        ['action-directions', () => isFeatureEnabled('directionsPanel')],
+        ['directions-panel', () => isFeatureEnabled('directionsPanel')],
         ['action-nearby', () => isFeatureEnabled('nearbyPanel')],
         ['nearby-panel', () => isFeatureEnabled('nearbyPanel')],
         ['action-refresh', () => isFeatureEnabled('manualRefresh')],

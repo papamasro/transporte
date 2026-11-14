@@ -10,6 +10,7 @@ globalThis.APP_FEATURE_FLAGS = {
     autoRefresh: true,
     alertsPanel: true,
     nearbyPanel: true,
+    directionsPanel: true,
 
     // Modos principales de la app
     busLayer: true,

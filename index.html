@@ -57,6 +57,14 @@
                         <i aria-hidden="true" data-lucide="more-horizontal" class="w-5 h-5"></i>
                     </button>
                     <div id="app-menu" class="app-menu" role="menu" aria-labelledby="app-menu-btn" hidden>
+                        <button type="button" role="menuitem" tabindex="-1" id="action-reubicar" onclick="startRelocateUser()" class="menu-item">
+                            <i aria-hidden="true" data-lucide="map-pin" class="w-4 h-4"></i>
+                            <span>Reubicar muñequito</span>
+                        </button>
+                        <button type="button" role="menuitem" tabindex="-1" id="action-menu-directions" onclick="toggleDirectionsPanel()" class="menu-item">
+                            <i aria-hidden="true" data-lucide="route" class="w-4 h-4"></i>
+                            <span>Cómo llegar</span>
+                        </button>
                         <button type="button" role="menuitem" tabindex="-1" id="action-refresh" onclick="forceRefresh()" class="menu-item">
                             <i aria-hidden="true" data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
                             <span>Actualizar datos</span>
@@ -127,6 +135,9 @@
                         <button type="button" id="action-locate" onclick="locateUser()" class="quick-action">
                             <i aria-hidden="true" data-lucide="navigation" class="w-5 h-5"></i><span>Mi ubicación</span>
                         </button>
+                        <button type="button" id="action-directions" onclick="toggleDirectionsPanel()" class="quick-action">
+                            <i aria-hidden="true" data-lucide="route" class="w-5 h-5"></i><span>Cómo ir</span>
+                        </button>
                         <button type="button" id="action-nearby" onclick="toggleNearbyPanel()" class="quick-action">
                             <i aria-hidden="true" data-lucide="radar" class="w-5 h-5"></i><span>Cercanos</span>
                         </button>
@@ -183,12 +194,67 @@
                 </div>
                 <div id="alerts-container" class="alerts-list"></div>
             </section>
+
+            <section id="directions-panel" class="sheet-view" role="region" aria-labelledby="directions-title" inert>
+                <div class="view-header" data-peek-end>
+                    <button type="button" id="directions-back" onclick="toggleDirectionsPanel()" class="back-btn" title="Cerrar cómo llegar y volver">
+                        <i aria-hidden="true" data-lucide="arrow-left" class="w-5 h-5"></i><span>Volver</span>
+                    </button>
+                    <h2 id="directions-title" class="view-title">Cómo llegar</h2>
+                    <button type="button" id="directions-clear-all" onclick="resetDirectionsForm()" class="icon-btn" aria-label="Limpiar búsqueda" title="Limpiar búsqueda">
+                        <i aria-hidden="true" data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="directions-controls">
+                    <div class="directions-inputs-box">
+                        <div class="directions-field">
+                            <span class="directions-dot origin-dot" aria-hidden="true"></span>
+                            <div class="directions-input-wrap">
+                                <input type="text" id="directions-origin" class="directions-input" placeholder="Origen (tu ubicación)" autocomplete="off" spellcheck="false" aria-label="Punto de origen">
+                                <button type="button" id="directions-origin-clear" onclick="clearDirectionsField('origin')" class="directions-clear-btn" aria-label="Borrar origen" title="Borrar origen" hidden>
+                                    <i aria-hidden="true" data-lucide="x" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button type="button" id="directions-origin-gps" onclick="setOriginToCurrentLocation()" class="directions-icon-btn" aria-label="Usar mi ubicación" title="Usar mi ubicación">
+                                    <i aria-hidden="true" data-lucide="navigation" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="directions-swap-row">
+                            <button type="button" id="directions-swap-btn" onclick="swapDirectionsLocations()" class="directions-swap-btn" aria-label="Invertir origen y destino" title="Invertir origen y destino">
+                                <i aria-hidden="true" data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <div class="directions-field">
+                            <span class="directions-dot dest-dot" aria-hidden="true"></span>
+                            <div class="directions-input-wrap">
+                                <input type="text" id="directions-dest" class="directions-input" placeholder="¿A dónde querés ir?" autocomplete="off" spellcheck="false" aria-label="Punto de destino">
+                                <button type="button" id="directions-dest-clear" onclick="clearDirectionsField('destination')" class="directions-clear-btn" aria-label="Borrar destino" title="Borrar destino" hidden>
+                                    <i aria-hidden="true" data-lucide="x" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button type="button" id="directions-dest-map" onclick="startDirectionsMapPick('destination')" class="directions-icon-btn" aria-label="Elegir en el mapa" title="Elegir en el mapa">
+                                    <i aria-hidden="true" data-lucide="map-pin" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="directions-suggestions" class="directions-suggestions" hidden></div>
+                </div>
+                <div id="directions-results" class="directions-results">
+                    <p class="directions-empty">Ingresá un destino o tocá el mapa para calcular cómo llegar.</p>
+                </div>
+            </section>
         </div>
     </aside>
 
     <div id="map-hint" class="map-hint" aria-hidden="true" hidden>
         <i data-lucide="zoom-in" class="w-4 h-4"></i><span>Acercá para ver colectivos</span>
     </div>
+
+    <button type="button" id="map-relocate-fab" onclick="startRelocateUser()" class="map-fab map-fab-relocate" aria-label="Reubicar muñequito" title="Reubicar muñequito">
+        <i aria-hidden="true" data-lucide="map-pin" class="w-5 h-5"></i>
+    </button>
 
     <button type="button" id="map-locate-fab" onclick="locateUser()" class="map-fab" aria-label="Ir a mi ubicación" title="Ir a mi ubicación">
         <i aria-hidden="true" data-lucide="navigation" class="w-5 h-5"></i>
@@ -258,6 +324,7 @@
     <script defer src="./js/app/layout.js"></script>
     <script defer src="./js/app/services.js"></script>
     <script defer src="./js/features/nearby.js"></script>
+    <script defer src="./js/features/directions.js"></script>
     <script defer src="./js/features/favorites.js"></script>
     <script defer src="./js/features/search.js"></script>
     <script defer src="./js/app/map-theme.js"></script>

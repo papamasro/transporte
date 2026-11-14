@@ -38,7 +38,8 @@
             nearbyCircle: null,
             nearbyLines: null,
             nearbyStops: null,
-            nearbyVehicles: null
+            nearbyVehicles: null,
+            directionsRoute: null
         };
         let userLayer;
         let activeTypes = { bus: isTransportTypeEnabled('bus'), subte: false, train: false, bike: false };
@@ -113,6 +114,7 @@
             layers.nearbyLines = L.layerGroup().addTo(map);
             layers.nearbyStops = L.layerGroup().addTo(map);
             layers.nearbyVehicles = L.layerGroup().addTo(map);
+            layers.directionsRoute = L.layerGroup().addTo(map);
             userLayer = L.layerGroup().addTo(map);
             setupMarkerZoomTransitionGuard();
 
