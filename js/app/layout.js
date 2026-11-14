@@ -578,5 +578,7 @@ globalThis.setMapStatusNearbyCount = setMapStatusNearbyCount;
 globalThis.setMapStatusUpdated = setMapStatusUpdated;
 globalThis.getLastDataUpdateAt = getLastDataUpdateAt;
 globalThis.remeasureSheet = remeasureSheet;
+globalThis.closeAppMenu = closeAppMenu;
+globalThis.openAppMenu = openAppMenu;
 
 document.addEventListener('DOMContentLoaded', initLayout);
