@@ -263,32 +263,36 @@
     <!-- Modal de confirmación de ubicación -->
     <div id="location-prompt-overlay" class="location-prompt-overlay hidden">
         <div id="location-prompt-modal" class="location-prompt-modal glass dashboard-glass relative" role="dialog" aria-modal="true" aria-labelledby="location-prompt-title" aria-describedby="location-prompt-text">
-            <button type="button" onclick="locationPromptDismiss()" title="Cerrar y continuar" aria-label="Cerrar y continuar sin ubicación" class="absolute top-3 right-3 text-slate-400 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-lg transition-colors">
+            <button type="button" id="location-prompt-close" onclick="locationPromptDismiss()" title="Cerrar y continuar" aria-label="Cerrar y continuar sin ubicación" class="location-prompt-close-btn">
                 <i aria-hidden="true" data-lucide="x" class="w-4 h-4"></i>
             </button>
-            <div class="flex items-center gap-2 mb-3 pr-8">
-                <div class="p-2 bg-indigo-600/20 rounded-xl">
-                    <i aria-hidden="true" data-lucide="map-pin" class="text-indigo-400 w-5 h-5"></i>
+            <div class="location-prompt-header">
+                <div class="location-prompt-icon-badge">
+                    <i aria-hidden="true" data-lucide="map-pin" class="w-5 h-5 text-indigo-400"></i>
                 </div>
-                <h2 id="location-prompt-title" class="text-sm font-black text-white uppercase tracking-tight">Indicá tu ubicación</h2>
+                <div>
+                    <h2 id="location-prompt-title" class="location-prompt-title">Indicá tu ubicación</h2>
+                    <p id="location-prompt-coords" class="location-prompt-coords" hidden></p>
+                </div>
             </div>
-            <p id="location-prompt-text" aria-live="polite" class="text-[11px] text-slate-300 leading-relaxed mb-3">
-                Tocá el mapa para marcar dónde estás, o usá el GPS. Podés arrastrar el marcador para ajustar.
+            <p id="location-prompt-text" aria-live="polite" class="location-prompt-desc">
+                Tocá el mapa para marcar dónde estás o usá el GPS. Podés arrastrar el marcador para afinar la posición.
             </p>
-            <div class="flex flex-col gap-2">
-                <button id="location-prompt-gps" onclick="locationPromptUseGPS()" class="location-prompt-btn location-prompt-btn-secondary" type="button">
-                    <i aria-hidden="true" data-lucide="navigation" class="w-4 h-4"></i>
-                    <span id="location-prompt-gps-label">Reintentar GPS</span>
-                </button>
-                <button id="location-prompt-confirm" onclick="locationPromptConfirm()" class="location-prompt-btn location-prompt-btn-primary" type="button" disabled>
-                    <i aria-hidden="true" data-lucide="check" class="w-4 h-4"></i>
-                    <span>Confirmar ubicación</span>
-                </button>
-                <button id="location-prompt-dismiss" onclick="locationPromptDismiss()" class="text-slate-400 hover:text-slate-200 text-[11px] py-1 transition-colors text-center" type="button">
-                    Omitir por ahora
+            <div class="location-prompt-actions">
+                <div class="location-prompt-btn-row">
+                    <button id="location-prompt-gps" onclick="locationPromptUseGPS()" class="location-prompt-btn location-prompt-btn-secondary" type="button">
+                        <i aria-hidden="true" data-lucide="navigation" class="w-4 h-4"></i>
+                        <span id="location-prompt-gps-label">Usar GPS</span>
+                    </button>
+                    <button id="location-prompt-confirm" onclick="locationPromptConfirm()" class="location-prompt-btn location-prompt-btn-primary" type="button" disabled>
+                        <i aria-hidden="true" data-lucide="check" class="w-4 h-4"></i>
+                        <span>Confirmar</span>
+                    </button>
+                </div>
+                <button id="location-prompt-dismiss" onclick="locationPromptDismiss()" class="location-prompt-btn location-prompt-btn-ghost" type="button">
+                    <span>Omitir por ahora</span>
                 </button>
             </div>
-            <p id="location-prompt-coords" class="text-[11px] text-slate-400 mt-2 text-center hidden"></p>
         </div>
     </div>
 

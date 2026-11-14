@@ -1476,61 +1476,173 @@ html[data-map-theme="dark"] .map-fab-relocate { color: #818cf8; }
 
 .location-prompt-modal {
     width: calc(100vw - var(--sidebar-w) - 32px);
-    max-width: 360px;
+    max-width: 380px;
     box-sizing: border-box;
-    padding: 20px;
+    padding: 20px 22px;
     border-radius: 1.5rem;
     pointer-events: auto;
+    box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.location-prompt-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.location-prompt-close-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.location-prompt-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-right: 32px;
+}
+
+.location-prompt-icon-badge {
+    padding: 10px;
+    background: rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.location-prompt-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.location-prompt-coords {
+    font-size: 11px;
+    color: #818cf8;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.location-prompt-desc {
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+.location-prompt-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.location-prompt-btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
 }
 
 .location-prompt-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 7px;
     width: 100%;
-    min-height: 44px;
-    padding: 10px 14px;
+    min-height: 42px;
+    padding: 8px 12px;
     border-radius: 12px;
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
+    user-select: none;
+    box-sizing: border-box;
 }
 
 .location-prompt-btn-primary {
-    background: var(--accent);
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
     color: white;
-    border-color: var(--accent);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
 }
 
 .location-prompt-btn-primary:hover:not(:disabled) {
-    background: #4338ca;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.5);
+    transform: translateY(-1px);
+}
+
+.location-prompt-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
 }
 
 .location-prompt-btn-primary:disabled {
-    opacity: 0.4;
+    opacity: 0.45;
     cursor: not-allowed;
+    box-shadow: none;
+    background: rgba(79, 70, 229, 0.35);
+    border-color: transparent;
 }
 
 .location-prompt-btn-secondary {
     background: rgba(30, 41, 59, 0.85);
-    color: #e2e8f0;
-    border-color: rgba(100, 116, 139, 0.5);
+    color: #f1f5f9;
+    border-color: rgba(148, 163, 184, 0.25);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .location-prompt-btn-secondary:hover {
-    border-color: rgba(79, 70, 229, 0.6);
-    background: rgba(55, 48, 163, 0.25);
+    background: rgba(51, 65, 85, 0.95);
+    border-color: rgba(148, 163, 184, 0.4);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.location-prompt-btn-secondary:active {
+    transform: translateY(0);
 }
 
 .location-prompt-btn-secondary.is-loading {
-    opacity: 0.6;
+    opacity: 0.7;
     pointer-events: none;
 }
 
-#location-prompt-dismiss { min-height: 40px; font-size: 12.5px; }
+.location-prompt-btn-ghost {
+    background: transparent;
+    color: #94a3b8;
+    border-color: transparent;
+    font-size: 12px;
+    font-weight: 500;
+    min-height: 32px;
+    padding: 4px 8px;
+}
+
+.location-prompt-btn-ghost:hover {
+    color: #f8fafc;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#location-prompt-dismiss { min-height: 34px; font-size: 12px; }
 
 .location-pick-marker {
     background: transparent;

@@ -515,7 +515,8 @@ function _updateLocationPromptCoords(lat, lon) {
     if (Number.isFinite(lat) && Number.isFinite(lon)) {
         _locationPromptPicked = { lat, lon };
         if (coordsEl) {
-            coordsEl.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            coordsEl.textContent = `📍 ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+            coordsEl.hidden = false;
             coordsEl.classList.remove('hidden');
         }
         if (confirmBtn) confirmBtn.disabled = false;
@@ -568,6 +569,13 @@ function _cleanupLocationPrompt() {
     }
     _locationPromptMarker = null;
     _locationPromptPicked = null;
+    const coordsEl = document.getElementById('location-prompt-coords');
+    if (coordsEl) {
+        coordsEl.hidden = true;
+        coordsEl.classList.add('hidden');
+    }
+    const confirmBtn = document.getElementById('location-prompt-confirm');
+    if (confirmBtn) confirmBtn.disabled = true;
     _showLocationPromptOverlay(false);
 }
 
