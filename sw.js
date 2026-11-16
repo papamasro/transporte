@@ -1,6 +1,6 @@
 // Subir CACHE_VERSION en cada deploy que cambie archivos del app shell: el SW nuevo precachea todo
 // de nuevo y borra los caches de versiones anteriores al activarse.
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const CACHE_PREFIX = 'radar-amba-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const NAVIGATION_TIMEOUT_MS = 5000;
@@ -46,6 +46,7 @@ const PRECACHE_PATHS = [
     './js/app/layout.js',
     './js/app/services.js',
     './js/features/nearby.js',
+    './js/features/directions.js',
     './js/features/favorites.js',
     './js/features/search.js',
     './js/app/map-theme.js',
