@@ -66,7 +66,11 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
 5. Recorridos de colectivo: si existe `data/routes/index.json` (un `HEAD` por sesión) se usan los JSON estáticos
    por línea; el `route_id` del tiempo real elige el shape exacto y, si no está, se usa la variante de la misma
    línea y sentido más cercana al vehículo. Sin archivos estáticos se usan `/info-trayecto` y `/buscar-linea`.
-6. `renderMarkers()` dibuja capas según filtros, viewport y tipos activos.
+6. El planificador consulta `/planificar-colectivo` con las coordenadas de origen y destino, busca paradas y
+   viajes en las tablas GTFS de D1 y agrega hasta seis alternativas directas de colectivo. Los tiempos de
+   colectivo son estimados por distancia del recorrido y contemplan 5 min de espera; todavía no incluyen
+   transbordos entre colectivos ni horarios en vivo.
+7. `renderMarkers()` dibuja capas según filtros, viewport y tipos activos.
 
 ## Endpoints usados
 Base: `https://transporte-be.papamasro.workers.dev`
@@ -75,6 +79,7 @@ Base: `https://transporte-be.papamasro.workers.dev`
   - `/colectivos/vehiclePositionsSimple`
   - `/info-trayecto?route_id=...&tip_id=...&direction=...`
   - `/buscar-linea?numero=...`
+  - `/planificar-colectivo?origin_lat=...&origin_lon=...&destination_lat=...&destination_lon=...`
   - `/colectivos/serviceAlerts` (crudo) y `/colectivos/serviceAlertsJson` (decodificado, cache 60 s)
 - Subte
   - `/subtes/forecastGTFS`
@@ -211,6 +216,8 @@ Resumen rápido:
 ## Worker (`worker/`)
 - `cd worker && npm install`, `npm run test:unit` (sin red) y `npm run dev` + `npm run test:local` (ver
   `worker/test/mock-upstream.mjs` para correrlo contra un upstream simulado).
+- La migración `0002_route_planner_indexes.sql` agrega índices para las consultas de paradas cercanas del
+  planificador. Aplicar con `npx wrangler d1 migrations apply transporte-feed --remote` antes del deploy.
 - Secrets: `GCBA_CLIENT_ID` / `GCBA_CLIENT_SECRET` con `wrangler secret put`; en local, `worker/.dev.vars`
   (ignorado por git, ver `.dev.vars.example`).
 - Deploy: `cd worker && npx wrangler deploy`.

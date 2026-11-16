@@ -11,7 +11,7 @@
  * Vars opcionales:
  * - ALLOWED_ORIGINS : orígenes CORS separados por coma ("http://localhost:*" admite cualquier
  *                     puerto). Vacío o "*" = cualquier origen.
- * - GTFS_VERSION    : cambiarlo invalida la caché interna de /buscar-linea e /info-trayecto.
+ * - GTFS_VERSION    : cambiarlo invalida la caché interna de las rutas GTFS.
  * - GCBA_BASE_URL, TRENES_BASE_URL, BICISENDA_URL : overrides de upstream (tests locales).
  *
  * Rutas propias además de los proxies: /colectivos|subtes/serviceAlertsJson (GTFS-RT decodificado),
@@ -52,6 +52,7 @@ const POLICY = {
     staticKV: { ttl: 3600, swr: 86_400, sie: 604_800 },
     bikeRoutes: { ttl: 86_400, swr: 604_800, sie: 2_592_000, timeoutMs: 15_000 },
     gtfs: { ttl: 86_400, swr: 604_800, sie: 604_800, negativeTtl: 3600 },
+    gtfsRoute: { ttl: 600, swr: 1800, sie: 3600, negativeTtl: 120 },
 };
 
 const GCBA_ROUTES = {
@@ -116,6 +117,7 @@ async function route(request, url, env, ctx, cors) {
 
     if (pathname === '/buscar-linea') return handleBuscarLinea(request, url, env, ctx, cors);
     if (pathname === '/info-trayecto') return handleInfoTrayecto(request, url, env, ctx, cors);
+    if (pathname === '/planificar-colectivo') return handlePlanificarColectivo(request, url, env, ctx, cors);
     if (pathname === '/obtener-kv') return handleObtenerKV(request, url, env, ctx, cors);
     if (pathname === '/obtener-bicisenda') return handleBicisenda(request, env, ctx, cors);
     if (pathname === '/colectivos/vehiclePositionsKV') return handleBusSnapshots(request, url, env, ctx, cors);
@@ -875,6 +877,326 @@ async function handleInfoTrayecto(request, url, env, ctx, cors) {
             return { ...tripEntry.entry, storedAt: Date.now(), rowsRead: stats.rowsRead + (tripEntry.entry.rowsRead || 0) };
         },
     });
+}
+
+async function handlePlanificarColectivo(request, url, env, ctx, cors) {
+    const db = getDb(env);
+    if (!db) return errorResponse(500, 'Falta el binding MY_FEED en el worker.', cors);
+
+    const origin = readCoordinates(url.searchParams, 'origin');
+    const destination = readCoordinates(url.searchParams, 'destination');
+    if (!origin || !destination) {
+        return errorResponse(400, 'Faltan coordenadas válidas de origen o destino.', cors);
+    }
+
+    const rounded = point => ({
+        lat: Math.round(point.lat * 100_000) / 100_000,
+        lon: Math.round(point.lon * 100_000) / 100_000,
+    });
+    const originKey = rounded(origin);
+    const destinationKey = rounded(destination);
+    const version = gtfsVersion(env);
+
+    return serveCached(request, ctx, cors, {
+        key: `gtfs:${version}:bus-route:${originKey.lat},${originKey.lon}:${destinationKey.lat},${destinationKey.lon}`,
+        policy: POLICY.gtfsRoute,
+        load: () => loadBusRouteOptions(db, origin, destination),
+    });
+}
+
+function readCoordinates(searchParams, prefix) {
+    const rawLat = searchParams.get(`${prefix}_lat`);
+    const rawLon = searchParams.get(`${prefix}_lon`);
+    if (rawLat === null || rawLon === null || rawLat.trim() === '' || rawLon.trim() === '') return null;
+    const lat = Number(rawLat);
+    const lon = Number(rawLon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    return { lat, lon };
+}
+
+async function loadBusRouteOptions(db, origin, destination) {
+    const stats = { rowsRead: 0 };
+    const [originStops, destinationStops] = await Promise.all([
+        findNearbyBusStops(db, stats, origin),
+        findNearbyBusStops(db, stats, destination),
+    ]);
+
+    if (!originStops.length || !destinationStops.length) {
+        return jsonEntry({ routes: [], estimated: true }, 200, stats);
+    }
+
+    const originStopsById = new Map(originStops.map(stop => [String(stop.stop_id), stop]));
+    const destinationStopsById = new Map(destinationStops.map(stop => [String(stop.stop_id), stop]));
+    const stopIds = originStops.map(stop => String(stop.stop_id));
+    const placeholders = stopIds.map((_, index) => `?${index + 1}`).join(', ');
+    const boardRows = await runD1(stats, db.prepare(`
+        SELECT MIN(st.trip_id) AS trip_id, st.stop_id, st.stop_sequence,
+               t.shape_id, t.trip_headsign, t.direction_id, r.route_short_name
+        FROM stop_times st
+        JOIN trips t ON t.trip_id = st.trip_id
+        JOIN routes r ON r.route_id = t.route_id
+        WHERE st.stop_id IN (${placeholders})
+        GROUP BY t.shape_id, t.trip_headsign, t.direction_id, r.route_short_name, st.stop_id, st.stop_sequence
+        LIMIT 250
+    `).bind(...stopIds));
+
+    const boardings = boardRows.results || [];
+    const tripIds = [...new Set(boardings.map(row => String(row.trip_id)).filter(Boolean))];
+    if (!tripIds.length) return jsonEntry({ routes: [], estimated: true }, 200, stats);
+
+    const tripStops = await loadStopsForTrips(db, stats, tripIds);
+    const preliminary = [];
+    const seenOptions = new Set();
+    const tripStopsById = new Map();
+    for (const stop of tripStops) {
+        const tripId = String(stop.trip_id);
+        if (!tripStopsById.has(tripId)) tripStopsById.set(tripId, []);
+        tripStopsById.get(tripId).push(stop);
+    }
+
+    for (const boarding of boardings) {
+        const boardStop = originStopsById.get(String(boarding.stop_id));
+        const stops = tripStopsById.get(String(boarding.trip_id)) || [];
+        if (!boardStop || !stops.length) continue;
+
+        const alightCandidates = stops.filter(stop =>
+            stop.stop_sequence > boarding.stop_sequence && destinationStopsById.has(String(stop.stop_id)));
+        for (const alightStop of alightCandidates) {
+            const optionKey = [
+                boarding.route_short_name,
+                boarding.trip_headsign || '',
+                boarding.direction_id ?? '',
+                boarding.stop_id,
+                alightStop.stop_id,
+            ].join('|');
+            if (seenOptions.has(optionKey)) continue;
+            seenOptions.add(optionKey);
+
+            const accessDistance = distanceMeters(origin, boardStop);
+            const egressDistance = distanceMeters(alightStop, destination);
+            const estimatedBusDistance = Math.max(
+                distanceMeters(boardStop, alightStop) * 1.3,
+                300
+            );
+            const walkToStopMeters = Math.round(accessDistance * 1.25);
+            const walkFromStopMeters = Math.round(egressDistance * 1.25);
+            const walkToStopMinutes = Math.ceil(walkToStopMeters / 80);
+            const walkFromStopMinutes = Math.ceil(walkFromStopMeters / 80);
+            const busMinutes = Math.max(3, Math.round(estimatedBusDistance / 220));
+
+            preliminary.push({
+                boarding,
+                boardStop,
+                alightStop,
+                tripStops: stops,
+                estimatedBusDistance,
+                walkToStopMeters,
+                walkFromStopMeters,
+                walkToStopMinutes,
+                walkFromStopMinutes,
+                busMinutes,
+                estimatedDuration: walkToStopMinutes + 5 + busMinutes + walkFromStopMinutes,
+            });
+        }
+    }
+
+    preliminary.sort((a, b) => a.estimatedDuration - b.estimatedDuration);
+    const candidates = preliminary.slice(0, 30);
+    const shapes = await loadShapes(db, stats, candidates.map(option => option.boarding.shape_id));
+    const routes = candidates.map(option => buildBusRouteOption(option, shapes, origin, destination));
+    routes.sort((a, b) => a.durationMin - b.durationMin);
+    return jsonEntry({ routes: routes.slice(0, 6), estimated: true }, 200, stats);
+}
+
+async function findNearbyBusStops(db, stats, point) {
+    const radiusMeters = 1000;
+    const latDelta = radiusMeters / 111_320;
+    const lonDelta = radiusMeters / (111_320 * Math.max(Math.cos(point.lat * Math.PI / 180), 0.2));
+    const result = await runD1(stats, db.prepare(`
+        SELECT stop_id, stop_name, stop_lat AS lat, stop_lon AS lon
+        FROM stops
+        WHERE stop_lat BETWEEN ?1 AND ?2
+          AND stop_lon BETWEEN ?3 AND ?4
+    `).bind(point.lat - latDelta, point.lat + latDelta, point.lon - lonDelta, point.lon + lonDelta));
+
+    return (result.results || [])
+        .map(stop => ({
+            ...stop,
+            name: fixMojibake(stop.stop_name),
+            distance: distanceMeters(point, stop),
+        }))
+        .filter(stop => Number.isFinite(stop.distance) && stop.distance <= radiusMeters)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 8);
+}
+
+async function loadStopsForTrips(db, stats, tripIds) {
+    const allStops = [];
+    for (let i = 0; i < tripIds.length; i += D1_MAX_PARAMS) {
+        const chunk = tripIds.slice(i, i + D1_MAX_PARAMS);
+        const placeholders = chunk.map((_, index) => `?${index + 1}`).join(', ');
+        const rows = await withRangeFallback('stopRanges', () => runD1(stats, db.prepare(`
+            SELECT st.trip_id, st.stop_id, st.stop_sequence, st.arrival_time, st.departure_time,
+                   s.stop_name, s.stop_lat AS lat, s.stop_lon AS lon
+            FROM trip_stop_ranges g
+            JOIN stop_times st ON st.rowid BETWEEN g.lo AND g.hi AND st.trip_id = g.trip_id
+            JOIN stops s ON s.stop_id = st.stop_id
+            WHERE g.trip_id IN (${placeholders})
+            ORDER BY st.trip_id, st.stop_sequence
+        `).bind(...chunk)), () => runD1(stats, db.prepare(`
+            SELECT st.trip_id, st.stop_id, st.stop_sequence, st.arrival_time, st.departure_time,
+                   s.stop_name, s.stop_lat AS lat, s.stop_lon AS lon
+            FROM stop_times st
+            JOIN stops s ON s.stop_id = st.stop_id
+            WHERE st.trip_id IN (${placeholders})
+            ORDER BY st.trip_id, st.stop_sequence
+        `).bind(...chunk)));
+        allStops.push(...(rows.results || []).map(stop => ({
+            ...stop,
+            trip_id: String(stop.trip_id),
+            name: fixMojibake(stop.stop_name),
+        })));
+    }
+    return allStops;
+}
+
+function buildBusRouteOption(option, shapes, origin, destination) {
+    const {
+        boarding, boardStop, alightStop, tripStops,
+        estimatedBusDistance, walkToStopMeters, walkFromStopMeters,
+        walkToStopMinutes, walkFromStopMinutes,
+    } = option;
+    const line = String(boarding.route_short_name || '').trim();
+    const headsign = fixMojibake(boarding.trip_headsign || '');
+    const shape = shapes.get(String(boarding.shape_id)) || [];
+    const startIndex = nearestShapePointIndex(shape, boardStop);
+    const endIndex = nearestShapePointIndex(shape, alightStop);
+    const shapeSegment = startIndex >= 0 && endIndex > startIndex
+        ? shape.slice(startIndex, endIndex + 1)
+        : [];
+    const busCoords = [
+        [boardStop.lat, boardStop.lon],
+        ...shapeSegment.map(point => [point.lat, point.lon]),
+        [alightStop.lat, alightStop.lon],
+    ];
+    const busDistance = shapeSegment.length > 1
+        ? pathLengthMeters(busCoords)
+        : Math.round(estimatedBusDistance);
+    const busMinutes = Math.max(3, Math.round(busDistance / 220));
+    const totalDuration = walkToStopMinutes + 5 + busMinutes + walkFromStopMinutes;
+    const boardingName = boardStop.name || boardStop.stop_name || 'Parada de ascenso';
+    const alightingName = alightStop.name || alightStop.stop_name || 'Parada de descenso';
+    const lineName = `Línea ${line}`;
+    const color = '#f59e0b';
+    const stops = tripStops
+        .filter(stop => stop.stop_sequence >= boarding.stop_sequence && stop.stop_sequence <= alightStop.stop_sequence)
+        .map(stop => ({
+            name: stop.name,
+            lat: stop.lat,
+            lon: stop.lon,
+            role: String(stop.stop_id) === String(boarding.stop_id) ? 'board'
+                : String(stop.stop_id) === String(alightStop.stop_id) ? 'alight' : undefined,
+        }));
+    const legs = [];
+    const steps = [];
+    const summaryPills = [];
+
+    if (walkToStopMeters >= 30) {
+        legs.push({
+            mode: 'walk',
+            distanceMeters: walkToStopMeters,
+            durationMin: walkToStopMinutes,
+            fromName: 'Origen',
+            toName: boardingName,
+            coords: [[origin.lat, origin.lon], [boardStop.lat, boardStop.lon]],
+        });
+        steps.push({ icon: '🚶', text: `Caminar ${formatDistance(walkToStopMeters)} (~${walkToStopMinutes} min) hasta ${boardingName}` });
+        summaryPills.push({ icon: '🚶', text: `${walkToStopMinutes} min`, color: '#64748b' });
+    }
+
+    legs.push({
+        mode: 'bus',
+        lineName,
+        color,
+        durationMin: busMinutes,
+        distanceMeters: busDistance,
+        headsign,
+        fromName: boardingName,
+        toName: alightingName,
+        coords: busCoords,
+        stops,
+    });
+    steps.push({
+        icon: '🚌',
+        text: `Tomar ${lineName}${headsign ? ` hacia ${headsign}` : ''} en ${boardingName} y bajar en ${alightingName} (${stops.length - 1} paradas; viaje estimado ~${busMinutes} min y espera estimada 5 min)`,
+    });
+    summaryPills.push({ icon: '🚌', text: lineName, color });
+
+    if (walkFromStopMeters >= 30) {
+        legs.push({
+            mode: 'walk',
+            distanceMeters: walkFromStopMeters,
+            durationMin: walkFromStopMinutes,
+            fromName: alightingName,
+            toName: 'Destino',
+            coords: [[alightStop.lat, alightStop.lon], [destination.lat, destination.lon]],
+        });
+        steps.push({ icon: '🚶', text: `Caminar ${formatDistance(walkFromStopMeters)} (~${walkFromStopMinutes} min) hasta destino` });
+        summaryPills.push({ icon: '🚶', text: `${walkFromStopMinutes} min`, color: '#64748b' });
+    }
+
+    const route = {
+        id: `bus-${boarding.trip_id}-${boarding.stop_id}-${alightStop.stop_id}`,
+        type: 'bus',
+        title: lineName,
+        durationMin: totalDuration,
+        distanceMeters: walkToStopMeters + busDistance + walkFromStopMeters,
+        summaryPills,
+        legs,
+        steps,
+        estimated: true,
+    };
+    return route;
+}
+
+function nearestShapePointIndex(shape, stop) {
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    for (let i = 0; i < shape.length; i += 1) {
+        const currentDistance = distanceMeters(shape[i], stop);
+        if (currentDistance < bestDistance) {
+            bestDistance = currentDistance;
+            bestIndex = i;
+        }
+    }
+    return bestIndex;
+}
+
+function pathLengthMeters(points) {
+    let length = 0;
+    for (let i = 1; i < points.length; i += 1) {
+        length += distanceMeters(
+            { lat: points[i - 1][0], lon: points[i - 1][1] },
+            { lat: points[i][0], lon: points[i][1] },
+        );
+    }
+    return length;
+}
+
+function distanceMeters(a, b) {
+    const radians = value => value * Math.PI / 180;
+    const dLat = radians(b.lat - a.lat);
+    const dLon = radians(b.lon - a.lon);
+    const lat1 = radians(a.lat);
+    const lat2 = radians(b.lat);
+    const h = Math.min(1, Math.max(0,
+        Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+    ));
+    return 6_371_000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function formatDistance(meters) {
+    return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
 async function resolveTrayectoRoute(db, stats, { rawTripId, linea, direction }) {

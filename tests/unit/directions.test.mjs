@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadScripts } from './load-scripts.mjs';
 
-function createDirectionsApp(cacheOverride = {}) {
+function createDirectionsApp(cacheOverride = {}, runtimeGlobals = {}) {
     const mockElements = new Map();
     const getEl = id => {
         if (!mockElements.has(id)) {
@@ -11,6 +11,7 @@ function createDirectionsApp(cacheOverride = {}) {
                 value: '',
                 hidden: false,
                 inert: false,
+                listeners: {},
                 classes: new Set(),
                 classList: {
                     add(c) { this.owner.classes.add(c); },
@@ -23,7 +24,7 @@ function createDirectionsApp(cacheOverride = {}) {
                 },
                 setAttribute() {},
                 removeAttribute() {},
-                addEventListener() {},
+                addEventListener(type, listener) { this.listeners[type] = listener; },
                 querySelectorAll: () => []
             });
             mockElements.get(id).classList.owner = mockElements.get(id);
@@ -39,6 +40,7 @@ function createDirectionsApp(cacheOverride = {}) {
             addEventListener() {},
             querySelectorAll: () => []
         },
+        ...runtimeGlobals,
         cache: {
             subteStatic: {
                 lines: {
@@ -81,6 +83,46 @@ function createDirectionsApp(cacheOverride = {}) {
 
     return { app, mockElements };
 }
+
+test('autocomplete de destino prioriza calles y direcciones de OpenStreetMap', async () => {
+    let requestedUrl = '';
+    const { mockElements } = createDirectionsApp({
+        subteStatic: {
+            lines: { LineaB: { short: 'B', stationIds: ['B1'] } },
+            stations: { B1: { name: 'Corrientes', lat: -34.604, lon: -58.38 } }
+        }
+    }, {
+        fetch: async url => {
+            requestedUrl = String(url);
+            return {
+                ok: true,
+                json: async () => ({
+                    features: [{
+                        properties: {
+                            street: 'Avenida Corrientes',
+                            housenumber: '1234',
+                            city: 'Buenos Aires'
+                        },
+                        geometry: { coordinates: [-58.39, -34.60] }
+                    }]
+                })
+            };
+        },
+        AbortController,
+        setTimeout,
+        clearTimeout
+    });
+
+    mockElements.get('directions-dest').listeners.input({ target: { value: 'Corrientes' } });
+    await new Promise(resolve => setTimeout(resolve, 320));
+
+    const suggestions = mockElements.get('directions-suggestions');
+    assert.match(requestedUrl, /^https:\/\/photon\.komoot\.io\/api\/\?q=Corrientes/);
+    assert.equal(suggestions.hidden, false);
+    assert.match(suggestions.innerHTML, /Avenida Corrientes 1234/);
+    assert.match(suggestions.innerHTML, /Buenos Aires/);
+    assert.ok(suggestions.innerHTML.indexOf('Avenida Corrientes 1234') < suggestions.innerHTML.indexOf('Estación Corrientes'));
+});
 
 test('computeDirectionsRoutes calcula opción caminando', async () => {
     const { app } = createDirectionsApp();
@@ -172,22 +214,38 @@ test('clearDirectionsField y resetDirectionsForm limpian el estado', () => {
     assert.equal(app.directionsState.routes.length, 0);
 });
 
-test('computeDirectionsRoutes encuentra colectivo por fallback si no hay estáticos', async () => {
-    const { app } = createDirectionsApp({
-        bus: [
-            {
-                latitude: -34.6030,
-                longitude: -34.6030, // cerca
-                route_short_name: '60'
-            }
-        ]
+test('computeDirectionsRoutes incorpora colectivos devueltos por el Worker', async () => {
+    let requestedEndpoint = '';
+    const workerRoute = {
+        id: 'bus-60',
+        type: 'bus',
+        title: 'Línea 60',
+        durationMin: 35,
+        distanceMeters: 4200,
+        summaryPills: [{ icon: '🚌', text: 'Línea 60', color: '#f59e0b' }],
+        legs: [
+            { mode: 'walk', fromName: 'Origen', toName: 'Parada A', coords: [[-34.6037, -58.3816], [-34.60, -58.38]] },
+            { mode: 'bus', lineName: 'Línea 60', coords: [[-34.60, -58.38], [-34.56, -58.45]], stops: [] },
+            { mode: 'walk', fromName: 'Parada B', toName: 'Destino', coords: [[-34.56, -58.45], [-34.559, -58.451]] }
+        ],
+        steps: [{ icon: '🚌', text: 'Tomar la Línea 60' }]
+    };
+    const { app } = createDirectionsApp({}, {
+        APP_CONFIG: { PATHS: { busRoutePlan: '/planificar-colectivo' } },
+        fetchAPI: async endpoint => {
+            requestedEndpoint = endpoint;
+            return { success: true, data: { routes: [workerRoute] } };
+        }
     });
-    // Puntos separados más de 1200 metros
+
     const origin = { lat: -34.6037, lon: -58.3816, label: 'Obelisco' };
     const destination = { lat: -34.5590, lon: -58.4510, label: 'Belgrano' };
 
     const routes = await app.computeDirectionsRoutes(origin, destination);
     const busRoute = routes.find(r => r.type === 'bus');
-    assert.ok(busRoute, 'Debe incluir opción de colectivo para distancias > 1200m');
-    assert.equal(busRoute.type, 'bus');
+    assert.ok(requestedEndpoint.startsWith('/planificar-colectivo?origin_lat=-34.6037'));
+    assert.ok(requestedEndpoint.includes('destination_lat=-34.559'));
+    assert.equal(busRoute?.title, 'Línea 60');
+    assert.equal(busRoute?.legs[0].fromName, 'Obelisco');
+    assert.equal(busRoute?.legs[2].toName, 'Belgrano');
 });

@@ -74,6 +74,23 @@ const trayecto = await call('/info-trayecto?trip_id=1277DI0');
 const trayectoJson = trayecto.json();
 check('info-trayecto trip real: 291 puntos / 41 paradas', trayectoJson.shape?.length === 291 && trayectoJson.stops?.length === 41, `rows_read=${trayecto.response.headers.get('x-d1-rows-read')}`);
 check('info-trayecto paradas con name', trayectoJson.stops?.[0]?.name === trayectoJson.stops?.[0]?.stop_name);
+const firstStop = trayectoJson.stops?.[0];
+const lastStop = trayectoJson.stops?.[trayectoJson.stops.length - 1];
+const routeParams = new URLSearchParams({
+    origin_lat: String(firstStop?.lat),
+    origin_lon: String(firstStop?.lon),
+    destination_lat: String(lastStop?.lat),
+    destination_lon: String(lastStop?.lon),
+});
+const busPlan1 = await call(`/planificar-colectivo?${routeParams}`);
+const busPlan2 = await call(`/planificar-colectivo?${routeParams}`);
+const busPlan = busPlan1.json();
+const busOption = busPlan.routes?.find(route => route.type === 'bus');
+check('planificar-colectivo devuelve un recorrido GTFS entre paradas del viaje', busPlan1.response.status === 200
+    && busOption?.legs?.some(leg => leg.mode === 'bus' && leg.stops?.length > 1)
+    && busOption.steps?.some(step => step.text.includes('bajar en')), `rows_read=${busPlan1.response.headers.get('x-d1-rows-read')}`);
+check('planificar-colectivo cachea la misma búsqueda', status(busPlan2) === 'HIT');
+check('planificar-colectivo requiere coordenadas', (await call('/planificar-colectivo')).response.status === 400);
 const byLinea = await call('/info-trayecto?trip_id=54955-1&tip_id=54955-1&linea=60C&direction=0');
 check('info-trayecto tip_id realtime + linea -> fallback por línea', byLinea.response.status === 200 && byLinea.json().info?.route_short_name === '60C', `rows_read=${byLinea.response.headers.get('x-d1-rows-read')}`);
 const notFound1 = await call('/info-trayecto?linea=60');

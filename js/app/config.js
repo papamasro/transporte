@@ -14,6 +14,7 @@
             busVehiclePositionsKV: '/colectivos/vehiclePositionsKV',
             busInfoTrayecto: '/info-trayecto',
             busSearchLine: '/buscar-linea',
+            busRoutePlan: '/planificar-colectivo',
             // Relativo al sitio (no al backend): JSON generados por scripts/build-static-routes.py.
             busStaticRoutes: './data/routes/',
             busServiceAlerts: '/colectivos/serviceAlerts',
@@ -96,6 +97,7 @@
                 busVehiclePositionsKV: { timeoutMs: 35000, retries: 0 },
                 // En frío el worker consulta ~15-20 estaciones SOFSE (4 en paralelo).
                 trainLineArrivals: { timeoutMs: 25000, retries: 0 },
+                busRoutePlan: { timeoutMs: 20000, retries: 0 },
                 busServiceAlertsJson: { retries: 0 },
                 subteServiceAlertsJson: { retries: 0 }
             },

@@ -14,6 +14,7 @@
         mapPickHandler: null,
         searchDebounceTimer: null,
         searchAbortController: null,
+        searchRequestId: 0,
         isRouting: false
     };
 
@@ -224,6 +225,14 @@
     }
 
     function hideSuggestions() {
+        if (directionsState.searchDebounceTimer) {
+            clearTimeout(directionsState.searchDebounceTimer);
+            directionsState.searchDebounceTimer = null;
+        }
+        directionsState.searchAbortController?.abort();
+        directionsState.searchAbortController = null;
+        directionsState.searchRequestId++;
+
         const sugg = document.getElementById('directions-suggestions');
         if (sugg) {
             sugg.hidden = true;
@@ -283,7 +292,11 @@
         directionsState.activeField = field;
         if (directionsState.searchDebounceTimer) {
             clearTimeout(directionsState.searchDebounceTimer);
+            directionsState.searchDebounceTimer = null;
         }
+        directionsState.searchAbortController?.abort();
+        directionsState.searchAbortController = null;
+        const requestId = ++directionsState.searchRequestId;
 
         const trimmed = (query || '').trim();
         if (trimmed.length < 2) {
@@ -293,13 +306,16 @@
 
         directionsState.searchDebounceTimer = setTimeout(async () => {
             const results = await searchLocations(trimmed);
+            if (requestId !== directionsState.searchRequestId || field !== directionsState.activeField) return;
+            directionsState.searchDebounceTimer = null;
+            directionsState.searchAbortController = null;
             renderDirectionsSuggestions(results, field);
         }, 280);
     }
 
     async function searchLocations(query) {
         const norm = typeof normalizeText === 'function' ? normalizeText(query) : query.toLowerCase().trim();
-        const suggestions = [];
+        const stationSuggestions = [];
 
         // 1. Buscar en estaciones de Subte locales
         const subteStations = globalThis.cache?.subteStatic?.stations || {};
@@ -316,7 +332,7 @@
                         break;
                     }
                 }
-                suggestions.push({
+                stationSuggestions.push({
                     type: 'subte',
                     title: `Estación ${station.name}`,
                     subtitle: lineShort ? `Subte Línea ${lineShort}` : 'Subte',
@@ -324,7 +340,7 @@
                     lon: station.lon,
                     icon: '🚇'
                 });
-                if (suggestions.length >= 3) break;
+                if (stationSuggestions.length >= 3) break;
             }
         }
 
@@ -342,7 +358,7 @@
                         break;
                     }
                 }
-                suggestions.push({
+                stationSuggestions.push({
                     type: 'train',
                     title: `Estación ${tStation.name}`,
                     subtitle: trainName,
@@ -350,7 +366,7 @@
                     lon: tStation.lon,
                     icon: '🚆'
                 });
-                if (suggestions.length >= 5) break;
+                if (stationSuggestions.length >= 5) break;
             }
         }
 
@@ -360,6 +376,7 @@
         }
         directionsState.searchAbortController = new AbortController();
         const signal = directionsState.searchAbortController.signal;
+        const addressSuggestions = [];
 
         try {
             const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=-34.6037&lon=-58.3816&limit=6&lang=es`;
@@ -378,18 +395,17 @@
                     // Filtrar aproximado al AMBA (lat entre -35.2 y -34.0, lon entre -59.3 y -57.8)
                     if (lat < -35.2 || lat > -34.0 || lon < -59.3 || lon > -57.8) continue;
 
-                    let title = props.name || props.street || '';
-                    if (props.housenumber) title += ` ${props.housenumber}`;
-                    if (!title && props.city) title = props.city;
+                    const streetAddress = [props.street, props.housenumber].filter(Boolean).join(' ');
+                    const title = streetAddress || props.name || props.city || '';
 
                     const parts = [];
-                    if (props.street && props.name && props.street !== props.name) parts.push(props.street);
+                    if (streetAddress && props.name && props.name !== props.street) parts.push(props.name);
                     if (props.city || props.district) parts.push(props.city || props.district);
                     if (props.state) parts.push(props.state);
                     const subtitle = parts.join(', ') || 'Buenos Aires';
 
                     if (title) {
-                        suggestions.push({
+                        addressSuggestions.push({
                             type: 'address',
                             title,
                             subtitle,
@@ -398,14 +414,16 @@
                             icon: '📍'
                         });
                     }
-                    if (suggestions.length >= 8) break;
+                    if (addressSuggestions.length >= 6) break;
                 }
             }
-        } catch {
-            // Ignorar aborts o fallos de red de Photon
+        } catch (error) {
+            if (error?.name !== 'AbortError') {
+                console.warn('No se pudieron cargar sugerencias de OpenStreetMap:', error);
+            }
         }
 
-        return suggestions;
+        return [...addressSuggestions, ...stationSuggestions].slice(0, 8);
     }
 
     function renderDirectionsSuggestions(suggestions, field) {
@@ -557,7 +575,7 @@
 
         // 6. Opción Colectivo (con recorridos reales del GTFS si están disponibles)
         if (distDirect > 1200) {
-            const busRoutes = await findBusRouteOptions(origin, destination, distDirect);
+            const busRoutes = await findBusRouteOptions(origin, destination);
             busRoutes.forEach(r => routes.push(r));
         }
 
@@ -1235,92 +1253,38 @@
         return results;
     }
 
-    // Punto de entrada para opciones de colectivo:
-    // primero intenta con recorridos GTFS reales, si no hay, usa estimación de fallback.
-    async function findBusRouteOptions(origin, destination, distDirect) {
-        try {
-            const staticRoutes = await findBusRoutesFromStatic(origin, destination);
-            if (staticRoutes.length > 0) return staticRoutes;
-        } catch {
-            // Silenciar errores y caer en el fallback
-        }
-        // Fallback: estimación con colectivos activos en cache
-        const fallback = findBusRouteFallback(origin, destination, distDirect);
-        return fallback ? [fallback] : [];
-    }
-
-    function findBusRouteFallback(origin, destination, distDirect) {
-        // Encontrar si hay colectivos activos en el radio
-        const buses = Array.isArray(globalThis.cache?.bus) ? globalThis.cache.bus : [];
-        let recommendedLine = 'Colectivo';
-        let badgeColor = '#4f46e5';
-
-        if (buses.length > 0) {
-            const nearBus = buses.find(b => {
-                const bLat = Number(b.latitude);
-                const bLon = Number(b.longitude);
-                return Number.isFinite(bLat) && Number.isFinite(bLon) && haversineMeters(origin.lat, origin.lon, bLat, bLon) <= 600;
-            });
-            if (nearBus) {
-                const name = typeof getVehicleShortName === 'function' ? getVehicleShortName(nearBus) : nearBus.route_short_name;
-                if (name) {
-                    recommendedLine = `Línea ${name}`;
-                    if (typeof getColor === 'function') badgeColor = getColor('bus', name);
-                }
+    async function findBusRouteOptions(origin, destination) {
+        const useStaticFallback = async () => {
+            try {
+                return await findBusRoutesFromStatic(origin, destination);
+            } catch (error) {
+                console.warn('No se pudieron cargar recorridos estáticos de colectivos:', error);
+                return [];
             }
+        };
+        if (typeof fetchAPI !== 'function') return useStaticFallback();
+
+        const path = globalThis.APP_CONFIG?.PATHS?.busRoutePlan || '/planificar-colectivo';
+        const endpoint = `${path}?origin_lat=${encodeURIComponent(origin.lat)}&origin_lon=${encodeURIComponent(origin.lon)}`
+            + `&destination_lat=${encodeURIComponent(destination.lat)}&destination_lon=${encodeURIComponent(destination.lon)}`;
+        const response = await fetchAPI(endpoint);
+        if (!response?.success) return useStaticFallback();
+        if (!Array.isArray(response.data?.routes)) {
+            console.warn('El Worker respondió con un formato inválido al planificar colectivos.');
+            return useStaticFallback();
         }
 
-        const walk1Dist = 250;
-        const walk1Min = 3;
-        const busDist = Math.round(distDirect * 1.35);
-        const busMin = Math.max(5, Math.round(busDist / 250)); // ~15 km/h
-        const walk2Dist = 200;
-        const walk2Min = 3;
-        const totalDurationMin = walk1Min + 6 + busMin + walk2Min; // 6 min espera
-
-        return {
-            id: 'bus-urban',
-            type: 'bus',
-            title: recommendedLine,
-            durationMin: totalDurationMin,
-            distanceMeters: walk1Dist + busDist + walk2Dist,
-            summaryPills: [
-                { icon: '🚶', text: `${walk1Min}m`, color: '#64748b' },
-                { icon: '🚌', text: recommendedLine, color: badgeColor },
-                { icon: '🚶', text: `${walk2Min}m`, color: '#64748b' }
-            ],
-            legs: [
-                {
-                    mode: 'walk',
-                    distanceMeters: walk1Dist,
-                    durationMin: walk1Min,
-                    fromName: origin.label || 'Origen',
-                    toName: 'Parada cercana',
-                    coords: [[origin.lat, origin.lon], [origin.lat + 0.001, origin.lon + 0.001]]
-                },
-                {
-                    mode: 'bus',
-                    lineName: recommendedLine,
-                    color: badgeColor,
-                    durationMin: busMin,
-                    distanceMeters: busDist,
-                    coords: [[origin.lat + 0.001, origin.lon + 0.001], [destination.lat - 0.001, destination.lon - 0.001]]
-                },
-                {
-                    mode: 'walk',
-                    distanceMeters: walk2Dist,
-                    durationMin: walk2Min,
-                    fromName: 'Parada de descenso',
-                    toName: destination.label || 'Destino',
-                    coords: [[destination.lat - 0.001, destination.lon - 0.001], [destination.lat, destination.lon]]
-                }
-            ],
-            steps: [
-                { icon: '🚶', text: `Caminar ${formatDistanceText(walk1Dist)} a la parada de colectivo más cercana` },
-                { icon: '🚌', text: `Tomar ${recommendedLine} hacia el destino (~${busMin} min)` },
-                { icon: '🚶', text: `Descender y caminar ${formatDistanceText(walk2Dist)} hasta destino` }
-            ]
-        };
+        return response.data.routes
+            .filter(route => route?.type === 'bus' && Number.isFinite(route.durationMin) &&
+                Array.isArray(route.legs) && Array.isArray(route.steps) && Array.isArray(route.summaryPills))
+            .map(route => {
+                const normalized = { ...route, legs: route.legs.map(leg => ({ ...leg })) };
+                const firstWalk = normalized.legs.find(leg => leg.mode === 'walk');
+                const lastWalk = [...normalized.legs].reverse().find(leg => leg.mode === 'walk');
+                if (firstWalk) firstWalk.fromName = origin.label || 'Origen';
+                if (lastWalk) lastWalk.toName = destination.label || 'Destino';
+                return normalized;
+            });
     }
 
     function formatDistanceText(meters) {
