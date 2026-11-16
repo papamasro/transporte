@@ -118,6 +118,7 @@ test('autocomplete de destino prioriza calles y direcciones de OpenStreetMap', a
 
     const suggestions = mockElements.get('directions-suggestions');
     assert.match(requestedUrl, /^https:\/\/photon\.komoot\.io\/api\/\?q=Corrientes/);
+    assert.match(requestedUrl, /&lang=default$/);
     assert.equal(suggestions.hidden, false);
     assert.match(suggestions.innerHTML, /Avenida Corrientes 1234/);
     assert.match(suggestions.innerHTML, /Buenos Aires/);

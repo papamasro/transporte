@@ -379,7 +379,7 @@
         const addressSuggestions = [];
 
         try {
-            const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=-34.6037&lon=-58.3816&limit=6&lang=es`;
+            const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=-34.6037&lon=-58.3816&limit=6&lang=default`;
             const resp = await fetch(photonUrl, { signal });
             if (resp.ok) {
                 const data = await resp.json();
