@@ -97,7 +97,7 @@
                             <span>Privacidad y estadísticas</span>
                         </button>
                     </div>
-                </div>
+                </section>
             </header>
             <!-- Avisos de error por fuente y de conexión: visibles también con la hoja contraída. -->
             <div id="status-banners" class="status-banners" hidden></div>
@@ -105,45 +105,83 @@
 
         <div id="sheet-body" class="sheet-body">
             <section id="view-main" class="sheet-view is-open" aria-label="Capas y búsqueda">
-                <div class="type-toggles" role="group" aria-label="Tipo de transporte" data-peek-end>
-                    <button type="button" onclick="toggleType('bus')" id="t-bus" aria-pressed="true" class="btn-transport type-toggle active">
-                        <i aria-hidden="true" data-lucide="bus" class="w-5 h-5"></i><span>Colectivo</span>
-                    </button>
-                    <button type="button" onclick="toggleType('subte')" id="t-subte" aria-pressed="false" class="btn-transport type-toggle">
-                        <i aria-hidden="true" data-lucide="train-front" class="w-5 h-5"></i><span>Subte</span>
-                    </button>
-                    <button type="button" onclick="toggleType('train')" id="t-train" aria-pressed="false" class="btn-transport type-toggle">
-                        <i aria-hidden="true" data-lucide="train-track" class="w-5 h-5"></i><span>Tren</span>
-                    </button>
-                    <button type="button" onclick="toggleType('bike')" id="t-bike" aria-pressed="false" class="btn-transport type-toggle">
-                        <i aria-hidden="true" data-lucide="bike" class="w-5 h-5"></i><span>Ecobici</span>
-                    </button>
-                </div>
+                <section class="transport-filter" aria-labelledby="transport-filter-title">
+                    <div class="panel-section-heading">
+                        <h2 id="transport-filter-title" class="panel-section-title">Ver en el mapa</h2>
+                        <p class="panel-section-description">Elegí qué transportes querés explorar</p>
+                    </div>
+                    <div class="type-toggles" role="group" aria-label="Tipo de transporte" data-peek-end>
+                        <button type="button" onclick="toggleType('bus')" id="t-bus" aria-pressed="true" class="btn-transport type-toggle active">
+                            <i aria-hidden="true" data-lucide="bus" class="w-5 h-5"></i><span>Colectivos</span>
+                        </button>
+                        <button type="button" onclick="toggleType('subte')" id="t-subte" aria-pressed="false" class="btn-transport type-toggle">
+                            <i aria-hidden="true" data-lucide="train-front" class="w-5 h-5"></i><span>Subte</span>
+                        </button>
+                        <button type="button" onclick="toggleType('train')" id="t-train" aria-pressed="false" class="btn-transport type-toggle">
+                            <i aria-hidden="true" data-lucide="train-track" class="w-5 h-5"></i><span>Trenes</span>
+                        </button>
+                        <button type="button" onclick="toggleType('bike')" id="t-bike" aria-pressed="false" class="btn-transport type-toggle">
+                            <i aria-hidden="true" data-lucide="bike" class="w-5 h-5"></i><span>Ecobici</span>
+                        </button>
+                    </div>
+                </section>
 
                 <div id="panel-content" class="panel-content">
-                    <div class="search-wrap">
-                        <i aria-hidden="true" data-lucide="search" class="search-icon w-4 h-4"></i>
-                        <input type="search" id="search" class="search-input" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results" aria-label="Buscar línea, estación o tren" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar línea, estación o tren">
-                        <button type="button" id="search-clear" class="search-clear" aria-label="Borrar búsqueda" title="Borrar búsqueda" hidden>
-                            <i aria-hidden="true" data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                        <div id="search-results" class="search-results" role="listbox" aria-label="Sugerencias de búsqueda" hidden></div>
-                        <p id="search-live" class="sr-only" aria-live="polite"></p>
-                    </div>
+                    <section class="panel-section" aria-labelledby="search-section-title">
+                        <div class="panel-section-heading">
+                            <h2 id="search-section-title" class="panel-section-title">Buscar transporte</h2>
+                            <p class="panel-section-description">Líneas, estaciones y trenes</p>
+                        </div>
+                        <div class="search-wrap">
+                            <i aria-hidden="true" data-lucide="search" class="search-icon w-4 h-4"></i>
+                            <input type="search" id="search" class="search-input" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results" aria-label="Buscar línea, estación o tren" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Ej.: línea 60 o estación Lacroze">
+                            <button type="button" id="search-clear" class="search-clear" aria-label="Borrar búsqueda" title="Borrar búsqueda" hidden>
+                                <i aria-hidden="true" data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                            <div id="search-results" class="search-results" role="listbox" aria-label="Sugerencias de búsqueda" hidden></div>
+                            <p id="search-live" class="sr-only" aria-live="polite"></p>
+                        </div>
+                    </section>
 
-                    <div class="quick-actions" role="group" aria-label="Accesos rápidos">
-                        <button type="button" id="action-locate" onclick="locateUser()" class="quick-action">
-                            <i aria-hidden="true" data-lucide="navigation" class="w-5 h-5"></i><span>Mi ubicación</span>
-                        </button>
-                        <button type="button" id="action-directions" onclick="toggleDirectionsPanel()" class="quick-action">
-                            <i aria-hidden="true" data-lucide="route" class="w-5 h-5"></i><span>Cómo ir</span>
-                        </button>
-                        <button type="button" id="action-nearby" onclick="toggleNearbyPanel()" class="quick-action">
-                            <i aria-hidden="true" data-lucide="radar" class="w-5 h-5"></i><span>Cercanos</span>
-                        </button>
-                        <button type="button" id="action-alerts" onclick="toggleAlertPanel()" class="quick-action">
-                            <i aria-hidden="true" data-lucide="bell" class="w-5 h-5"></i><span>Alertas</span>
-                        </button>
+                    <button type="button" id="action-directions" onclick="toggleDirectionsPanel()" class="directions-cta">
+                        <span class="directions-cta-icon" aria-hidden="true"><i data-lucide="route" class="w-5 h-5"></i></span>
+                        <span class="directions-cta-copy">
+                            <span class="directions-cta-title">¿Cómo llegar?</span>
+                            <span class="directions-cta-description">Compará opciones para tu viaje</span>
+                        </span>
+                        <i aria-hidden="true" data-lucide="arrow-right" class="directions-cta-arrow w-4 h-4"></i>
+                    </button>
+
+                    <section class="panel-section quick-links-section" aria-labelledby="quick-actions-title">
+                        <div class="panel-section-heading">
+                            <h2 id="quick-actions-title" class="panel-section-title">Accesos rápidos</h2>
+                        </div>
+                        <div class="quick-actions" role="group" aria-label="Accesos rápidos">
+                            <button type="button" id="action-locate" onclick="locateUser()" class="quick-action">
+                                <i aria-hidden="true" data-lucide="navigation" class="w-5 h-5"></i>
+                                <span class="quick-action-copy">
+                                    <span class="quick-action-title">Mi ubicación</span>
+                                    <span class="quick-action-description">Centrar el mapa en vos</span>
+                                </span>
+                                <i aria-hidden="true" data-lucide="chevron-right" class="quick-action-chevron w-4 h-4"></i>
+                            </button>
+                            <button type="button" id="action-nearby" onclick="toggleNearbyPanel()" class="quick-action">
+                                <i aria-hidden="true" data-lucide="radar" class="w-5 h-5"></i>
+                                <span class="quick-action-copy">
+                                    <span class="quick-action-title">Cercanos</span>
+                                    <span class="quick-action-description">Paradas, estaciones y bicis</span>
+                                </span>
+                                <i aria-hidden="true" data-lucide="chevron-right" class="quick-action-chevron w-4 h-4"></i>
+                            </button>
+                            <button type="button" id="action-alerts" onclick="toggleAlertPanel()" class="quick-action">
+                                <i aria-hidden="true" data-lucide="bell" class="w-5 h-5"></i>
+                                <span class="quick-action-copy">
+                                    <span class="quick-action-title">Alertas</span>
+                                    <span class="quick-action-description">Demoras y cambios de servicio</span>
+                                </span>
+                                <i aria-hidden="true" data-lucide="chevron-right" class="quick-action-chevron w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <section id="favorites-slot" class="favorites-slot" aria-labelledby="favorites-title" hidden>
@@ -151,7 +189,7 @@
                             <h2 id="favorites-title" class="section-label" tabindex="-1">Favoritos</h2>
                             <button type="button" id="favorites-edit" class="favorites-edit" aria-pressed="false" hidden>Editar</button>
                         </div>
-                        <p id="favorites-empty" class="favorites-empty">Tocá ☆ en una línea o estación para guardarla</p>
+                        <p id="favorites-empty" class="favorites-empty">Guardá líneas y estaciones con ☆ para encontrarlas rápido.</p>
                         <ul id="favorites-list" class="favorites-list" hidden></ul>
                     </section>
                 </div>

@@ -305,11 +305,11 @@
         }
 
         directionsState.searchDebounceTimer = setTimeout(async () => {
-            const results = await searchLocations(trimmed);
+            const result = await searchLocations(trimmed);
             if (requestId !== directionsState.searchRequestId || field !== directionsState.activeField) return;
             directionsState.searchDebounceTimer = null;
             directionsState.searchAbortController = null;
-            renderDirectionsSuggestions(results, field);
+            renderDirectionsSuggestions(result.suggestions, field, trimmed, result.error);
         }, 400);
     }
 
@@ -377,6 +377,7 @@
         directionsState.searchAbortController = new AbortController();
         const signal = directionsState.searchAbortController.signal;
         const addressSuggestions = [];
+        let lookupError = false;
         const requestedHouseNumber = query.match(/(?:^|\s)(\d+[a-z]?)\s*$/i)?.[1]?.toLowerCase() || '';
 
         try {
@@ -398,13 +399,17 @@
                     if (lat < -35.2 || lat > -34.0 || lon < -59.3 || lon > -57.8) continue;
 
                     const streetAddress = [props.street, props.housenumber].filter(Boolean).join(' ');
-                    const title = streetAddress || props.name || props.city || '';
+                    const featureName = String(props.name || '');
+                    const isIntersection = /\s(?:y|&|\/|con)\s/i.test(query) &&
+                        /\s(?:y|&|\/|con)\s/i.test(featureName);
+                    const title = (isIntersection && featureName) || streetAddress || featureName || props.city || '';
                     const hasRequestedHouseNumber = !!requestedHouseNumber &&
                         String(props.housenumber || '').toLowerCase() === requestedHouseNumber;
 
                     const parts = [];
-                    if (streetAddress && props.name && props.name !== props.street) parts.push(props.name);
-                    if (props.city || props.district) parts.push(props.city || props.district);
+                    if (isIntersection && streetAddress) parts.push(streetAddress);
+                    else if (streetAddress && featureName && featureName !== props.street) parts.push(featureName);
+                    if (props.city || props.district || props.county) parts.push(props.city || props.district || props.county);
                     if (props.state) parts.push(props.state);
                     const subtitle = parts.join(', ') || 'Buenos Aires';
 
@@ -426,29 +431,39 @@
                     delete match.hasRequestedHouseNumber;
                     addressSuggestions.push(match);
                 }
+            } else {
+                lookupError = true;
             }
         } catch (error) {
             if (error?.name !== 'AbortError') {
                 console.warn('No se pudieron cargar sugerencias de OpenStreetMap:', error);
+                lookupError = true;
             }
         }
 
-        return [...addressSuggestions, ...stationSuggestions].slice(0, 8);
+        return {
+            suggestions: [...addressSuggestions, ...stationSuggestions].slice(0, 8),
+            error: lookupError
+        };
     }
 
-    function renderDirectionsSuggestions(suggestions, field) {
+    function renderDirectionsSuggestions(suggestions, field, query, lookupError) {
         const container = document.getElementById('directions-suggestions');
         if (!container) return;
 
         if (!suggestions || suggestions.length === 0) {
-            container.hidden = true;
-            container.innerHTML = '';
+            const safeHtml = typeof escapeHtml === 'function' ? escapeHtml : str => String(str || '');
+            const message = lookupError
+                ? 'No se pudo consultar OpenStreetMap. Revisá tu conexión e intentá de nuevo.'
+                : `No encontramos “${safeHtml(query)}” en el AMBA. Probá con una esquina o elegí el punto en el mapa.`;
+            container.innerHTML = `<p class="directions-suggestions-empty" role="status">${message}</p>`;
+            container.hidden = false;
             return;
         }
 
         const safeHtml = typeof escapeHtml === 'function' ? escapeHtml : str => String(str || '');
 
-        container.innerHTML = suggestions.map((item, index) => `
+        const suggestionHtml = suggestions.map((item, index) => `
             <button type="button" class="directions-suggestion-item" data-index="${index}">
                 <span class="suggestion-icon" aria-hidden="true">${safeHtml(item.icon || '📍')}</span>
                 <span class="suggestion-text">
@@ -457,6 +472,10 @@
                 </span>
             </button>
         `).join('');
+        const lookupNotice = lookupError
+            ? '<p class="directions-suggestions-empty" role="status">No se pudieron buscar direcciones en OpenStreetMap.</p>'
+            : '';
+        container.innerHTML = suggestionHtml + lookupNotice;
 
         container.hidden = false;
 
@@ -589,16 +608,18 @@
             busRoutes.forEach(r => routes.push(r));
         }
 
-        // Ordenar por duración ascendente (la más rápida primero)
-        routes.sort((a, b) => a.durationMin - b.durationMin);
+        routes.sort((a, b) =>
+            getRouteTransferCount(a) - getRouteTransferCount(b) || a.durationMin - b.durationMin);
 
         // Asignar etiquetas destacadas
         if (routes.length > 0) {
-            routes[0].tag = 'Más rápido';
-            routes[0].tagClass = 'card-tag-fastest';
+            const fastestRoute = routes.reduce((fastest, route) =>
+                route.durationMin < fastest.durationMin ? route : fastest);
+            fastestRoute.tag = 'Más rápido';
+            fastestRoute.tagClass = 'card-tag-fastest';
         }
         for (let i = 1; i < routes.length; i++) {
-            if (routes[i].type !== 'walk' && !routes[i].legs.some(l => l.isTransfer)) {
+            if (routes[i].type !== 'walk' && getRouteTransferCount(routes[i]) === 0) {
                 routes[i].tag = 'Directo';
                 routes[i].tagClass = 'card-tag-direct';
                 break;
@@ -606,6 +627,11 @@
         }
 
         return routes;
+    }
+
+    function getRouteTransferCount(route) {
+        const transitLegCount = route.legs.filter(leg => leg.mode !== 'walk').length;
+        return Math.max(0, transitLegCount - 1);
     }
 
     function findSubteDirectRoutes(origin, destination) {

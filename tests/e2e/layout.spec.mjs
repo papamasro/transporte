@@ -159,6 +159,23 @@ test.describe('barra lateral (desktop)', () => {
     });
 });
 
+test.describe('navegación principal', () => {
+    test('separa filtros, búsqueda y herramientas; abre el planificador', async ({ page }) => {
+        await bootApp(page);
+        await openPanel(page);
+
+        await expect(page.getByRole('heading', { name: 'Ver en el mapa' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Buscar transporte' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Accesos rápidos' })).toBeVisible();
+        await expect(page.locator('#action-locate')).toContainText('Centrar el mapa en vos');
+        await expect(page.locator('#action-nearby')).toContainText('Paradas, estaciones y bicis');
+        await expect(page.locator('#action-alerts')).toContainText('Demoras y cambios de servicio');
+
+        await page.locator('#action-directions').click();
+        await expect(page.locator('#directions-panel')).toHaveClass(/is-open/);
+    });
+});
+
 test.describe('menú "Más opciones"', () => {
     test('accesible con teclado: flechas, Escape y foco de vuelta', async ({ page }) => {
         await bootApp(page);

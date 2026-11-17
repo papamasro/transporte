@@ -131,6 +131,75 @@ test('autocomplete de destino prioriza la altura exacta de direcciones OpenStree
     assert.ok(suggestions.innerHTML.indexOf('Avenida Corrientes 1234') < suggestions.innerHTML.indexOf('Avenida Corrientes</span>'));
 });
 
+test('autocomplete muestra una intersección como nombre principal', async () => {
+    const { mockElements } = createDirectionsApp({}, {
+        fetch: async () => ({
+            ok: true,
+            json: async () => ({
+                features: [{
+                    properties: {
+                        name: 'Lacroze y Conde',
+                        street: 'Avenida Federico Lacroze',
+                        county: 'Distrito Audiovisual'
+                    },
+                    geometry: { coordinates: [-58.4494, -34.5782] }
+                }]
+            })
+        }),
+        AbortController,
+        setTimeout,
+        clearTimeout
+    });
+
+    mockElements.get('directions-dest').listeners.input({ target: { value: 'Lacroze y Conde' } });
+    await new Promise(resolve => setTimeout(resolve, 450));
+
+    const html = mockElements.get('directions-suggestions').innerHTML;
+    assert.match(html, /<span class="suggestion-title">Lacroze y Conde<\/span>/);
+    assert.match(html, /Avenida Federico Lacroze, Distrito Audiovisual/);
+});
+
+test('autocomplete explica cuando la dirección no tiene resultados en AMBA', async () => {
+    const { mockElements } = createDirectionsApp({}, {
+        fetch: async () => ({
+            ok: true,
+            json: async () => ({
+                features: [{
+                    properties: { street: 'Vera Mujíca', housenumber: '1786', city: 'Rosario' },
+                    geometry: { coordinates: [-60.6699, -32.9530] }
+                }]
+            })
+        }),
+        AbortController,
+        setTimeout,
+        clearTimeout
+    });
+
+    mockElements.get('directions-dest').listeners.input({ target: { value: 'vera 1786' } });
+    await new Promise(resolve => setTimeout(resolve, 450));
+
+    const suggestions = mockElements.get('directions-suggestions');
+    assert.equal(suggestions.hidden, false);
+    assert.match(suggestions.innerHTML, /No encontramos “vera 1786” en el AMBA/);
+    assert.match(suggestions.innerHTML, /elegí el punto en el mapa/);
+});
+
+test('autocomplete informa si no puede consultar OpenStreetMap', async () => {
+    const { mockElements } = createDirectionsApp({}, {
+        fetch: async () => { throw new Error('sin conexión'); },
+        AbortController,
+        setTimeout,
+        clearTimeout
+    });
+
+    mockElements.get('directions-dest').listeners.input({ target: { value: 'Corrientes 1234' } });
+    await new Promise(resolve => setTimeout(resolve, 450));
+
+    const suggestions = mockElements.get('directions-suggestions');
+    assert.equal(suggestions.hidden, false);
+    assert.match(suggestions.innerHTML, /No se pudo consultar OpenStreetMap/);
+});
+
 test('computeDirectionsRoutes calcula opción caminando', async () => {
     const { app } = createDirectionsApp();
     const origin = { lat: -34.6037, lon: -58.3816, label: 'Obelisco' };
@@ -255,4 +324,53 @@ test('computeDirectionsRoutes incorpora colectivos devueltos por el Worker', asy
     assert.equal(busRoute?.title, 'Línea 60');
     assert.equal(busRoute?.legs[0].fromName, 'Obelisco');
     assert.equal(busRoute?.legs[2].toName, 'Belgrano');
+});
+
+test('computeDirectionsRoutes prioriza un colectivo directo sobre una combinación', async () => {
+    const directRoute = {
+        id: 'bus-19',
+        type: 'bus',
+        title: 'Línea 19',
+        durationMin: 50,
+        distanceMeters: 8000,
+        summaryPills: [{ icon: '🚌', text: 'Línea 19', color: '#f59e0b' }],
+        legs: [
+            { mode: 'walk' },
+            { mode: 'bus', lineName: 'Línea 19' },
+            { mode: 'walk' }
+        ],
+        steps: [{ icon: '🚌', text: 'Tomar la Línea 19' }]
+    };
+    const transferRoute = {
+        id: 'bus-19-42',
+        type: 'bus',
+        title: 'Líneas 19 y 42',
+        durationMin: 35,
+        distanceMeters: 7000,
+        summaryPills: [{ icon: '🚌', text: 'Líneas 19 y 42', color: '#f59e0b' }],
+        legs: [
+            { mode: 'walk' },
+            { mode: 'bus', lineName: 'Línea 19' },
+            { mode: 'bus', lineName: 'Línea 42' },
+            { mode: 'walk' }
+        ],
+        steps: [{ icon: '🚌', text: 'Combinar las líneas 19 y 42' }]
+    };
+    const { app } = createDirectionsApp({}, {
+        APP_CONFIG: { PATHS: { busRoutePlan: '/planificar-colectivo' } },
+        fetchAPI: async () => ({
+            success: true,
+            data: { routes: [transferRoute, directRoute] }
+        })
+    });
+
+    const routes = await app.computeDirectionsRoutes(
+        { lat: -34.6037, lon: -58.3816, label: 'Origen' },
+        { lat: -34.5590, lon: -58.4510, label: 'Destino' }
+    );
+    const busRoutes = routes.filter(route => route.type === 'bus');
+
+    assert.equal(busRoutes[0].title, 'Línea 19');
+    assert.equal(busRoutes[1].title, 'Líneas 19 y 42');
+    assert.equal(busRoutes[1].tag, 'Más rápido');
 });
