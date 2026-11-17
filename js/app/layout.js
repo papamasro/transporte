@@ -337,11 +337,31 @@ function isAppMenuOpen() {
     return !!menu && !menu.hidden;
 }
 
+function constrainAppMenuToViewport(menu, button) {
+    const sheet = document.getElementById('app-sheet');
+    const mobile = globalThis.matchMedia?.('(max-width: 767px)').matches;
+    const opensUp = mobile && sheet?.dataset.sheetState !== 'full';
+    const buttonRect = button.getBoundingClientRect();
+    const viewportHeight = globalThis.visualViewport?.height || globalThis.innerHeight;
+    const availableHeight = opensUp
+        ? buttonRect.top - 8
+        : viewportHeight - buttonRect.bottom - 8;
+
+    if (availableHeight < menu.scrollHeight) {
+        menu.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+        menu.style.overflowY = 'auto';
+    } else {
+        menu.style.removeProperty('max-height');
+        menu.style.removeProperty('overflow-y');
+    }
+}
+
 function openAppMenu(focusIndex = 0) {
     const menu = document.getElementById('app-menu');
     const button = document.getElementById('app-menu-btn');
     if (!menu || !button) return;
     menu.hidden = false;
+    constrainAppMenuToViewport(menu, button);
     button.setAttribute('aria-expanded', 'true');
     const items = getAppMenuItems();
     items.at(focusIndex)?.focus({ preventScroll: true });
@@ -353,6 +373,8 @@ function closeAppMenu(options = {}) {
     if (!menu || menu.hidden) return;
     const focusInside = menu.contains(document.activeElement);
     menu.hidden = true;
+    menu.style.removeProperty('max-height');
+    menu.style.removeProperty('overflow-y');
     button?.setAttribute('aria-expanded', 'false');
     if (options.returnFocus || (focusInside && options.returnFocus !== false)) button?.focus({ preventScroll: true });
 }

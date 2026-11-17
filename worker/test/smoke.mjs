@@ -90,6 +90,13 @@ check('planificar-colectivo devuelve un recorrido GTFS entre paradas del viaje',
     && busOption?.legs?.some(leg => leg.mode === 'bus' && leg.stops?.length > 1)
     && busOption.steps?.some(step => step.text.includes('bajar en')), `rows_read=${busPlan1.response.headers.get('x-d1-rows-read')}`);
 check('planificar-colectivo cachea la misma búsqueda', status(busPlan2) === 'HIT');
+const transferPlan = await call('/planificar-colectivo?origin_lat=-34.5705656&origin_lon=-58.4511336&destination_lat=-34.6037&destination_lon=-58.3816');
+const transferRoutes = transferPlan.json().routes || [];
+check('planificar-colectivo encuentra una combinación de colectivos desde Moldes 1101 al Obelisco',
+    transferPlan.response.status === 200 && transferRoutes.some(route =>
+        route.legs.filter(leg => leg.mode === 'bus').length === 2
+        && route.steps.some(step => step.text.includes('combinar'))),
+    `rows_read=${transferPlan.response.headers.get('x-d1-rows-read')}`);
 check('planificar-colectivo requiere coordenadas', (await call('/planificar-colectivo')).response.status === 400);
 const byLinea = await call('/info-trayecto?trip_id=54955-1&tip_id=54955-1&linea=60C&direction=0');
 check('info-trayecto tip_id realtime + linea -> fallback por línea', byLinea.response.status === 200 && byLinea.json().info?.route_short_name === '60C', `rows_read=${byLinea.response.headers.get('x-d1-rows-read')}`);

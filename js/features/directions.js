@@ -310,7 +310,7 @@
             directionsState.searchDebounceTimer = null;
             directionsState.searchAbortController = null;
             renderDirectionsSuggestions(results, field);
-        }, 280);
+        }, 400);
     }
 
     async function searchLocations(query) {
@@ -377,13 +377,15 @@
         directionsState.searchAbortController = new AbortController();
         const signal = directionsState.searchAbortController.signal;
         const addressSuggestions = [];
+        const requestedHouseNumber = query.match(/(?:^|\s)(\d+[a-z]?)\s*$/i)?.[1]?.toLowerCase() || '';
 
         try {
-            const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=-34.6037&lon=-58.3816&limit=6&lang=default`;
+            const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=-34.6037&lon=-58.3816&limit=10&lang=default`;
             const resp = await fetch(photonUrl, { signal });
             if (resp.ok) {
                 const data = await resp.json();
                 const features = Array.isArray(data?.features) ? data.features : [];
+                const matches = [];
                 for (const feat of features) {
                     const props = feat.properties || {};
                     const coords = feat.geometry?.coordinates;
@@ -397,6 +399,8 @@
 
                     const streetAddress = [props.street, props.housenumber].filter(Boolean).join(' ');
                     const title = streetAddress || props.name || props.city || '';
+                    const hasRequestedHouseNumber = !!requestedHouseNumber &&
+                        String(props.housenumber || '').toLowerCase() === requestedHouseNumber;
 
                     const parts = [];
                     if (streetAddress && props.name && props.name !== props.street) parts.push(props.name);
@@ -405,16 +409,22 @@
                     const subtitle = parts.join(', ') || 'Buenos Aires';
 
                     if (title) {
-                        addressSuggestions.push({
+                        matches.push({
                             type: 'address',
                             title,
                             subtitle,
                             lat,
                             lon,
-                            icon: '📍'
+                            icon: '📍',
+                            hasRequestedHouseNumber
                         });
                     }
-                    if (addressSuggestions.length >= 6) break;
+                }
+
+                matches.sort((a, b) => Number(b.hasRequestedHouseNumber) - Number(a.hasRequestedHouseNumber));
+                for (const match of matches.slice(0, 6)) {
+                    delete match.hasRequestedHouseNumber;
+                    addressSuggestions.push(match);
                 }
             }
         } catch (error) {

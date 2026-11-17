@@ -67,9 +67,9 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
    por línea; el `route_id` del tiempo real elige el shape exacto y, si no está, se usa la variante de la misma
    línea y sentido más cercana al vehículo. Sin archivos estáticos se usan `/info-trayecto` y `/buscar-linea`.
 6. El planificador consulta `/planificar-colectivo` con las coordenadas de origen y destino, busca paradas y
-   viajes en las tablas GTFS de D1 y agrega hasta seis alternativas directas de colectivo. Los tiempos de
-   colectivo son estimados por distancia del recorrido y contemplan 5 min de espera; todavía no incluyen
-   transbordos entre colectivos ni horarios en vivo.
+   viajes en las tablas GTFS de D1 y agrega hasta seis alternativas de colectivo, directas o con un transbordo.
+   Los tiempos son estimados por distancia y contemplan 5 min de espera por colectivo; no usan horarios ni
+   arribos en vivo.
 7. `renderMarkers()` dibuja capas según filtros, viewport y tipos activos.
 
 ## Endpoints usados

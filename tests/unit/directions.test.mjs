@@ -84,7 +84,7 @@ function createDirectionsApp(cacheOverride = {}, runtimeGlobals = {}) {
     return { app, mockElements };
 }
 
-test('autocomplete de destino prioriza calles y direcciones de OpenStreetMap', async () => {
+test('autocomplete de destino prioriza la altura exacta de direcciones OpenStreetMap', async () => {
     let requestedUrl = '';
     const { mockElements } = createDirectionsApp({
         subteStatic: {
@@ -97,14 +97,20 @@ test('autocomplete de destino prioriza calles y direcciones de OpenStreetMap', a
             return {
                 ok: true,
                 json: async () => ({
-                    features: [{
-                        properties: {
-                            street: 'Avenida Corrientes',
-                            housenumber: '1234',
-                            city: 'Buenos Aires'
+                    features: [
+                        {
+                            properties: { street: 'Avenida Corrientes', city: 'Buenos Aires' },
+                            geometry: { coordinates: [-58.39, -34.60] }
                         },
-                        geometry: { coordinates: [-58.39, -34.60] }
-                    }]
+                        {
+                            properties: {
+                                street: 'Avenida Corrientes',
+                                housenumber: '1234',
+                                city: 'Buenos Aires'
+                            },
+                            geometry: { coordinates: [-58.3901, -34.6001] }
+                        }
+                    ]
                 })
             };
         },
@@ -113,16 +119,16 @@ test('autocomplete de destino prioriza calles y direcciones de OpenStreetMap', a
         clearTimeout
     });
 
-    mockElements.get('directions-dest').listeners.input({ target: { value: 'Corrientes' } });
-    await new Promise(resolve => setTimeout(resolve, 320));
+    mockElements.get('directions-dest').listeners.input({ target: { value: 'Corrientes 1234' } });
+    await new Promise(resolve => setTimeout(resolve, 450));
 
     const suggestions = mockElements.get('directions-suggestions');
-    assert.match(requestedUrl, /^https:\/\/photon\.komoot\.io\/api\/\?q=Corrientes/);
-    assert.match(requestedUrl, /&lang=default$/);
+    assert.match(requestedUrl, /^https:\/\/photon\.komoot\.io\/api\/\?q=Corrientes%201234/);
+    assert.match(requestedUrl, /&limit=10&lang=default$/);
     assert.equal(suggestions.hidden, false);
     assert.match(suggestions.innerHTML, /Avenida Corrientes 1234/);
     assert.match(suggestions.innerHTML, /Buenos Aires/);
-    assert.ok(suggestions.innerHTML.indexOf('Avenida Corrientes 1234') < suggestions.innerHTML.indexOf('Estación Corrientes'));
+    assert.ok(suggestions.innerHTML.indexOf('Avenida Corrientes 1234') < suggestions.innerHTML.indexOf('Avenida Corrientes</span>'));
 });
 
 test('computeDirectionsRoutes calcula opción caminando', async () => {

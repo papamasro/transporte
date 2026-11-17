@@ -172,7 +172,7 @@ test.describe('menú "Más opciones"', () => {
         await button.click();
         await expect(button).toHaveAttribute('aria-expanded', 'true');
         await expect(menu).toBeVisible();
-        await expect(page.locator('#action-refresh')).toBeFocused();
+        await expect(page.locator('#action-reubicar')).toBeFocused();
         await expect(menu.getByRole('menuitem', { name: /Actualizar/ })).toBeVisible();
         await expect(menu.getByRole('menuitem', { name: /Privacidad/ })).toBeVisible();
         // El menú entra completo en pantalla.
@@ -184,7 +184,7 @@ test.describe('menú "Más opciones"', () => {
         await page.keyboard.press('End');
         await expect(page.locator('#consent-settings-btn')).toBeFocused();
         await page.keyboard.press('ArrowDown');
-        await expect(page.locator('#action-refresh')).toBeFocused();
+        await expect(page.locator('#action-reubicar')).toBeFocused();
         await page.keyboard.press('Escape');
         await expect(menu).toBeHidden();
         await expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -192,7 +192,7 @@ test.describe('menú "Más opciones"', () => {
 
         await page.keyboard.press('ArrowDown');
         await expect(menu).toBeVisible();
-        await page.mouse.click(page.viewportSize().width - 20, 20);
+        await page.mouse.click(10, page.viewportSize().height - 20);
         await expect(menu).toBeHidden();
     });
 

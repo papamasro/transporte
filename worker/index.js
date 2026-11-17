@@ -898,7 +898,7 @@ async function handlePlanificarColectivo(request, url, env, ctx, cors) {
     const version = gtfsVersion(env);
 
     return serveCached(request, ctx, cors, {
-        key: `gtfs:${version}:bus-route:${originKey.lat},${originKey.lon}:${destinationKey.lat},${destinationKey.lon}`,
+        key: `gtfs:${version}:bus-route-v2:${originKey.lat},${originKey.lon}:${destinationKey.lat},${destinationKey.lon}`,
         policy: POLICY.gtfsRoute,
         load: () => loadBusRouteOptions(db, origin, destination),
     });
@@ -1005,7 +1005,237 @@ async function loadBusRouteOptions(db, origin, destination) {
     const shapes = await loadShapes(db, stats, candidates.map(option => option.boarding.shape_id));
     const routes = candidates.map(option => buildBusRouteOption(option, shapes, origin, destination));
     routes.sort((a, b) => a.durationMin - b.durationMin);
-    return jsonEntry({ routes: routes.slice(0, 6), estimated: true }, 200, stats);
+    const uniqueDirectRoutes = dedupeBusRoutes(routes);
+    if (uniqueDirectRoutes.length < 6) {
+        const transferRoutes = await loadBusTransferOptions(
+            db, stats, origin, destination, originStops, destinationStops, boardings, tripStopsById
+        );
+        uniqueDirectRoutes.push(...transferRoutes);
+    }
+    return jsonEntry({ routes: dedupeBusRoutes(uniqueDirectRoutes).slice(0, 6), estimated: true }, 200, stats);
+}
+
+function dedupeBusRoutes(routes) {
+    const uniqueRoutes = [];
+    const seenRoutes = new Set();
+    for (const route of routes.sort((a, b) => a.durationMin - b.durationMin)) {
+        const lineNames = route.legs.filter(leg => leg.mode === 'bus').map(leg => leg.lineName);
+        const routeKey = `${lineNames.join('|')}|${route.legs.map(leg => leg.toName).join('|')}`;
+        if (seenRoutes.has(routeKey)) continue;
+        seenRoutes.add(routeKey);
+        uniqueRoutes.push(route);
+    }
+    return uniqueRoutes;
+}
+
+async function loadBusTransferOptions(db, stats, origin, destination, originStops, destinationStops, boardings, tripStopsById) {
+    const destinationStopIds = new Set(destinationStops.map(stop => String(stop.stop_id)));
+    const primaryBoardings = [];
+    const seenBoardings = new Set();
+
+    for (const boarding of [...boardings].sort((a, b) =>
+        distanceMeters(origin, originStops.find(stop => String(stop.stop_id) === String(a.stop_id)) || origin)
+        - distanceMeters(origin, originStops.find(stop => String(stop.stop_id) === String(b.stop_id)) || origin))) {
+        const boardStop = originStops.find(stop => String(stop.stop_id) === String(boarding.stop_id));
+        const key = `${boarding.trip_id}|${boarding.stop_id}|${boarding.stop_sequence}`;
+        if (!boardStop || seenBoardings.has(key)) continue;
+        seenBoardings.add(key);
+        primaryBoardings.push({ boarding, boardStop });
+        if (primaryBoardings.length >= 60) break;
+    }
+
+    const transferChoices = [];
+    const transferStopIds = new Set();
+    for (const { boarding, boardStop } of primaryBoardings) {
+        const stops = tripStopsById.get(String(boarding.trip_id)) || [];
+        const connectors = stops
+            .filter(stop => stop.stop_sequence > boarding.stop_sequence && !destinationStopIds.has(String(stop.stop_id)))
+            .sort((a, b) => distanceMeters(a, destination) - distanceMeters(b, destination))
+            .slice(0, 6);
+        for (const transferStop of connectors) {
+            const stopId = String(transferStop.stop_id);
+            if (!transferStopIds.has(stopId) && transferStopIds.size >= 120) continue;
+            transferStopIds.add(stopId);
+            transferChoices.push({ boarding, boardStop, transferStop, firstTripStops: stops });
+        }
+    }
+    if (!transferStopIds.size) return [];
+
+    const transferIds = [...transferStopIds];
+    const placeholders = transferIds.map((_, index) => `?${index + 1}`).join(', ');
+    const secondBoardingsResult = await runD1(stats, db.prepare(`
+        SELECT MIN(st.trip_id) AS trip_id, st.stop_id, st.stop_sequence,
+               t.shape_id, t.trip_headsign, t.direction_id, r.route_short_name
+        FROM stop_times st
+        JOIN trips t ON t.trip_id = st.trip_id
+        JOIN routes r ON r.route_id = t.route_id
+        WHERE st.stop_id IN (${placeholders})
+        GROUP BY t.shape_id, t.trip_headsign, t.direction_id, r.route_short_name, st.stop_id, st.stop_sequence
+        LIMIT 500
+    `).bind(...transferIds));
+    const secondBoardings = secondBoardingsResult.results || [];
+    const secondTripIds = [...new Set(secondBoardings.map(row => String(row.trip_id)).filter(Boolean))].slice(0, 100);
+    if (!secondTripIds.length) return [];
+
+    const secondTripStops = await loadStopsForTrips(db, stats, secondTripIds);
+    const secondStopsByTripId = new Map();
+    for (const stop of secondTripStops) {
+        const tripId = String(stop.trip_id);
+        if (!secondStopsByTripId.has(tripId)) secondStopsByTripId.set(tripId, []);
+        secondStopsByTripId.get(tripId).push(stop);
+    }
+
+    const secondBoardingsByStop = new Map();
+    for (const boarding of secondBoardings) {
+        const stopId = String(boarding.stop_id);
+        if (!secondBoardingsByStop.has(stopId)) secondBoardingsByStop.set(stopId, []);
+        secondBoardingsByStop.get(stopId).push(boarding);
+    }
+
+    const candidates = [];
+    const seenOptions = new Set();
+    for (const choice of transferChoices) {
+        const firstLine = fixMojibake(String(choice.boarding.route_short_name || '').trim());
+        for (const secondBoarding of secondBoardingsByStop.get(String(choice.transferStop.stop_id)) || []) {
+            const secondLine = fixMojibake(String(secondBoarding.route_short_name || '').trim());
+            if (!firstLine || !secondLine || secondLine === firstLine) continue;
+
+            const secondStops = secondStopsByTripId.get(String(secondBoarding.trip_id)) || [];
+            const alightCandidates = secondStops
+                .filter(stop => stop.stop_sequence > secondBoarding.stop_sequence
+                    && destinationStopIds.has(String(stop.stop_id)))
+                .sort((a, b) => distanceMeters(a, destination) - distanceMeters(b, destination))
+                .slice(0, 2);
+
+            for (const alightStop of alightCandidates) {
+                const optionKey = [
+                    firstLine, secondLine, choice.boardStop.stop_id, choice.transferStop.stop_id, alightStop.stop_id,
+                ].join('|');
+                if (seenOptions.has(optionKey)) continue;
+                seenOptions.add(optionKey);
+                candidates.push({
+                    ...choice,
+                    secondBoarding,
+                    secondStops,
+                    alightStop,
+                    estimatedDuration: Math.ceil(distanceMeters(origin, choice.boardStop) * 1.25 / 80)
+                        + Math.ceil(distanceMeters(choice.boardStop, choice.transferStop) * 1.3 / 220)
+                        + 10
+                        + Math.ceil(distanceMeters(choice.transferStop, alightStop) * 1.3 / 220)
+                        + Math.ceil(distanceMeters(alightStop, destination) * 1.25 / 80),
+                });
+            }
+        }
+    }
+
+    candidates.sort((a, b) => a.estimatedDuration - b.estimatedDuration);
+    const shortlisted = candidates.slice(0, 30);
+    const shapes = await loadShapes(db, stats, shortlisted.flatMap(option => [
+        option.boarding.shape_id, option.secondBoarding.shape_id,
+    ]));
+    return shortlisted
+        .map(option => buildBusTransferRouteOption(option, shapes, origin, destination))
+        .filter(Boolean);
+}
+
+function buildBusTransferRouteOption(option, shapes, origin, destination) {
+    const firstLine = fixMojibake(String(option.boarding.route_short_name || '').trim());
+    const secondLine = fixMojibake(String(option.secondBoarding.route_short_name || '').trim());
+    const transferName = option.transferStop.name || option.transferStop.stop_name || 'parada de combinación';
+    const firstShape = shapes.get(String(option.boarding.shape_id)) || [];
+    const secondShape = shapes.get(String(option.secondBoarding.shape_id)) || [];
+    const firstStart = nearestShapePointIndex(firstShape, option.boardStop);
+    const firstEnd = nearestShapePointIndex(firstShape, option.transferStop);
+    const secondStart = nearestShapePointIndex(secondShape, option.transferStop);
+    const secondEnd = nearestShapePointIndex(secondShape, option.alightStop);
+    if (firstStart < 0 || firstEnd <= firstStart || secondStart < 0 || secondEnd <= secondStart) return null;
+
+    const firstCoords = [
+        [option.boardStop.lat, option.boardStop.lon],
+        ...firstShape.slice(firstStart, firstEnd + 1).map(point => [point.lat, point.lon]),
+        [option.transferStop.lat, option.transferStop.lon],
+    ];
+    const secondCoords = [
+        [option.transferStop.lat, option.transferStop.lon],
+        ...secondShape.slice(secondStart, secondEnd + 1).map(point => [point.lat, point.lon]),
+        [option.alightStop.lat, option.alightStop.lon],
+    ];
+    const firstDistance = Math.round(pathLengthMeters(firstCoords));
+    const secondDistance = Math.round(pathLengthMeters(secondCoords));
+    const walkToMeters = Math.round(distanceMeters(origin, option.boardStop) * 1.25);
+    const walkFromMeters = Math.round(distanceMeters(option.alightStop, destination) * 1.25);
+    const walkToMinutes = Math.ceil(walkToMeters / 80);
+    const walkFromMinutes = Math.ceil(walkFromMeters / 80);
+    const firstMinutes = Math.max(3, Math.round(firstDistance / 220));
+    const secondMinutes = Math.max(3, Math.round(secondDistance / 220));
+    const linePair = `Línea ${firstLine} + Línea ${secondLine}`;
+    const legs = [];
+    const steps = [];
+    const summaryPills = [];
+
+    if (walkToMeters >= 30) {
+        legs.push({
+            mode: 'walk', distanceMeters: walkToMeters, durationMin: walkToMinutes,
+            fromName: 'Origen', toName: option.boardStop.name,
+            coords: [[origin.lat, origin.lon], [option.boardStop.lat, option.boardStop.lon]],
+        });
+        steps.push({ icon: '🚶', text: `Caminar ${formatDistance(walkToMeters)} hasta ${option.boardStop.name}` });
+        summaryPills.push({ icon: '🚶', text: `${walkToMinutes} min`, color: '#64748b' });
+    }
+
+    legs.push({
+        mode: 'bus', lineName: `Línea ${firstLine}`, durationMin: firstMinutes,
+        distanceMeters: firstDistance, headsign: fixMojibake(option.boarding.trip_headsign || ''),
+        fromName: option.boardStop.name, toName: transferName, coords: firstCoords,
+        stops: option.firstTripStops
+            .filter(stop => stop.stop_sequence >= option.boarding.stop_sequence
+                && stop.stop_sequence <= option.transferStop.stop_sequence)
+            .map(stop => ({
+                name: stop.name, lat: stop.lat, lon: stop.lon,
+                role: String(stop.stop_id) === String(option.boarding.stop_id) ? 'board'
+                    : String(stop.stop_id) === String(option.transferStop.stop_id) ? 'alight' : undefined,
+            })),
+    });
+    steps.push({ icon: '🚌', text: `Tomar Línea ${firstLine} en ${option.boardStop.name} y bajar en ${transferName} (~${firstMinutes} min)` });
+    summaryPills.push({ icon: '🚌', text: `Línea ${firstLine}`, color: '#f59e0b' });
+
+    legs.push({
+        mode: 'bus', lineName: `Línea ${secondLine}`, durationMin: secondMinutes,
+        distanceMeters: secondDistance, headsign: fixMojibake(option.secondBoarding.trip_headsign || ''),
+        fromName: transferName, toName: option.alightStop.name, coords: secondCoords,
+        stops: option.secondStops
+            .filter(stop => stop.stop_sequence >= option.secondBoarding.stop_sequence
+                && stop.stop_sequence <= option.alightStop.stop_sequence)
+            .map(stop => ({
+                name: stop.name, lat: stop.lat, lon: stop.lon,
+                role: String(stop.stop_id) === String(option.secondBoarding.stop_id) ? 'board'
+                    : String(stop.stop_id) === String(option.alightStop.stop_id) ? 'alight' : undefined,
+            })),
+    });
+    steps.push({ icon: '🔁', text: `En ${transferName}, combinar con Línea ${secondLine} hacia ${option.alightStop.name}` });
+    summaryPills.push({ icon: '🚌', text: `Línea ${secondLine}`, color: '#f59e0b' });
+
+    if (walkFromMeters >= 30) {
+        legs.push({
+            mode: 'walk', distanceMeters: walkFromMeters, durationMin: walkFromMinutes,
+            fromName: option.alightStop.name, toName: 'Destino',
+            coords: [[option.alightStop.lat, option.alightStop.lon], [destination.lat, destination.lon]],
+        });
+        steps.push({ icon: '🚶', text: `Caminar ${formatDistance(walkFromMeters)} hasta destino` });
+        summaryPills.push({ icon: '🚶', text: `${walkFromMinutes} min`, color: '#64748b' });
+    }
+
+    return {
+        id: `bus-transfer-${option.boarding.trip_id}-${option.secondBoarding.trip_id}-${option.alightStop.stop_id}`,
+        type: 'bus',
+        title: linePair,
+        durationMin: walkToMinutes + firstMinutes + secondMinutes + walkFromMinutes + 10,
+        distanceMeters: walkToMeters + firstDistance + secondDistance + walkFromMeters,
+        summaryPills,
+        legs,
+        steps,
+        estimated: true,
+    };
 }
 
 async function findNearbyBusStops(db, stats, point) {
@@ -1066,7 +1296,7 @@ function buildBusRouteOption(option, shapes, origin, destination) {
         estimatedBusDistance, walkToStopMeters, walkFromStopMeters,
         walkToStopMinutes, walkFromStopMinutes,
     } = option;
-    const line = String(boarding.route_short_name || '').trim();
+    const line = fixMojibake(String(boarding.route_short_name || '').trim());
     const headsign = fixMojibake(boarding.trip_headsign || '');
     const shape = shapes.get(String(boarding.shape_id)) || [];
     const startIndex = nearestShapePointIndex(shape, boardStop);

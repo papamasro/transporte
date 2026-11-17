@@ -135,7 +135,7 @@
         // igual a CACHE_VERSION de sw.js.
         ERROR_REPORTING: {
             enabled: true,
-            appVersion: 'v7',
+            appVersion: 'v9',
             maxPerSession: 5,
             allowLocalhost: false
         },

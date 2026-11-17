@@ -314,7 +314,7 @@ function busAnimTick(now) {
     let processed = 0;
     let updates = 0;
     for (; processed < total; processed += 1) {
-        if (processed > 0 && (processed & 31) === 0 && performance.now() - startedAt > budgetMs) break;
+        if (processed > 0 && (processed & 7) === 0 && performance.now() - startedAt > budgetMs) break;
         const marker = list[(busAnimState.cursor + processed) % total];
         if (!marker._map || !marker._busAnim || marker._busAnim.done) {
             busAnimDeactivate(marker);
