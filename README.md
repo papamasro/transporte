@@ -75,6 +75,8 @@ La app se carga desde `index.html` y divide responsabilidades en módulos:
 ## Endpoints usados
 Base: `https://transporte-be.papamasro.workers.dev`
 
+- Monitoreo
+  - `/` devuelve `{"status":"ok","service":"transporte-be"}` si el Worker responde. No comprueba D1 ni KV.
 - Colectivos
   - `/colectivos/vehiclePositionsSimple`
   - `/info-trayecto?route_id=...&tip_id=...&direction=...`

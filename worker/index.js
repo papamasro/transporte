@@ -35,6 +35,7 @@ const MEMORY_LIMIT_BYTES = 48 * 1024 * 1024;
 const FOLLOWER_WAIT_MS = 40_000;
 const MAX_URL_LENGTH = 2048;
 const D1_MAX_PARAMS = 90;
+const BUS_ROUTE_DESTINATION_STOP_LIMIT = 24;
 
 // Tiempos en segundos. ttl = fresco; swr = se sirve vencido mientras se refresca en segundo
 // plano; sie = se sirve vencido si el upstream falla.
@@ -115,6 +116,13 @@ export default {
 async function route(request, url, env, ctx, cors) {
     const { pathname } = url;
 
+    if (pathname === '/') {
+        const headers = new Headers(cors.headers);
+        headers.set('Content-Type', 'application/json; charset=utf-8');
+        headers.set('Cache-Control', 'no-store');
+        const body = request.method === 'HEAD' ? null : JSON.stringify({ status: 'ok', service: 'transporte-be' });
+        return new Response(body, { status: 200, headers });
+    }
     if (pathname === '/buscar-linea') return handleBuscarLinea(request, url, env, ctx, cors);
     if (pathname === '/info-trayecto') return handleInfoTrayecto(request, url, env, ctx, cors);
     if (pathname === '/planificar-colectivo') return handlePlanificarColectivo(request, url, env, ctx, cors);
@@ -898,7 +906,7 @@ async function handlePlanificarColectivo(request, url, env, ctx, cors) {
     const version = gtfsVersion(env);
 
     return serveCached(request, ctx, cors, {
-        key: `gtfs:${version}:bus-route-v2:${originKey.lat},${originKey.lon}:${destinationKey.lat},${destinationKey.lon}`,
+        key: `gtfs:${version}:bus-route-v3:${originKey.lat},${originKey.lon}:${destinationKey.lat},${destinationKey.lon}`,
         policy: POLICY.gtfsRoute,
         load: () => loadBusRouteOptions(db, origin, destination),
     });
@@ -916,10 +924,7 @@ function readCoordinates(searchParams, prefix) {
 
 async function loadBusRouteOptions(db, origin, destination) {
     const stats = { rowsRead: 0 };
-    const [originStops, destinationStops] = await Promise.all([
-        findNearbyBusStops(db, stats, origin),
-        findNearbyBusStops(db, stats, destination),
-    ]);
+    const [originStops, destinationStops] = await findNearbyBusStopsForRoute(db, stats, origin, destination);
 
     if (!originStops.length || !destinationStops.length) {
         return jsonEntry({ routes: [], estimated: true }, 200, stats);
@@ -1018,7 +1023,9 @@ async function loadBusRouteOptions(db, origin, destination) {
 function dedupeBusRoutes(routes) {
     const uniqueRoutes = [];
     const seenRoutes = new Set();
-    for (const route of routes.sort((a, b) => a.durationMin - b.durationMin)) {
+    const busLegCount = route => route.legs.filter(leg => leg.mode === 'bus').length;
+    for (const route of [...routes].sort((a, b) =>
+        busLegCount(a) - busLegCount(b) || a.durationMin - b.durationMin)) {
         const lineNames = route.legs.filter(leg => leg.mode === 'bus').map(leg => leg.lineName);
         const routeKey = `${lineNames.join('|')}|${route.legs.map(leg => leg.toName).join('|')}`;
         if (seenRoutes.has(routeKey)) continue;
@@ -1054,7 +1061,7 @@ async function loadBusTransferOptions(db, stats, origin, destination, originStop
             .slice(0, 6);
         for (const transferStop of connectors) {
             const stopId = String(transferStop.stop_id);
-            if (!transferStopIds.has(stopId) && transferStopIds.size >= 120) continue;
+            if (!transferStopIds.has(stopId) && transferStopIds.size >= D1_MAX_PARAMS) continue;
             transferStopIds.add(stopId);
             transferChoices.push({ boarding, boardStop, transferStop, firstTripStops: stops });
         }
@@ -1238,26 +1245,50 @@ function buildBusTransferRouteOption(option, shapes, origin, destination) {
     };
 }
 
-async function findNearbyBusStops(db, stats, point) {
+async function findNearbyBusStopsForRoute(db, stats, origin, destination) {
     const radiusMeters = 1000;
-    const latDelta = radiusMeters / 111_320;
-    const lonDelta = radiusMeters / (111_320 * Math.max(Math.cos(point.lat * Math.PI / 180), 0.2));
+    const bounds = point => {
+        const latDelta = radiusMeters / 111_320;
+        const lonDelta = radiusMeters / (111_320 * Math.max(Math.cos(point.lat * Math.PI / 180), 0.2));
+        return {
+            minLat: point.lat - latDelta,
+            maxLat: point.lat + latDelta,
+            minLon: point.lon - lonDelta,
+            maxLon: point.lon + lonDelta,
+        };
+    };
+    const originBounds = bounds(origin);
+    const destinationBounds = bounds(destination);
     const result = await runD1(stats, db.prepare(`
         SELECT stop_id, stop_name, stop_lat AS lat, stop_lon AS lon
         FROM stops
-        WHERE stop_lat BETWEEN ?1 AND ?2
-          AND stop_lon BETWEEN ?3 AND ?4
-    `).bind(point.lat - latDelta, point.lat + latDelta, point.lon - lonDelta, point.lon + lonDelta));
+        WHERE (stop_lat BETWEEN ?1 AND ?2 AND stop_lon BETWEEN ?3 AND ?4)
+           OR (stop_lat BETWEEN ?5 AND ?6 AND stop_lon BETWEEN ?7 AND ?8)
+    `).bind(
+        originBounds.minLat,
+        originBounds.maxLat,
+        originBounds.minLon,
+        originBounds.maxLon,
+        destinationBounds.minLat,
+        destinationBounds.maxLat,
+        destinationBounds.minLon,
+        destinationBounds.maxLon
+    ));
 
-    return (result.results || [])
-        .map(stop => ({
-            ...stop,
-            name: fixMojibake(stop.stop_name),
-            distance: distanceMeters(point, stop),
-        }))
+    const stops = (result.results || []).map(stop => ({
+        ...stop,
+        name: fixMojibake(stop.stop_name),
+    }));
+    const nearest = (point, limit) => stops
+        .map(stop => ({ ...stop, distance: distanceMeters(point, stop) }))
         .filter(stop => Number.isFinite(stop.distance) && stop.distance <= radiusMeters)
         .sort((a, b) => a.distance - b.distance)
-        .slice(0, 8);
+        .slice(0, limit);
+
+    return [
+        nearest(origin, 8),
+        nearest(destination, BUS_ROUTE_DESTINATION_STOP_LIMIT),
+    ];
 }
 
 async function loadStopsForTrips(db, stats, tripIds) {
@@ -1266,7 +1297,7 @@ async function loadStopsForTrips(db, stats, tripIds) {
         const chunk = tripIds.slice(i, i + D1_MAX_PARAMS);
         const placeholders = chunk.map((_, index) => `?${index + 1}`).join(', ');
         const rows = await withRangeFallback('stopRanges', () => runD1(stats, db.prepare(`
-            SELECT st.trip_id, st.stop_id, st.stop_sequence, st.arrival_time, st.departure_time,
+            SELECT st.trip_id, st.stop_id, st.stop_sequence,
                    s.stop_name, s.stop_lat AS lat, s.stop_lon AS lon
             FROM trip_stop_ranges g
             JOIN stop_times st ON st.rowid BETWEEN g.lo AND g.hi AND st.trip_id = g.trip_id
@@ -1274,7 +1305,7 @@ async function loadStopsForTrips(db, stats, tripIds) {
             WHERE g.trip_id IN (${placeholders})
             ORDER BY st.trip_id, st.stop_sequence
         `).bind(...chunk)), () => runD1(stats, db.prepare(`
-            SELECT st.trip_id, st.stop_id, st.stop_sequence, st.arrival_time, st.departure_time,
+            SELECT st.trip_id, st.stop_id, st.stop_sequence,
                    s.stop_name, s.stop_lat AS lat, s.stop_lon AS lon
             FROM stop_times st
             JOIN stops s ON s.stop_id = st.stop_id

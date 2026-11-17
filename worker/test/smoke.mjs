@@ -97,6 +97,12 @@ check('planificar-colectivo encuentra una combinación de colectivos desde Molde
         route.legs.filter(leg => leg.mode === 'bus').length === 2
         && route.steps.some(step => step.text.includes('combinar'))),
     `rows_read=${transferPlan.response.headers.get('x-d1-rows-read')}`);
+const rooseveltToLacroze = await call('/planificar-colectivo?origin_lat=-34.561316258831226&origin_lon=-58.46688760942392&destination_lat=-34.5803029&destination_lon=-58.4509188');
+const rooseveltRoutes = rooseveltToLacroze.json().routes || [];
+check('planificar-colectivo encuentra el 151A de Roosevelt a Lacroze y Álvarez Thomas',
+    rooseveltToLacroze.response.status === 200 && rooseveltRoutes.some(route =>
+        route.legs.some(leg => leg.mode === 'bus' && leg.lineName?.includes('151'))),
+    rooseveltRoutes.map(route => route.title).join(', '));
 check('planificar-colectivo requiere coordenadas', (await call('/planificar-colectivo')).response.status === 400);
 const byLinea = await call('/info-trayecto?trip_id=54955-1&tip_id=54955-1&linea=60C&direction=0');
 check('info-trayecto tip_id realtime + linea -> fallback por línea', byLinea.response.status === 200 && byLinea.json().info?.route_short_name === '60C', `rows_read=${byLinea.response.headers.get('x-d1-rows-read')}`);

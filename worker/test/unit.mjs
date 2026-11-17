@@ -18,6 +18,17 @@ const call = (worker, path, init = {}, env = baseEnv) => worker.fetch(new Reques
     headers: { Origin: ORIGIN, ...(init.headers || {}) },
 }), env, ctx);
 
+{
+    const worker = await freshWorker();
+    const response = await call(worker, '/');
+    const health = await response.json();
+    check('GET / devuelve health del Worker', response.status === 200
+        && health.status === 'ok' && health.service === 'transporte-be'
+        && response.headers.get('cache-control') === 'no-store');
+    const head = await call(worker, '/', { method: 'HEAD' });
+    check('HEAD / devuelve health sin body', head.status === 200 && await head.text() === '');
+}
+
 // ─── Encoder protobuf mínimo para armar feeds de prueba ─────────────────────
 const varint = value => {
     const out = [];
