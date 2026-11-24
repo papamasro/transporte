@@ -10,6 +10,7 @@ test('parseShareParams lee vista, capa, búsqueda y estación', () => {
     assert.deepEqual(plain(app.parseShareParams('?@=-34.6086,-58.3742,16&capa=subte&q=60&est=subte:LineaA:A1')), {
         view: { lat: -34.6086, lng: -58.3742, zoom: 16 },
         type: 'subte',
+        types: null,
         query: '60',
         station: { type: 'subte', id: 'LineaA:A1' }
     });
@@ -18,7 +19,10 @@ test('parseShareParams lee vista, capa, búsqueda y estación', () => {
     assert.equal(app.parseShareParams('?capa=ninguna').type, 'none');
     assert.equal(app.parseShareParams('?linea=152').query, '152');
     assert.deepEqual(plain(app.parseShareParams('?est=ecobici:42')).station, { type: 'bike', id: '42' });
-    assert.deepEqual(plain(app.parseShareParams('')), { view: null, type: null, query: '', station: null });
+    assert.deepEqual(plain(app.parseShareParams('')), { view: null, type: null, types: null, query: '', station: null });
+    assert.deepEqual(plain(app.parseShareParams('?capas=colectivos,subte,tren,ecobici')).types, ['bus', 'subte', 'train', 'bike']);
+    assert.deepEqual(plain(app.parseShareParams('?capas=subte,subte,<script>')).types, ['subte']);
+    assert.deepEqual(plain(app.parseShareParams('?capas=ninguna')).types, []);
 });
 
 test('parseShareParams descarta valores inválidos', () => {
@@ -52,6 +56,10 @@ test('buildShareSearch arma la URL corta y es reversible', () => {
     // Colectivos es la capa de siempre: no se escribe.
     assert.equal(app.buildShareSearch({ type: 'bus' }), '');
     assert.equal(app.buildShareSearch({ type: 'none' }), '?capa=ninguna');
+    const multipleTypes = app.buildShareSearch({ types: ['bus', 'subte', 'subte', 'bike'] });
+    assert.equal(multipleTypes, '?capas=colectivos,subte,ecobici');
+    assert.deepEqual(plain(app.parseShareParams(multipleTypes).types), ['bus', 'subte', 'bike']);
+    assert.equal(app.buildShareSearch({ types: [] }), '?capa=ninguna');
     assert.equal(app.buildShareSearch({ query: 'a&b=c' }), '?q=a%26b%3Dc');
     assert.equal(app.buildShareSearch({ station: { type: 'subte', id: '<x>' } }), '');
     assert.equal(app.buildShareSearch(null), '');

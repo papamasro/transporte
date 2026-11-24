@@ -122,40 +122,82 @@ test.describe('hoja inferior (mobile)', () => {
     });
 });
 
-test.describe('barra lateral (desktop)', () => {
+test.describe('panel flotante (desktop)', () => {
     test.beforeEach(({}, testInfo) => {
         test.skip(testInfo.project.name !== 'desktop', 'solo en desktop');
     });
 
-    test('panel fijo a la izquierda y el mapa ocupa el resto', async ({ page }) => {
+    test('panel flotante crece con el contenido y el mapa ocupa toda la pantalla', async ({ page }) => {
         await bootApp(page);
         const sheet = await rectOf(page, '#app-sheet');
         const mapRect = await rectOf(page, '#map');
         const viewport = page.viewportSize();
-        expect(sheet.left).toBe(0);
+        expect(sheet.left).toBe(16);
+        expect(sheet.top).toBe(16);
         expect(sheet.width).toBeGreaterThanOrEqual(360);
         expect(sheet.width).toBeLessThanOrEqual(400);
-        expect(sheet.height).toBe(viewport.height);
-        expect(Math.abs(mapRect.left - sheet.right)).toBeLessThanOrEqual(1);
+        expect(sheet.height).toBeLessThan(viewport.height);
+        expect(sheet.bottom).toBeLessThanOrEqual(viewport.height - 16);
+        expect(mapRect.left).toBe(0);
         expect(Math.abs(mapRect.right - viewport.width)).toBeLessThanOrEqual(1);
         // Leaflet conoce el tamaño real del contenedor.
         const size = await page.evaluate(() => map.getSize());
         expect(Math.abs(size.x - mapRect.width)).toBeLessThanOrEqual(1);
+        await expect(page.locator('#favorites-slot')).toHaveCount(0);
         await expect(page.locator('#panel-toggle')).toBeHidden();
+        await expect(page.locator('#panel-minimize')).toBeVisible();
+        await expect(page.locator('#panel-minimize')).toHaveAttribute('aria-expanded', 'true');
         await expect(page.locator('#panel-content')).not.toHaveAttribute('inert', '');
         await expect(page.locator('#search')).toBeVisible();
         await expect(page.locator('#action-nearby')).toBeVisible();
     });
 
-    test('al pasar a mobile el mapa toma todo el ancho y vuelve la hoja', async ({ page }) => {
+    test('minimizar oculta el contenido y deja el mapa disponible; expandir lo restaura', async ({ page }) => {
+        await bootApp(page);
+        const button = page.locator('#panel-minimize');
+        const sheet = page.locator('#app-sheet');
+        const body = page.locator('#sheet-body');
+        const mapWidth = await page.evaluate(() => map.getSize().x);
+
+        await button.click();
+        await expect(button).toHaveAttribute('aria-expanded', 'false');
+        await expect(button).toHaveAccessibleName('Expandir panel');
+        await expect(sheet).toHaveAttribute('data-panel-minimized', 'true');
+        await expect(body).toBeHidden();
+        expect((await sheet.boundingBox()).height).toBeLessThan(110);
+        expect(await page.evaluate(() => map.getSize().x)).toBe(mapWidth);
+
+        await button.click();
+        await expect(button).toHaveAttribute('aria-expanded', 'true');
+        await expect(sheet).toHaveAttribute('data-panel-minimized', 'false');
+        await expect(body).toBeVisible();
+        await expect(page.locator('#search')).toBeVisible();
+    });
+
+    test('al cambiar entre móvil y escritorio el mapa conserva el ancho esperado', async ({ page }) => {
         await bootApp(page);
         await page.setViewportSize({ width: 600, height: 800 });
         await expect.poll(() => page.evaluate(() => map.getSize().x)).toBe(600);
         await expect(page.locator('#panel-toggle')).toBeVisible();
+        await expect(page.locator('#panel-minimize')).toBeHidden();
         expect(await sheetState(page)).toBe('peek');
         await page.setViewportSize({ width: 1440, height: 900 });
-        await expect.poll(() => page.evaluate(() => map.getSize().x)).toBeLessThan(1100);
+        await expect.poll(() => page.evaluate(() => map.getSize().x)).toBe(1440);
         await expect(page.locator('#panel-toggle')).toBeHidden();
+        await expect(page.locator('#panel-minimize')).toBeVisible();
+    });
+
+    test('si el panel supera el alto disponible, conserva el tamaño máximo y permite scroll', async ({ page }) => {
+        await bootApp(page);
+        await page.setViewportSize({ width: 1024, height: 520 });
+        const sheet = await rectOf(page, '#app-sheet');
+        const body = await page.locator('#sheet-body').evaluate(element => ({
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight
+        }));
+        expect(sheet.top).toBe(16);
+        expect(sheet.bottom).toBeLessThanOrEqual(504);
+        expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
     });
 });
 
@@ -164,12 +206,13 @@ test.describe('navegación principal', () => {
         await bootApp(page);
         await openPanel(page);
 
-        await expect(page.getByRole('heading', { name: 'Ver en el mapa' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Ver transportes en tiempo real' })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Buscar transporte' })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Accesos rápidos' })).toBeVisible();
-        await expect(page.locator('#action-locate')).toContainText('Centrar el mapa en vos');
         await expect(page.locator('#action-nearby')).toContainText('Paradas, estaciones y bicis');
-        await expect(page.locator('#action-alerts')).toContainText('Demoras y cambios de servicio');
+        await expect(page.locator('#action-alerts')).toContainText('Demoras y cambios');
+        await expect(page.locator('#map-locate-fab')).toHaveAttribute('aria-label', 'Ir a mi ubicación');
+        await expect(page.locator('#map-relocate-fab')).toHaveAttribute('aria-label', 'Marcar mi ubicación en el mapa');
 
         await page.locator('#action-directions').click();
         await expect(page.locator('#directions-panel')).toHaveClass(/is-open/);
@@ -189,7 +232,7 @@ test.describe('menú "Más opciones"', () => {
         await button.click();
         await expect(button).toHaveAttribute('aria-expanded', 'true');
         await expect(menu).toBeVisible();
-        await expect(page.locator('#action-reubicar')).toBeFocused();
+        await expect(page.locator('[data-map-theme="auto"]')).toBeFocused();
         await expect(menu.getByRole('menuitem', { name: /Actualizar/ })).toBeVisible();
         await expect(menu.getByRole('menuitem', { name: /Privacidad/ })).toBeVisible();
         // El menú entra completo en pantalla.
@@ -201,7 +244,7 @@ test.describe('menú "Más opciones"', () => {
         await page.keyboard.press('End');
         await expect(page.locator('#consent-settings-btn')).toBeFocused();
         await page.keyboard.press('ArrowDown');
-        await expect(page.locator('#action-reubicar')).toBeFocused();
+        await expect(page.locator('[data-map-theme="auto"]')).toBeFocused();
         await page.keyboard.press('Escape');
         await expect(menu).toBeHidden();
         await expect(button).toHaveAttribute('aria-expanded', 'false');

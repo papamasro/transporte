@@ -8,7 +8,6 @@ function setDashboardActionActive(actionKey, isActive) {
     const actionMap = {
         alerts: 'action-alerts',
         nearby: 'action-nearby',
-        locate: 'action-locate',
         refresh: 'action-refresh',
         directions: 'action-directions'
     };
@@ -247,7 +246,7 @@ function drawUserMarker(lat, lon, tooltipPosition = null) {
         <div class="user-marker-popup p-1 text-center">
             <p class="font-bold text-xs text-slate-800 dark:text-white mb-1">🧍 Tu ubicación</p>
             <p class="text-[11px] text-slate-600 dark:text-slate-300 mb-2">Arrastrá el muñequito para moverlo o tocalo para reubicarlo.</p>
-            <button type="button" onclick="startRelocateUser()" class="btn-reubicar-popup text-xs font-semibold px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">Reubicar muñequito</button>
+            <button type="button" onclick="startRelocateUser()" class="btn-reubicar-popup text-xs font-semibold px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">Cambiar ubicación</button>
         </div>
     `, { className: 'custom-popup', offset: [0, -15] });
 

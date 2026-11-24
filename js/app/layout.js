@@ -1,4 +1,4 @@
-// Superficie única de la app: hoja inferior en mobile (< 768px) y barra lateral desde 768px.
+// Superficie única de la app: hoja inferior en mobile (< 768px) y panel flotante desde 768px.
 // Cercanos y alertas son vistas dentro de la hoja (clase is-open en #nearby-panel / #alerts-panel):
 // al abrir una, la vista principal queda oculta e inert. También: menú "Más opciones", línea de estado
 // ("1.234 en vista · hace 12 s") y los márgenes del mapa tapados por la hoja.
@@ -25,6 +25,7 @@ const layoutState = {
     lastUpdateAt: 0,
     statusCount: null,
     statusHiddenByZoom: false,
+    panelMinimized: false,
     // Con cercanos abierto la capa principal está apagada: la línea de estado cuenta lo cercano.
     nearbyCount: null,
     nearbyLoading: false,
@@ -136,6 +137,24 @@ function syncSheetA11y() {
         if (collapsed && content.contains(document.activeElement)) handle?.focus({ preventScroll: true });
         content.inert = collapsed;
     }
+}
+
+function syncPanelMinimized() {
+    const sheet = document.getElementById('app-sheet');
+    const button = document.getElementById('panel-minimize');
+    if (!sheet || !button) return;
+    const minimized = !isSheetMode() && layoutState.panelMinimized;
+    sheet.dataset.panelMinimized = String(minimized);
+    button.setAttribute('aria-expanded', String(!minimized));
+    button.setAttribute('aria-label', minimized ? 'Expandir panel' : 'Minimizar panel');
+    button.title = minimized ? 'Expandir panel' : 'Minimizar panel';
+}
+
+function toggleDesktopPanel() {
+    if (isSheetMode()) return;
+    layoutState.panelMinimized = !layoutState.panelMinimized;
+    syncPanelMinimized();
+    closeAppMenu();
 }
 
 function setSheetState(state, options = {}) {
@@ -536,6 +555,7 @@ function applyLayoutMode() {
     const { sheet } = getSheetElements();
     if (!sheet) return;
     sheet.classList.toggle('is-sheet', isSheetMode());
+    syncPanelMinimized();
     if (isSheetMode()) {
         setSheetState(layoutState.sheetState, { silent: true });
     } else {
@@ -558,6 +578,7 @@ function setupMapResizeObserver() {
 
 function setupSheet() {
     const { dragZone, handle } = getSheetElements();
+    const minimizeButton = document.getElementById('panel-minimize');
     if (!dragZone || !handle) return;
     dragZone.addEventListener('pointerdown', onSheetPointerDown);
     // En el documento: con mouse, un movimiento rápido sale de la zona antes de tomar la captura.
@@ -568,6 +589,7 @@ function setupSheet() {
         if (!layoutState.suppressHandleClick) togglePanel();
     });
     handle.addEventListener('keydown', onSheetHandleKeyDown);
+    minimizeButton?.addEventListener('click', toggleDesktopPanel);
 
     const media = globalThis.matchMedia?.(SHEET_MEDIA_QUERY);
     media?.addEventListener?.('change', applyLayoutMode);

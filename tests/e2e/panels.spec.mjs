@@ -18,7 +18,7 @@ test.describe('cercanos', () => {
         }
         await openPanel(page);
         await page.locator('#t-subte').click();
-        await expect.poll(() => pressedTypes(page)).toEqual(['subte']);
+        await expect.poll(() => pressedTypes(page)).toEqual(['bus', 'subte']);
 
         await page.locator('#action-nearby').click();
         const panel = page.locator('#nearby-panel');
@@ -46,8 +46,9 @@ test.describe('cercanos', () => {
         await expect(page.locator('#view-main')).toBeVisible();
         await expect(page.locator('#action-nearby')).toBeFocused();
         await expect(page.locator('#unit-count')).toHaveText(/en vista$/);
-        await expect(page.locator('#favorites-list .favorite-item')).toHaveCount(1);
-        await expect.poll(() => pressedTypes(page)).toEqual(['subte']);
+        await expect(page.locator('#favorites-slot')).toHaveCount(0);
+        expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radaramba.favorites-v1')).items)).toHaveLength(1);
+        await expect.poll(() => pressedTypes(page)).toEqual(['bus', 'subte']);
         await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' }).first()).toBeVisible();
         await expect(page.locator('.nearby-live-bus-icon')).toHaveCount(0);
         expect(errors).toEqual([]);

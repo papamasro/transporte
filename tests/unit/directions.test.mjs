@@ -34,6 +34,7 @@ function createDirectionsApp(cacheOverride = {}, runtimeGlobals = {}) {
 
     const app = loadScripts(['js/shared/utils.js', 'js/features/directions.js'], {
         isFeatureEnabled: () => true,
+        lineColors: {},
         document: {
             readyState: 'complete',
             getElementById: getEl,
@@ -234,6 +235,39 @@ test('computeDirectionsRoutes encuentra Subte directo si hay estaciones en rango
     assert.ok(subteRoute.steps.length >= 3);
 });
 
+test('computeDirectionsRoutes dibuja solo las estaciones de cada tramo en una combinación de Subte', async () => {
+    const { app } = createDirectionsApp({
+        subteStatic: {
+            lines: {
+                LineaD: { short: 'D', color: '#008033', stationIds: ['D1', 'D2', 'D3'] },
+                LineaC: { short: 'C', color: '#eb1923', stationIds: ['C1', 'C2', 'C3'] }
+            },
+            stations: {
+                D1: { name: 'Congreso de Tucumán', lat: -34.6, lon: -58.45 },
+                D2: { name: 'Callao', lat: -34.6, lon: -58.44 },
+                D3: { name: 'Pueyrredón', lat: -34.6, lon: -58.43 },
+                C1: { name: 'Corrientes', lat: -34.6, lon: -58.43 },
+                C2: { name: 'Retiro intermedia', lat: -34.6, lon: -58.42 },
+                C3: { name: 'General San Martín', lat: -34.6, lon: -58.41 }
+            }
+        },
+        trainStatic: { lines: {}, stations: {} }
+    });
+
+    const routes = await app.computeDirectionsRoutes(
+        { lat: -34.6, lon: -58.45, label: 'Origen' },
+        { lat: -34.6, lon: -58.41, label: 'Destino' }
+    );
+    const route = routes.find(candidate => candidate.id === 'subte-transfer-LineaD-LineaC');
+    const subteLegs = route?.legs.filter(leg => leg.mode === 'subte') || [];
+
+    assert.equal(subteLegs.length, 2);
+    assert.deepEqual(Array.from(subteLegs[0].stops, stop => stop.name), ['Congreso de Tucumán', 'Callao', 'Pueyrredón']);
+    assert.deepEqual(Array.from(subteLegs[1].stops, stop => stop.name), ['Corrientes', 'Retiro intermedia', 'General San Martín']);
+    assert.equal(subteLegs[0].coords.length, 3);
+    assert.equal(subteLegs[1].coords.length, 3);
+});
+
 test('computeDirectionsRoutes encuentra Tren si hay estaciones en rango', async () => {
     const { app } = createDirectionsApp();
     // Origen cerca de Retiro (T1)
@@ -249,19 +283,66 @@ test('computeDirectionsRoutes encuentra Tren si hay estaciones en rango', async 
     assert.ok(trainRoute.legs.some(l => l.mode === 'train'));
 });
 
-test('computeDirectionsRoutes encuentra Ecobici si hay estaciones con disponibilidad', async () => {
-    const { app } = createDirectionsApp();
+test('calculateDirectionsRoutes carga y sigue las ciclovías entre estaciones Ecobici', async () => {
+    const bikeRoutes = {
+        type: 'FeatureCollection',
+        features: [
+            { type: 'Feature', geometry: { type: 'LineString', coordinates: [[-58.3850, -34.6020], [-58.3900, -34.6020]] } },
+            { type: 'Feature', geometry: { type: 'LineString', coordinates: [[-58.3900, -34.6020], [-58.3900, -34.5980]] } },
+            { type: 'Feature', geometry: { type: 'LineString', coordinates: [[-58.3900, -34.5980], [-58.3980, -34.5980]] } }
+        ]
+    };
+    const { app } = createDirectionsApp({
+        bike: [
+            { station_id: 'B1', name: 'Plaza Lavalle', lat: -34.6020, lon: -58.3850, num_bikes_available: 5, num_docks_available: 3 },
+            { station_id: 'B2', name: 'Facultad de Medicina', lat: -34.5980, lon: -58.3980, num_bikes_available: 2, num_docks_available: 6 },
+            { station_id: 'B3', name: 'Estación intermedia', lat: -34.6000, lon: -58.3910, num_bikes_available: 4, num_docks_available: 4 }
+        ]
+    }, {
+        refreshBikeRoutesNow: async () => {
+            app.cache.bikeRoutes = bikeRoutes;
+            return true;
+        }
+    });
     // Origen cerca de B1
     const origin = { lat: -34.6022, lon: -58.3848, label: 'Lavalle y Talcahuano' };
     // Destino cerca de B2
     const destination = { lat: -34.5982, lon: -58.3982, label: 'Paraguay y Uriburu' };
 
-    const routes = await app.computeDirectionsRoutes(origin, destination);
+    app.directionsState.origin = origin;
+    app.directionsState.destination = destination;
+    await app.calculateDirectionsRoutes();
+    const routes = app.directionsState.routes;
     const bikeRoute = routes.find(r => r.type === 'bike');
 
     assert.ok(bikeRoute, 'Debe encontrar ruta de ecobici');
     assert.equal(bikeRoute.title, 'Ecobici');
-    assert.ok(bikeRoute.legs.some(l => l.mode === 'bike'));
+    const bikeLeg = bikeRoute.legs.find(l => l.mode === 'bike');
+    assert.ok(bikeLeg);
+    const routePoints = bikeLeg.coords.map(point => point.join(','));
+    assert.ok(routePoints.includes('-34.602,-58.39'), 'Debe seguir la primera ciclovía hasta el giro');
+    assert.ok(routePoints.includes('-34.598,-58.39'), 'Debe seguir la ciclovía que conecta el giro con el destino');
+    assert.ok(!routePoints.includes('-34.6,-58.391'), 'No debe unir estaciones intermedias como si fueran el recorrido');
+    assert.equal(bikeLeg.stops.length, 2, 'Solo debe marcar las estaciones donde se toma y se deja la bici');
+});
+
+test('computeDirectionsRoutes no inventa una conexión cuando las ciclovías están desconectadas', async () => {
+    const { app } = createDirectionsApp({
+        bikeRoutes: {
+            type: 'FeatureCollection',
+            features: [
+                { type: 'Feature', geometry: { type: 'LineString', coordinates: [[-58.3850, -34.6020], [-58.3860, -34.6020]] } },
+                { type: 'Feature', geometry: { type: 'LineString', coordinates: [[-58.3970, -34.5980], [-58.3980, -34.5980]] } }
+            ]
+        }
+    });
+
+    const routes = await app.computeDirectionsRoutes(
+        { lat: -34.6022, lon: -58.3848, label: 'Lavalle y Talcahuano' },
+        { lat: -34.5982, lon: -58.3982, label: 'Paraguay y Uriburu' }
+    );
+
+    assert.ok(!routes.some(route => route.type === 'bike'));
 });
 
 test('swapDirectionsLocations invierte origen y destino', () => {
@@ -347,7 +428,10 @@ test('computeDirectionsRoutes prioriza un colectivo directo sobre una combinaci�
         title: 'Líneas 19 y 42',
         durationMin: 35,
         distanceMeters: 7000,
-        summaryPills: [{ icon: '🚌', text: 'Líneas 19 y 42', color: '#f59e0b' }],
+        summaryPills: [
+            { icon: '🚌', text: 'Línea 19', color: '#f59e0b' },
+            { icon: '🚌', text: 'Línea 42', color: '#f59e0b' }
+        ],
         legs: [
             { mode: 'walk' },
             { mode: 'bus', lineName: 'Línea 19' },
@@ -356,7 +440,10 @@ test('computeDirectionsRoutes prioriza un colectivo directo sobre una combinaci�
         ],
         steps: [{ icon: '🚌', text: 'Combinar las líneas 19 y 42' }]
     };
-    const { app } = createDirectionsApp({}, {
+    const { app } = createDirectionsApp({
+        trainStatic: { lines: {}, stations: {} },
+        subteStatic: { lines: {}, stations: {} }
+    }, {
         APP_CONFIG: { PATHS: { busRoutePlan: '/planificar-colectivo' } },
         fetchAPI: async () => ({
             success: true,
@@ -373,4 +460,88 @@ test('computeDirectionsRoutes prioriza un colectivo directo sobre una combinaci�
     assert.equal(busRoutes[0].title, 'Línea 19');
     assert.equal(busRoutes[1].title, 'Líneas 19 y 42');
     assert.equal(busRoutes[1].tag, 'Más rápido');
+    const transferBusLegs = busRoutes[1].legs.filter(leg => leg.mode === 'bus');
+    assert.notEqual(transferBusLegs[0].color, transferBusLegs[1].color);
+    const transferBusPills = busRoutes[1].summaryPills.filter(pill => pill.icon === '🚌');
+    assert.notEqual(transferBusPills[0].color, transferBusPills[1].color);
+});
+
+test('si el primer colectivo deja a menos de cinco cuadras, recomienda bajarse y caminar', async () => {
+    const transferRoute = {
+        id: 'bus-transfer-near',
+        type: 'bus',
+        title: 'Líneas 151A y 104A',
+        durationMin: 40,
+        distanceMeters: 5000,
+        summaryPills: [
+            { icon: '🚶', text: '2m', color: '#64748b' },
+            { icon: '🚌', text: 'Línea 151A', color: '#f59e0b' },
+            { icon: '🚌', text: 'Línea 104A', color: '#f59e0b' },
+            { icon: '🚶', text: '1m', color: '#64748b' }
+        ],
+        legs: [
+            { mode: 'walk', durationMin: 2, distanceMeters: 200, coords: [[-34.62, -58.42], [-34.618, -58.418]] },
+            {
+                mode: 'bus', lineName: 'Línea 151A', durationMin: 12, distanceMeters: 2500,
+                fromName: 'Parada de origen', toName: 'Parada cercana',
+                coords: [[-34.618, -58.418], [-34.6, -58.404]],
+                stops: [
+                    { name: 'Parada de origen', lat: -34.618, lon: -58.418, role: 'board' },
+                    { name: 'Parada cercana', lat: -34.6, lon: -58.404, role: 'alight' }
+                ]
+            },
+            {
+                mode: 'bus', lineName: 'Línea 104A', durationMin: 8, distanceMeters: 1200,
+                fromName: 'Parada cercana', toName: 'Destino',
+                coords: [[-34.6, -58.404], [-34.6, -58.4005]],
+                stops: [{ name: 'Destino', lat: -34.6, lon: -58.4005, role: 'alight' }]
+            },
+            { mode: 'walk', durationMin: 1, distanceMeters: 50, coords: [[-34.6, -58.4005], [-34.6, -58.4]] }
+        ],
+        steps: [
+            { icon: '🚶', text: 'Caminar a la parada' },
+            { icon: '🚌', text: 'Tomar Línea 151A y bajar en Parada cercana' },
+            { icon: '🔁', text: 'Combinar con Línea 104A' },
+            { icon: '🚌', text: 'Tomar Línea 104A' },
+            { icon: '🚶', text: 'Caminar al destino' }
+        ]
+    };
+    const { app } = createDirectionsApp({
+        trainStatic: { lines: {}, stations: {} },
+        subteStatic: { lines: {}, stations: {} }
+    }, {
+        APP_CONFIG: { PATHS: { busRoutePlan: '/planificar-colectivo' } },
+        fetchAPI: async () => ({ success: true, data: { routes: [transferRoute] } })
+    });
+
+    const routes = await app.computeDirectionsRoutes(
+        { lat: -34.62, lon: -58.42, label: 'Origen' },
+        { lat: -34.6, lon: -58.4, label: 'Destino' }
+    );
+    const busRoutes = routes.filter(route => route.type === 'bus');
+
+    assert.equal(busRoutes.length, 1);
+    assert.equal(busRoutes[0].title, 'Línea 151A');
+    assert.equal(busRoutes[0].legs.filter(leg => leg.mode === 'bus').length, 1);
+    assert.equal(busRoutes[0].legs.at(-1).mode, 'walk');
+    assert.equal(busRoutes[0].legs.at(-1).toName, 'Destino');
+    assert.match(busRoutes[0].steps.at(-1).text, /caminar .* hasta destino/i);
+});
+
+test('Ecobici filtra estaciones por cercanía a los extremos o al recorrido', () => {
+    const app = loadScripts(['js/shared/utils.js', 'js/features/markers.js'], {
+        directionsState: {
+            origin: { lat: -34.6, lon: -58.45 },
+            destination: { lat: -34.6, lon: -58.41 }
+        }
+    });
+    const activeTransit = {
+        bikeStationIds: new Set(['chosen']),
+        bikeRouteCoords: [[[-34.6, -58.45], [-34.6, -58.41]]]
+    };
+
+    assert.equal(app.isBikeStationRelevantToDirections({ station_id: 'near-origin' }, -34.6, -58.455, activeTransit), true);
+    assert.equal(app.isBikeStationRelevantToDirections({ station_id: 'on-route' }, -34.6005, -58.43, activeTransit), true);
+    assert.equal(app.isBikeStationRelevantToDirections({ station_id: 'chosen' }, -34.62, -58.43, activeTransit), true);
+    assert.equal(app.isBikeStationRelevantToDirections({ station_id: 'far-away' }, -34.61, -58.43, activeTransit), false);
 });

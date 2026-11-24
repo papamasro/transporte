@@ -33,9 +33,9 @@
 
     <div id="loading-line" class="loading-bar"></div>
 
-    <!-- Mobile (< 768px): hoja inferior arrastrable. Tablet/desktop: barra lateral fija. Una sola superficie:
-         cercanos y alertas se abren como vistas dentro de la hoja, reemplazando a la vista principal. -->
-    <aside id="app-sheet" class="app-sheet" data-sheet-state="peek" data-view="main" aria-label="Panel de Radar AMBA">
+    <!-- Mobile (< 768px): hoja inferior arrastrable. Tablet/desktop: panel flotante que crece con el contenido.
+         Cercanos y alertas se abren como vistas dentro del panel, reemplazando a la vista principal. -->
+    <aside id="app-sheet" class="app-sheet" data-sheet-state="peek" data-panel-minimized="false" data-view="main" aria-label="Panel de Radar AMBA">
         <div id="sheet-drag-zone" class="sheet-drag-zone">
             <button type="button" id="panel-toggle" class="sheet-handle" aria-expanded="false" aria-controls="panel-content" aria-label="Expandir panel">
                 <span class="sheet-grabber" aria-hidden="true"></span>
@@ -52,33 +52,16 @@
                     <span id="status-pulse" class="status-pulse" aria-hidden="true"></span>
                     <span id="status-text" aria-live="polite">CARGANDO</span>
                 </div>
+                <button type="button" id="panel-minimize" class="icon-btn panel-minimize-btn" aria-expanded="true" aria-controls="sheet-body" aria-label="Minimizar panel" title="Minimizar panel">
+                    <i aria-hidden="true" data-lucide="chevron-up" class="w-5 h-5"></i>
+                </button>
                 <div class="menu-wrap">
                     <button type="button" id="app-menu-btn" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="app-menu" aria-label="Más opciones" title="Más opciones">
                         <i aria-hidden="true" data-lucide="more-horizontal" class="w-5 h-5"></i>
                     </button>
                     <div id="app-menu" class="app-menu" role="menu" aria-labelledby="app-menu-btn" hidden>
-                        <button type="button" role="menuitem" tabindex="-1" id="action-reubicar" onclick="startRelocateUser()" class="menu-item">
-                            <i aria-hidden="true" data-lucide="map-pin" class="w-4 h-4"></i>
-                            <span>Reubicar muñequito</span>
-                        </button>
-                        <button type="button" role="menuitem" tabindex="-1" id="action-menu-directions" onclick="toggleDirectionsPanel()" class="menu-item">
-                            <i aria-hidden="true" data-lucide="route" class="w-4 h-4"></i>
-                            <span>Cómo llegar</span>
-                        </button>
-                        <button type="button" role="menuitem" tabindex="-1" id="action-refresh" onclick="forceRefresh()" class="menu-item">
-                            <i aria-hidden="true" data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
-                            <span>Actualizar datos</span>
-                        </button>
-                        <button type="button" role="menuitem" tabindex="-1" id="action-share" onclick="shareCurrentView()" class="menu-item">
-                            <i aria-hidden="true" data-lucide="share-2" class="w-4 h-4"></i>
-                            <span>Compartir</span>
-                        </button>
-                        <button type="button" role="menuitem" tabindex="-1" id="install-app-btn" onclick="installApp()" class="menu-item">
-                            <i aria-hidden="true" data-lucide="download" class="w-4 h-4"></i>
-                            <span id="install-app-label">Instalar app</span>
-                        </button>
-                        <div class="menu-group" role="group" aria-label="Mapa">
-                            <span class="menu-group-label" aria-hidden="true">Mapa</span>
+                        <div class="menu-group" role="group" aria-label="Apariencia del mapa">
+                            <span class="menu-group-label" aria-hidden="true">Apariencia del mapa</span>
                             <button type="button" role="menuitemradio" aria-checked="true" tabindex="-1" data-map-theme="auto" class="menu-item menu-item-radio">
                                 <i aria-hidden="true" data-lucide="sun-moon" class="w-4 h-4"></i>
                                 <span>Automático</span>
@@ -92,10 +75,28 @@
                                 <span>Oscuro</span>
                             </button>
                         </div>
-                        <button type="button" role="menuitem" tabindex="-1" id="consent-settings-btn" onclick="openConsentSettings()" class="menu-item">
-                            <i aria-hidden="true" data-lucide="shield-check" class="w-4 h-4"></i>
-                            <span>Privacidad y estadísticas</span>
-                        </button>
+                        <div class="menu-group" role="group" aria-label="Acciones">
+                            <span class="menu-group-label" aria-hidden="true">Acciones</span>
+                            <button type="button" role="menuitem" tabindex="-1" id="action-refresh" onclick="forceRefresh()" class="menu-item">
+                                <i aria-hidden="true" data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
+                                <span>Actualizar datos</span>
+                            </button>
+                            <button type="button" role="menuitem" tabindex="-1" id="action-share" onclick="shareCurrentView()" class="menu-item">
+                                <i aria-hidden="true" data-lucide="share-2" class="w-4 h-4"></i>
+                                <span>Compartir</span>
+                            </button>
+                        </div>
+                        <div class="menu-group" role="group" aria-label="Preferencias">
+                            <span class="menu-group-label" aria-hidden="true">Preferencias</span>
+                            <button type="button" role="menuitem" tabindex="-1" id="install-app-btn" onclick="installApp()" class="menu-item">
+                                <i aria-hidden="true" data-lucide="download" class="w-4 h-4"></i>
+                                <span id="install-app-label">Instalar app</span>
+                            </button>
+                            <button type="button" role="menuitem" tabindex="-1" id="consent-settings-btn" onclick="openConsentSettings()" class="menu-item">
+                                <i aria-hidden="true" data-lucide="shield-check" class="w-4 h-4"></i>
+                                <span>Privacidad y estadísticas</span>
+                            </button>
+                        </div>
                     </div>
                 </section>
             </header>
@@ -107,20 +108,20 @@
             <section id="view-main" class="sheet-view is-open" aria-label="Capas y búsqueda">
                 <section class="transport-filter" aria-labelledby="transport-filter-title">
                     <div class="panel-section-heading">
-                        <h2 id="transport-filter-title" class="panel-section-title">Ver en el mapa</h2>
-                        <p class="panel-section-description">Elegí qué transportes querés explorar</p>
+                        <h2 id="transport-filter-title" class="panel-section-title">Ver transportes en tiempo real</h2>
+                        <p id="transport-filter-help" class="panel-section-description">Podés activar varios a la vez.</p>
                     </div>
-                    <div class="type-toggles" role="group" aria-label="Tipo de transporte" data-peek-end>
-                        <button type="button" onclick="toggleType('bus')" id="t-bus" aria-pressed="true" class="btn-transport type-toggle active">
+                    <div class="type-toggles" role="group" aria-label="Transportes visibles en el mapa" aria-describedby="transport-filter-help" data-peek-end>
+                        <button type="button" onclick="toggleType('bus')" id="t-bus" aria-pressed="true" title="Activar o desactivar colectivos" class="btn-transport type-toggle active">
                             <i aria-hidden="true" data-lucide="bus" class="w-5 h-5"></i><span>Colectivos</span>
                         </button>
-                        <button type="button" onclick="toggleType('subte')" id="t-subte" aria-pressed="false" class="btn-transport type-toggle">
+                        <button type="button" onclick="toggleType('subte')" id="t-subte" aria-pressed="false" title="Activar o desactivar subte" class="btn-transport type-toggle">
                             <i aria-hidden="true" data-lucide="train-front" class="w-5 h-5"></i><span>Subte</span>
                         </button>
-                        <button type="button" onclick="toggleType('train')" id="t-train" aria-pressed="false" class="btn-transport type-toggle">
+                        <button type="button" onclick="toggleType('train')" id="t-train" aria-pressed="false" title="Activar o desactivar trenes" class="btn-transport type-toggle">
                             <i aria-hidden="true" data-lucide="train-track" class="w-5 h-5"></i><span>Trenes</span>
                         </button>
-                        <button type="button" onclick="toggleType('bike')" id="t-bike" aria-pressed="false" class="btn-transport type-toggle">
+                        <button type="button" onclick="toggleType('bike')" id="t-bike" aria-pressed="false" title="Activar o desactivar Ecobici" class="btn-transport type-toggle">
                             <i aria-hidden="true" data-lucide="bike" class="w-5 h-5"></i><span>Ecobici</span>
                         </button>
                     </div>
@@ -157,41 +158,23 @@
                             <h2 id="quick-actions-title" class="panel-section-title">Accesos rápidos</h2>
                         </div>
                         <div class="quick-actions" role="group" aria-label="Accesos rápidos">
-                            <button type="button" id="action-locate" onclick="locateUser()" class="quick-action">
-                                <i aria-hidden="true" data-lucide="navigation" class="w-5 h-5"></i>
-                                <span class="quick-action-copy">
-                                    <span class="quick-action-title">Mi ubicación</span>
-                                    <span class="quick-action-description">Centrar el mapa en vos</span>
-                                </span>
-                                <i aria-hidden="true" data-lucide="chevron-right" class="quick-action-chevron w-4 h-4"></i>
-                            </button>
-                            <button type="button" id="action-nearby" onclick="toggleNearbyPanel()" class="quick-action">
+                            <button type="button" id="action-nearby" onclick="toggleNearbyPanel()" class="quick-action" title="Ver paradas, estaciones y bicis cercanas">
                                 <i aria-hidden="true" data-lucide="radar" class="w-5 h-5"></i>
                                 <span class="quick-action-copy">
                                     <span class="quick-action-title">Cercanos</span>
                                     <span class="quick-action-description">Paradas, estaciones y bicis</span>
                                 </span>
-                                <i aria-hidden="true" data-lucide="chevron-right" class="quick-action-chevron w-4 h-4"></i>
                             </button>
-                            <button type="button" id="action-alerts" onclick="toggleAlertPanel()" class="quick-action">
+                            <button type="button" id="action-alerts" onclick="toggleAlertPanel()" class="quick-action" title="Ver demoras y cambios de servicio">
                                 <i aria-hidden="true" data-lucide="bell" class="w-5 h-5"></i>
                                 <span class="quick-action-copy">
                                     <span class="quick-action-title">Alertas</span>
-                                    <span class="quick-action-description">Demoras y cambios de servicio</span>
+                                    <span class="quick-action-description">Demoras y cambios</span>
                                 </span>
-                                <i aria-hidden="true" data-lucide="chevron-right" class="quick-action-chevron w-4 h-4"></i>
                             </button>
                         </div>
                     </div>
 
-                    <section id="favorites-slot" class="favorites-slot" aria-labelledby="favorites-title" hidden>
-                        <div class="favorites-head">
-                            <h2 id="favorites-title" class="section-label" tabindex="-1">Favoritos</h2>
-                            <button type="button" id="favorites-edit" class="favorites-edit" aria-pressed="false" hidden>Editar</button>
-                        </div>
-                        <p id="favorites-empty" class="favorites-empty">Guardá líneas y estaciones con ☆ para encontrarlas rápido.</p>
-                        <ul id="favorites-list" class="favorites-list" hidden></ul>
-                    </section>
                 </div>
             </section>
 
@@ -235,7 +218,7 @@
 
             <section id="directions-panel" class="sheet-view" role="region" aria-labelledby="directions-title" inert>
                 <div class="view-header" data-peek-end>
-                    <button type="button" id="directions-back" onclick="toggleDirectionsPanel()" class="back-btn" title="Cerrar cómo llegar y volver">
+                    <button type="button" id="directions-back" onclick="closeDirectionsPanel()" class="back-btn" title="Cerrar cómo llegar y volver">
                         <i aria-hidden="true" data-lucide="arrow-left" class="w-5 h-5"></i><span>Volver</span>
                     </button>
                     <h2 id="directions-title" class="view-title">Cómo llegar</h2>
@@ -290,7 +273,7 @@
         <i data-lucide="zoom-in" class="w-4 h-4"></i><span>Acercá para ver colectivos</span>
     </div>
 
-    <button type="button" id="map-relocate-fab" onclick="startRelocateUser()" class="map-fab map-fab-relocate" aria-label="Reubicar muñequito" title="Reubicar muñequito">
+    <button type="button" id="map-relocate-fab" onclick="startRelocateUser()" class="map-fab map-fab-relocate" aria-label="Marcar mi ubicación en el mapa" title="Marcar mi ubicación en el mapa">
         <i aria-hidden="true" data-lucide="map-pin" class="w-5 h-5"></i>
     </button>
 

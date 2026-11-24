@@ -68,7 +68,7 @@ test.describe('avisos de error con reintento', () => {
         await page.evaluate(() => forceRefresh());
         await expect(subteBanner).toBeVisible({ timeout: 15_000 });
         await openPanel(page);
-        await page.locator('#t-bus').click();
+        await page.locator('#t-subte').click();
         await expect(subteBanner).toHaveCount(0);
     });
 

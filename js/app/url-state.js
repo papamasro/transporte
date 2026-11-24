@@ -1,6 +1,7 @@
 // Estado compartible en la URL (history.replaceState, sin recargar):
 //   ?@=lat,lng,zoom   centro visible y zoom del mapa
-//   &capa=subte|tren|ecobici|ninguna   capa activa (colectivos es la de siempre y no se escribe)
+//   &capa=subte|tren|ecobici|ninguna   capa única (formato anterior, se sigue aceptando)
+//   &capas=colectivos,subte,tren,ecobici   combinación de capas activas
 //   &q=60  (o &linea=60)   búsqueda confirmada
 //   &est=subte:LineaA:A1   estación con el popup abierto
 // Todo lo que llega por URL es no confiable: se valida contra listas y rangos, y la búsqueda pasa por
@@ -17,6 +18,7 @@ const URL_STATE_TYPE_ALIASES = {
     none: 'none', ninguna: 'none'
 };
 const URL_STATE_TYPE_PARAMS = { subte: 'subte', train: 'tren', bike: 'ecobici', none: 'ninguna' };
+const URL_STATE_MULTI_TYPE_PARAMS = { bus: 'colectivos', subte: 'subte', train: 'tren', bike: 'ecobici' };
 const URL_STATE_STATION_TYPES = { subte: 'subte', tren: 'train', train: 'train', ecobici: 'bike', bike: 'bike' };
 const URL_STATE_STATION_ID_PATTERN = /^[\p{L}\p{N} _.:,-]{1,64}$/u;
 
@@ -53,18 +55,29 @@ function parseShareStation(value) {
     return { type, id };
 }
 
+function parseShareTypes(value) {
+    if (typeof value !== 'string') return null;
+    const tokens = value.toLowerCase().split(',').map(token => token.trim()).filter(Boolean);
+    if (tokens.length === 1 && URL_STATE_TYPE_ALIASES[tokens[0]] === 'none') return [];
+    const types = [...new Set(tokens
+        .map(token => URL_STATE_TYPE_ALIASES[token])
+        .filter(type => type && type !== 'none' && URL_STATE_MULTI_TYPE_PARAMS[type]))];
+    return types.length ? types : null;
+}
+
 // Función pura (tests unitarios): ignora todo parámetro inválido o desconocido.
 function parseShareParams(search) {
     let params;
     try {
         params = new URLSearchParams(search || '');
     } catch {
-        return { view: null, type: null, query: '', station: null };
+        return { view: null, type: null, types: null, query: '', station: null };
     }
     const type = URL_STATE_TYPE_ALIASES[(params.get('capa') || '').toLowerCase()] || null;
     return {
         view: parseShareView(params.get('@')),
         type,
+        types: params.has('capas') ? parseShareTypes(params.get('capas')) : null,
         query: cleanShareQuery(params.get('q') ?? params.get('linea') ?? ''),
         station: parseShareStation(params.get('est'))
     };
@@ -81,7 +94,17 @@ function buildShareSearch(state) {
     if (view && Number.isFinite(view.lat) && Number.isFinite(view.lng) && Number.isFinite(view.zoom)) {
         parts.push(`@=${formatShareNumber(view.lat, 5)},${formatShareNumber(view.lng, 5)},${formatShareNumber(view.zoom, 1)}`);
     }
-    if (state?.type && URL_STATE_TYPE_PARAMS[state.type]) parts.push(`capa=${URL_STATE_TYPE_PARAMS[state.type]}`);
+    if (Array.isArray(state?.types)) {
+        const types = [...new Set(state.types.filter(type => URL_STATE_MULTI_TYPE_PARAMS[type]))];
+        if (types.length === 0) parts.push('capa=ninguna');
+        else if (types.length === 1) {
+            if (types[0] !== 'bus') parts.push(`capa=${URL_STATE_MULTI_TYPE_PARAMS[types[0]]}`);
+        } else {
+            parts.push(`capas=${types.map(type => URL_STATE_MULTI_TYPE_PARAMS[type]).join(',')}`);
+        }
+    } else if (state?.type && URL_STATE_TYPE_PARAMS[state.type]) {
+        parts.push(`capa=${URL_STATE_TYPE_PARAMS[state.type]}`);
+    }
     const query = cleanShareQuery(state?.query || '');
     if (query) parts.push(`q=${encodeURIComponent(query)}`);
     const station = state?.station;
@@ -93,19 +116,17 @@ function buildShareSearch(state) {
 
 // ─── Estado actual de la app ─────────────────────────────────────────────────
 
-function getActiveShareType() {
+function getActiveShareTypes() {
     // Con cercanos abierto las capas principales están apagadas a propósito: no se comparte eso.
     if (globalThis.nearbyState?.active) return null;
-    const active = Object.keys(activeTypes).filter(type => activeTypes[type]);
-    if (active.length === 0) return 'none';
-    return active[0] === 'bus' ? null : active[0];
+    return Object.keys(activeTypes).filter(type => activeTypes[type]);
 }
 
 function getCurrentShareState() {
     const center = typeof getVisibleViewCenter === 'function' ? getVisibleViewCenter() : map?.getCenter();
     return {
         view: center && map ? { lat: center.lat, lng: center.lng, zoom: map.getZoom() } : null,
-        type: getActiveShareType(),
+        types: getActiveShareTypes(),
         query: document.getElementById('search')?.value || '',
         station: urlState.openStation
     };
@@ -214,10 +235,12 @@ function initUrlState() {
         const zoom = Math.min(parsed.view.zoom, map.getMaxZoom?.() || URL_STATE_ZOOM_RANGE[1]);
         map.setView(getVisibleMapCenter([parsed.view.lat, parsed.view.lng], zoom), zoom, { animate: false });
     }
-    if (parsed.type && parsed.type !== 'bus' && !parsed.station) {
-        // toggleType es exclusivo: activar otra capa apaga colectivos; "ninguna" apaga colectivos.
-        const typeToToggle = parsed.type === 'none' ? 'bus' : parsed.type;
-        if (isTransportTypeEnabled(typeToToggle)) toggleType(typeToToggle);
+    const sharedTypes = parsed.types ?? (!parsed.station && parsed.type ? (parsed.type === 'none' ? [] : [parsed.type]) : null);
+    if (sharedTypes) {
+        for (const type of Object.keys(activeTypes)) {
+            const shouldBeActive = sharedTypes.includes(type) && isTransportTypeEnabled(type);
+            if (!!activeTypes[type] !== shouldBeActive) toggleType(type);
+        }
     }
     if (parsed.query && !parsed.station) applySearchQueryFromUrl(parsed.query);
     if (parsed.station) openSharedStation(parsed.station);

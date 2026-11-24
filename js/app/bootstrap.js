@@ -209,8 +209,8 @@
         }
 
         async function retryTypeActivation(type) {
-            const toggleSeq = typeToggleSeq;
-            const isCurrent = () => toggleSeq === typeToggleSeq;
+            const toggleSeq = ++typeToggleSeq[type];
+            const isCurrent = () => toggleSeq === typeToggleSeq[type];
             const activated = await activateType(type, isCurrent);
             if (!isCurrent() || !activeTypes[type]) return;
             reportSourceResult(type, activated);
@@ -562,13 +562,14 @@
 
 
 
-        let typeToggleSeq = 0;
+        const typeToggleSeq = { bus: 0, subte: 0, train: 0, bike: 0 };
+        const pendingTypeActivations = new Set();
 
         async function toggleType(type) {
             if (!Object.hasOwn(activeTypes, type) || !isTransportTypeEnabled(type)) return;
 
-            const toggleSeq = ++typeToggleSeq;
-            const isCurrentToggle = () => toggleSeq === typeToggleSeq;
+            const toggleSeq = ++typeToggleSeq[type];
+            const isCurrentToggle = () => toggleSeq === typeToggleSeq[type];
 
             const nearbyPanel = document.getElementById('nearby-panel');
             const isNearbyOpen = nearbyPanel?.classList?.contains('is-open');
@@ -576,33 +577,27 @@
                 closeNearbyPanel({ restoreFilters: false });
             }
 
-            // Estado y botones se aplican de forma síncrona; solo la carga del tipo activado es async.
-            const isCurrentlyActive = !!activeTypes[type];
-            let typeToActivate = null;
-            for (const currentType of Object.keys(activeTypes)) {
-                const shouldBeActive = isCurrentlyActive ? false : (currentType === type);
-                const wasActive = !!activeTypes[currentType];
-
-                activeTypes[currentType] = shouldBeActive;
-                setTypeButtonState(currentType, shouldBeActive);
-
-                if (shouldBeActive && !wasActive) typeToActivate = currentType;
-                if (!shouldBeActive && wasActive) deactivateType(currentType);
-            }
+            const shouldBeActive = !activeTypes[type];
+            activeTypes[type] = shouldBeActive;
+            setTypeButtonState(type, shouldBeActive);
 
             let onDemandHadError = false;
-            if (typeToActivate) {
+            if (shouldBeActive) {
+                pendingTypeActivations.add(type);
                 renderMarkers({ force: true });
-                const activated = await activateType(typeToActivate, isCurrentToggle);
-                // Un toggle posterior es dueño del render y del estado.
-                if (!isCurrentToggle() || !activeTypes[typeToActivate]) return;
+                const activated = await activateType(type, isCurrentToggle);
+                if (!isCurrentToggle() || !activeTypes[type]) return;
+                pendingTypeActivations.delete(type);
                 onDemandHadError = !activated;
-                reportSourceResult(typeToActivate, activated);
+                reportSourceResult(type, activated);
                 if (activated) markDataUpdated();
+            } else {
+                pendingTypeActivations.delete(type);
+                deactivateType(type);
             }
 
             renderMarkers({ force: true });
-            setStatus(onDemandHadError ? 'ERROR' : 'LIVE');
+            setStatus(pendingTypeActivations.size ? 'CARGANDO' : onDemandHadError ? 'ERROR' : 'LIVE');
             // El próximo ciclo depende de qué capas quedaron activas.
             if (!isRefreshing) scheduleNextRefresh();
         }

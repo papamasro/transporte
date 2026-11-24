@@ -105,7 +105,6 @@
         ['t-subte', () => isTransportTypeEnabled('subte')],
         ['t-train', () => isTransportTypeEnabled('train')],
         ['t-bike', () => isTransportTypeEnabled('bike')],
-        ['action-locate', () => isFeatureEnabled('geolocation')],
         ['map-locate-fab', () => isFeatureEnabled('geolocation')],
         ['map-relocate-fab', () => isFeatureEnabled('geolocation')],
         ['action-directions', () => isFeatureEnabled('directionsPanel')],

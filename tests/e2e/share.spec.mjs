@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { bootApp, openPanel, trackPageErrors, MAIN_BUS_CHIPS } from './helpers.mjs';
+import { bootApp, openPanel, trackPageErrors, MAIN_BUS_CHIPS, BUS_CLUSTERS } from './helpers.mjs';
 
 const searchParams = page => new URL(page.url()).searchParams;
 
@@ -17,7 +17,8 @@ test.describe('links compartibles', () => {
 
         await openPanel(page);
         await page.locator('#t-subte').click();
-        await expect.poll(() => searchParams(page).get('capa')).toBe('subte');
+        await expect.poll(() => searchParams(page).get('capas')).toBe('colectivos,subte');
+        await expect.poll(() => searchParams(page).get('capa')).toBeNull();
         await page.evaluate(() => {
             const station = globalThis.cache.subteStatic.stations.A2;
             map.setView(getVisibleMapCenter([station.lat, station.lon], 16), 16, { animate: false });
@@ -33,7 +34,8 @@ test.describe('links compartibles', () => {
         await page.locator('#search').fill('60');
         await page.locator('#search').press('Enter');
         await expect.poll(() => searchParams(page).get('q')).toBe('60');
-        await expect.poll(() => searchParams(page).get('capa')).toBeNull();
+        await expect.poll(() => searchParams(page).get('capa')).toBe('subte');
+        await expect.poll(() => searchParams(page).get('capas')).toBeNull();
     });
 
     test('abrir un link: vista y capa del link, sin pedir ubicación', async ({ page }) => {
@@ -49,6 +51,16 @@ test.describe('links compartibles', () => {
         await page.waitForTimeout(400);
         await expect(page.locator('#location-prompt-overlay')).toHaveClass(/hidden/);
         expect(errors).toEqual([]);
+    });
+
+    test('abrir un link: restaura varias capas seleccionadas', async ({ page }) => {
+        await bootApp(page, { path: './?capas=colectivos,subte,ecobici', dismissLocation: false, waitForBuses: false, zoom: null });
+        await expect(page.locator('#t-bus')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#t-subte')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#t-bike')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#t-train')).toHaveAttribute('aria-pressed', 'false');
+        await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' }).first()).toBeVisible();
+        await expect(page.locator(BUS_CLUSTERS).first()).toBeVisible();
     });
 
     test('link con línea: filtra y muestra el recorrido; con estación: abre su popup', async ({ page }) => {

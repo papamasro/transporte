@@ -36,6 +36,7 @@ const FOLLOWER_WAIT_MS = 40_000;
 const MAX_URL_LENGTH = 2048;
 const D1_MAX_PARAMS = 90;
 const BUS_ROUTE_DESTINATION_STOP_LIMIT = 24;
+const BUS_FINAL_WALK_MAX_METERS = 500;
 
 // Tiempos en segundos. ttl = fresco; swr = se sirve vencido mientras se refresca en segundo
 // plano; sie = se sirve vencido si el upstream falla.
@@ -1011,6 +1012,13 @@ async function loadBusRouteOptions(db, origin, destination) {
     const routes = candidates.map(option => buildBusRouteOption(option, shapes, origin, destination));
     routes.sort((a, b) => a.durationMin - b.durationMin);
     const uniqueDirectRoutes = dedupeBusRoutes(routes);
+    const nearbyDirectRoutes = uniqueDirectRoutes.filter(route =>
+        route.legs.filter(leg => leg.mode === 'bus').length === 1
+        && getFinalBusWalkDistance(route) <= BUS_FINAL_WALK_MAX_METERS);
+    if (nearbyDirectRoutes.length > 0) {
+        return jsonEntry({ routes: nearbyDirectRoutes.slice(0, 1), estimated: true }, 200, stats);
+    }
+
     if (uniqueDirectRoutes.length < 6) {
         const transferRoutes = await loadBusTransferOptions(
             db, stats, origin, destination, originStops, destinationStops, boardings, tripStopsById
@@ -1033,6 +1041,14 @@ function dedupeBusRoutes(routes) {
         uniqueRoutes.push(route);
     }
     return uniqueRoutes;
+}
+
+function getFinalBusWalkDistance(route) {
+    const legs = Array.isArray(route?.legs) ? route.legs : [];
+    const lastBusIndex = legs.findLastIndex(leg => leg.mode === 'bus');
+    if (lastBusIndex < 0) return Infinity;
+    const finalWalk = legs.slice(lastBusIndex + 1).find(leg => leg.mode === 'walk');
+    return Math.max(0, Number(finalWalk?.distanceMeters) || 0);
 }
 
 async function loadBusTransferOptions(db, stats, origin, destination, originStops, destinationStops, boardings, tripStopsById) {

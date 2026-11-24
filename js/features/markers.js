@@ -251,20 +251,37 @@ function renderBusLayer(filter, bounds) {
     let visibleCount = 0;
     markerRenderState.busHiddenByZoom = false;
 
-    if (activeTypes.bus && isTransportTypeEnabled('bus') && isBusZoomTooLow(filter)) {
+    const hasDirectionsTransit = !!(globalThis.directionsState?.isOpen && globalThis._directionsActiveTransit);
+    const shouldRenderBuses = (activeTypes.bus && isTransportTypeEnabled('bus')) ||
+        (hasDirectionsTransit && globalThis._directionsActiveTransit.busLines?.size > 0);
+
+    if (shouldRenderBuses && isBusZoomTooLow(filter) && !hasDirectionsTransit) {
         markerRenderState.busHiddenByZoom = true;
-    } else if (activeTypes.bus && isTransportTypeEnabled('bus')) {
+    } else if (shouldRenderBuses) {
         const filterToken = filter ? normalizeLineToken(filter) : '';
         const vehicles = Array.isArray(globalThis.cache.bus) ? globalThis.cache.bus : [];
         const items = [];
 
         for (let index = 0; index < vehicles.length; index++) {
             const vehicle = vehicles[index];
-            if (filter && (!filterToken || !matchesBusLineFilter(vehicle, filterToken))) continue;
+
+            if (hasDirectionsTransit) {
+                const line = getBusDisplayLine(vehicle);
+                const lineBase = line.replace(/[^0-9]/g, '') || line;
+                const routeShort = getVehicleRouteShortNameForSearch(vehicle);
+                const routeBase = routeShort.replace(/[^0-9]/g, '') || routeShort;
+                const matchesRoute = globalThis._directionsActiveTransit.busLines.has(line) ||
+                                     globalThis._directionsActiveTransit.busLines.has(lineBase) ||
+                                     globalThis._directionsActiveTransit.busLines.has(routeShort) ||
+                                     globalThis._directionsActiveTransit.busLines.has(routeBase);
+                if (!matchesRoute) continue;
+            } else if (filter && (!filterToken || !matchesBusLineFilter(vehicle, filterToken))) {
+                continue;
+            }
 
             const coords = getVehicleCoordinates(vehicle);
             if (!coords) continue;
-            if (!filter && !bounds.contains([coords.lat, coords.lon])) continue;
+            if (!filter && !hasDirectionsTransit && !bounds.contains([coords.lat, coords.lon])) continue;
 
             const key = getVehicleUniqueKey(vehicle) || `idx:${index}`;
             if (seenKeys.has(key)) continue;
@@ -273,7 +290,7 @@ function renderBusLayer(filter, bounds) {
         }
 
         visibleCount = items.length;
-        const grid = getBusClusterGrid(filter, map.getZoom(), items.length);
+        const grid = hasDirectionsTransit ? null : getBusClusterGrid(filter, map.getZoom(), items.length);
         const individual = grid ? clusterBusItems(items, grid, seenClusterKeys) : items;
         for (const item of individual) {
             const line = getBusDisplayLine(item.vehicle);
@@ -320,12 +337,21 @@ function renderBikeLayer(filter, bounds) {
     let visibleCount = 0;
     const stationsEnabled = isTransportTypeEnabled('bike') && isFeatureEnabled('bikeStations');
 
-    if (stationsEnabled && activeTypes.bike) {
+    const hasDirectionsTransit = !!(globalThis.directionsState?.isOpen && globalThis._directionsActiveTransit);
+    const activeTransit = globalThis._directionsActiveTransit;
+    // Si cómo llegar está activo y no es ruta en bici, no mostrar las cientos de estaciones de ecobici
+    if (hasDirectionsTransit && !globalThis._directionsActiveTransit.hasBike) {
+        pruneKeyedLayers(layers.bike, store, seenKeys);
+        return 0;
+    }
+
+    if (stationsEnabled && (activeTypes.bike || (hasDirectionsTransit && globalThis._directionsActiveTransit.hasBike))) {
         globalThis.cache.bike.forEach(s => {
             if (filter && !normalizeText(s.name).includes(filter)) return;
             const lat = Number.parseFloat(s.lat);
             const lon = Number.parseFloat(s.lon);
             if (Number.isNaN(lat) || Number.isNaN(lon) || !bounds.contains([lat, lon])) return;
+            if (hasDirectionsTransit && !isBikeStationRelevantToDirections(s, lat, lon, activeTransit)) return;
 
             const key = (s.station_id ?? `${lat},${lon}`).toString();
             if (seenKeys.has(key)) return;
@@ -344,18 +370,72 @@ function renderBikeLayer(filter, bounds) {
     return visibleCount;
 }
 
+function isBikeStationRelevantToDirections(station, lat, lon, activeTransit) {
+    const stationId = String(station.station_id ?? station.id ?? '');
+    if (stationId && activeTransit.bikeStationIds?.has(stationId)) return true;
+
+    const endpointRadiusMeters = 500;
+    const origin = globalThis.directionsState?.origin;
+    const destination = globalThis.directionsState?.destination;
+    if (origin && haversineMeters(lat, lon, origin.lat, origin.lon) <= endpointRadiusMeters) return true;
+    if (destination && haversineMeters(lat, lon, destination.lat, destination.lon) <= endpointRadiusMeters) return true;
+
+    const routeRadiusMeters = 300;
+    return (activeTransit.bikeRouteCoords || []).some(coords => {
+        for (let index = 1; index < coords.length; index += 1) {
+            if (distanceToBikeRouteSegmentMeters(lat, lon, coords[index - 1], coords[index]) <= routeRadiusMeters) {
+                return true;
+            }
+        }
+        return false;
+    });
+}
+
+function distanceToBikeRouteSegmentMeters(lat, lon, start, end) {
+    if (!Array.isArray(start) || !Array.isArray(end) || start.length < 2 || end.length < 2) return Infinity;
+    const longitudeScale = 111320 * Math.cos(lat * Math.PI / 180);
+    const latitudeScale = 110540;
+    const startX = (start[1] - lon) * longitudeScale;
+    const startY = (start[0] - lat) * latitudeScale;
+    const deltaX = (end[1] - start[1]) * longitudeScale;
+    const deltaY = (end[0] - start[0]) * latitudeScale;
+    const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const fraction = lengthSquared > 0
+        ? Math.max(0, Math.min(1, -(startX * deltaX + startY * deltaY) / lengthSquared))
+        : 0;
+    return Math.hypot(startX + fraction * deltaX, startY + fraction * deltaY);
+}
+
 function renderSubteLayer(filter, bounds) {
     const stationStore = markerStores.subteStations;
     const lineStore = markerStores.subteLines;
     const seenStationKeys = new Set();
     const seenLineKeys = new Set();
     let visibleCount = 0;
-    if (isTransportTypeEnabled('subte') && activeTypes.subte) {
+
+    if (globalThis._directionsActiveTransit?.hideSubteLayers) {
+        pruneKeyedLayers(layers.subteLines, lineStore, seenLineKeys);
+        pruneKeyedLayers(layers.subteStations, stationStore, seenStationKeys);
+        return 0;
+    }
+
+    const hasDirectionsTransit = !!(globalThis.directionsState?.isOpen && globalThis._directionsActiveTransit);
+    const shouldRenderSubte = (isTransportTypeEnabled('subte') && activeTypes.subte) ||
+        (hasDirectionsTransit && globalThis._directionsActiveTransit.subteLines?.size > 0);
+
+    if (shouldRenderSubte) {
         const subteLines = globalThis.cache.subteStatic?.lines || {};
         const subteStations = globalThis.cache.subteStatic?.stations || {};
         const filterToken = filter ? normalizeLineToken(filter) : '';
 
         Object.entries(subteLines).forEach(([routeId, line]) => {
+            if (hasDirectionsTransit) {
+                const lineShort = line.short || routeId.replace('Linea', '');
+                const matches = globalThis._directionsActiveTransit.subteLines.has(lineShort) ||
+                                globalThis._directionsActiveTransit.subteLines.has(routeId);
+                if (!matches) return;
+            }
+
             const routeFilterMatch = !filter || (!!filterToken && (
                 matchesLineToken(normalizeLineToken(routeId), filterToken)
                 || matchesLineToken(normalizeLineToken(line.short), filterToken)
@@ -525,13 +605,38 @@ function renderTrainLayer(filter, bounds) {
     const seenLineKeys = new Set();
     const seenVehicleKeys = new Set();
     let visibleCount = 0;
-    if (isTransportTypeEnabled('train') && activeTypes.train) {
+
+    if (globalThis._directionsActiveTransit?.hideTrainLayers) {
+        pruneKeyedLayers(layers.trainLines, lineStore, seenLineKeys);
+        pruneKeyedLayers(layers.trainStations, stationStore, seenStationKeys);
+        pruneKeyedLayers(layers.trainVehicles, markerStores.trainVehicles, seenVehicleKeys);
+        return 0;
+    }
+
+    const hasDirectionsTransit = !!(globalThis.directionsState?.isOpen && globalThis._directionsActiveTransit);
+    const shouldRenderTrain = (isTransportTypeEnabled('train') && activeTypes.train) ||
+        (hasDirectionsTransit && globalThis._directionsActiveTransit.trainLines?.size > 0);
+
+    if (shouldRenderTrain) {
         const trainStatic = globalThis.cache.trainStatic || {};
         const trainLines = trainStatic?.lines || {};
         const trainStations = trainStatic?.stations || {};
         const filterToken = filter ? normalizeLineToken(filter) : '';
 
         Object.entries(trainLines).forEach(([lineId, line]) => {
+            if (hasDirectionsTransit) {
+                const lineName = line.name || '';
+                const lineShort = line.short || '';
+                const matches = globalThis._directionsActiveTransit.trainLines.has(lineId) ||
+                                globalThis._directionsActiveTransit.trainLines.has(lineName) ||
+                                globalThis._directionsActiveTransit.trainLines.has(lineShort) ||
+                                [...globalThis._directionsActiveTransit.trainLines].some(tl =>
+                                    lineName.toLowerCase().includes(tl.toLowerCase()) ||
+                                    lineId.toLowerCase().includes(tl.toLowerCase())
+                                );
+                if (!matches) return;
+            }
+
             const routeFilterMatch = !filter
                 || (!!filterToken && (
                     matchesLineToken(normalizeLineToken(lineId), filterToken)
@@ -580,7 +685,9 @@ function renderTrainLayer(filter, bounds) {
             });
         });
 
-        visibleCount += renderTrainVehicles(trainLines, trainStations, bounds, seenVehicleKeys);
+        if (!hasDirectionsTransit) {
+            visibleCount += renderTrainVehicles(trainLines, trainStations, bounds, seenVehicleKeys);
+        }
     }
 
     pruneKeyedLayers(layers.trainLines, lineStore, seenLineKeys);

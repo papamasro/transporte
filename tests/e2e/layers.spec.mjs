@@ -8,36 +8,45 @@ const pressedTypes = page => page.evaluate(() => ['bus', 'subte', 'train', 'bike
 // Zoom 14: las estaciones de bici dejan de ser puntos y entran en la pantalla del teléfono.
 const showWholeBikeArea = page => page.evaluate(() => map.setZoom(14, { animate: false }));
 
-test('toggle de tipos: subte reemplaza a colectivos y vuelve', async ({ page }) => {
+test('filtros de transporte: combina capas y permite apagarlas por separado', async ({ page }) => {
     const mock = await bootApp(page);
     await openPanel(page);
 
     await page.locator('#t-subte').click();
     await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' }).first()).toBeVisible();
-    await expect(page.locator(MAIN_BUS_CHIPS)).toHaveCount(0);
-    expect(await pressedTypes(page)).toEqual(['subte']);
+    await expect(page.locator(MAIN_BUS_CHIPS).first()).toBeVisible();
+    expect(await pressedTypes(page)).toEqual(['bus', 'subte']);
     expect(mock.count('/subtes/forecastGTFS')).toBe(1);
 
     await page.locator('#t-bus').click();
+    await expect(page.locator(MAIN_BUS_CHIPS)).toHaveCount(0);
+    await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' }).first()).toBeVisible();
+    expect(await pressedTypes(page)).toEqual(['subte']);
+    await page.locator('#t-subte').click();
+    expect(await pressedTypes(page)).toEqual([]);
+    await page.locator('#t-bus').click();
     await expect(page.locator(MAIN_BUS_CHIPS).first()).toBeVisible();
-    await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' })).toHaveCount(0);
     expect(await pressedTypes(page)).toEqual(['bus']);
     await expectStatus(page, 'LIVE');
 });
 
-test('toggles rápidos: gana el último y no quedan capas mezcladas', async ({ page }) => {
+test('toggles rápidos: conserva varias capas activas sin mezclarlas al apagarlas', async ({ page }) => {
     const errors = trackPageErrors(page);
     await bootApp(page);
     await openPanel(page);
 
-    for (const type of ['subte', 'train', 'bike', 'subte', 'train', 'bike']) {
+    for (const type of ['subte', 'train', 'bike']) {
         await page.locator(`#t-${type}`).click({ delay: 0 });
     }
-    await expect.poll(() => pressedTypes(page)).toEqual(['bike']);
+    await expect.poll(() => pressedTypes(page)).toEqual(['bus', 'subte', 'train', 'bike']);
     await showWholeBikeArea(page);
     await expect(page.locator('.leaflet-marker-icon', { hasText: '🚲' }).first()).toBeVisible();
-    await page.waitForTimeout(800);
-    await expect(page.locator(MAIN_BUS_CHIPS)).toHaveCount(0);
+    await expect(page.locator(BUS_CLUSTERS).first()).toBeVisible();
+    await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' }).first()).toBeVisible();
+
+    await page.locator('#t-subte').click();
+    await expect.poll(() => pressedTypes(page)).toEqual(['bus', 'train', 'bike']);
+    await expect(page.locator(BUS_CLUSTERS).first()).toBeVisible();
     await expect(page.locator('.leaflet-marker-icon', { hasText: '🚇' })).toHaveCount(0);
     await expectStatus(page, 'LIVE');
     expect(errors).toEqual([]);

@@ -65,7 +65,9 @@
     function toggleDirectionsPanel() {
         if (typeof isFeatureEnabled === 'function' && !isFeatureEnabled('directionsPanel')) return;
 
-        if (directionsState.isOpen) {
+        const panel = document.getElementById('directions-panel');
+        const isOpen = directionsState.isOpen || panel?.classList?.contains('is-open');
+        if (isOpen) {
             closeDirectionsPanel();
         } else {
             openDirectionsPanel();
@@ -134,9 +136,13 @@
             panel.inert = true;
         }
 
+        globalThis._directionsActiveTransit = null;
         hideSuggestions();
         stopDirectionsMapPick();
         clearDirectionsMapOverlay();
+        if (typeof scheduleRenderMarkers === 'function') {
+            scheduleRenderMarkers(50, { force: true });
+        }
     }
 
     // ─── Gestión de inputs y UI ───────────────────────────────────────────────────
@@ -218,10 +224,14 @@
         directionsState.origin = null;
         directionsState.destination = null;
         directionsState.routes = [];
+        globalThis._directionsActiveTransit = null;
         renderDirectionsInputs();
         hideSuggestions();
         clearDirectionsMapOverlay();
         renderDirectionsInitialPrompt();
+        if (typeof scheduleRenderMarkers === 'function') {
+            scheduleRenderMarkers(50, { force: true });
+        }
     }
 
     function hideSuggestions() {
@@ -524,13 +534,37 @@
         directionsState.isRouting = true;
         renderDirectionsLoading();
 
-        // Asegurar datos estáticos de subte y tren cargados
+        // Asegurar datos estáticos y en tiempo real de subte, tren y ecobici cargados
         const loadPromises = [];
         if (!globalThis.cache?.subteStatic?.lines && typeof loadSubteStaticFromKV === 'function') {
             loadPromises.push(loadSubteStaticFromKV().catch(() => {}));
         }
         if (!globalThis.cache?.trainStatic?.lines && typeof loadTrainStaticFromKV === 'function') {
             loadPromises.push(loadTrainStaticFromKV().catch(() => {}));
+        }
+        // Cargar estaciones de Ecobici para que siempre pueda recomendar bici
+        if ((!globalThis.cache?.bike || globalThis.cache.bike.length === 0) && typeof refreshBikeNow === 'function') {
+            loadPromises.push(refreshBikeNow({ force: true }).catch(() => {}));
+        }
+        if (!globalThis.cache?.bikeRoutes && typeof refreshBikeRoutesNow === 'function') {
+            loadPromises.push(refreshBikeRoutesNow());
+        }
+        // Cargar horarios de subte en tiempo real
+        if (typeof refreshSubteNow === 'function') {
+            loadPromises.push(refreshSubteNow({ force: true }).catch(() => {}));
+        }
+        // Cargar arribos de trenes en tiempo real para las líneas del AMBA
+        if (typeof fetchAPI === 'function' && typeof getAppPath === 'function') {
+            const trainPath = getAppPath('trainLineArrivals', '/trenes/arribosLinea');
+            const linesToFetch = ['mitre', 'roca', 'sarmiento', 'san_martin', 'urquiza', 'belgrano_norte', 'belgrano_sur'];
+            loadPromises.push(Promise.all(linesToFetch.map(l => fetchAPI(`${trainPath}?linea=${encodeURIComponent(l)}`)))
+                .then(responses => {
+                    responses.forEach(res => {
+                        if (res?.success && typeof storeTrainLineArrivals === 'function') {
+                            storeTrainLineArrivals(res.data);
+                        }
+                    });
+                }).catch(() => {}));
         }
         if (loadPromises.length > 0) {
             await Promise.all(loadPromises);
@@ -548,6 +582,127 @@
         } else {
             clearDirectionsMapOverlay();
         }
+    }
+
+    function getRouteBusLinesKey(route) {
+        const busLegs = (route?.legs || []).filter(l => l.mode === 'bus');
+        if (busLegs.length === 0) return route?.title || route?.id || 'bus';
+        return busLegs.map(l => {
+            const name = l.lineName || '';
+            const digits = name.replace(/[^0-9]/g, '');
+            return digits || name.toLowerCase().replace(/línea\s*/, '').trim();
+        }).join('+');
+    }
+
+    const BUS_FINAL_WALK_MAX_METERS = 500;
+
+    function getBusLegColor(leg) {
+        const lineName = (leg?.lineName || '').replace(/^Línea\s*/i, '').trim();
+        return typeof getColor === 'function'
+            ? getColor('bus', lineName || leg?.lineName)
+            : (leg?.color || '#4f46e5');
+    }
+
+    function colorBusLegs(route) {
+        let summaryBusIndex = 0;
+        const busLegColors = [];
+        const legs = (route.legs || []).map(leg => {
+            if (leg.mode !== 'bus') return leg;
+            const color = getBusLegColor(leg);
+            busLegColors.push(color);
+            return { ...leg, color };
+        });
+        const summaryPills = (route.summaryPills || []).map(pill => {
+            if (pill.icon !== '🚌') return pill;
+            const color = busLegColors[summaryBusIndex];
+            summaryBusIndex += 1;
+            return color ? { ...pill, color } : pill;
+        });
+        return { ...route, legs, summaryPills };
+    }
+
+    function getBusLegEndpoint(leg) {
+        const stops = Array.isArray(leg?.stops) ? leg.stops : [];
+        const alightStop = [...stops].reverse().find(stop => stop.role === 'alight');
+        if (Number.isFinite(Number(alightStop?.lat)) && Number.isFinite(Number(alightStop?.lon))) {
+            return [Number(alightStop.lat), Number(alightStop.lon)];
+        }
+        const lastCoordinate = Array.isArray(leg?.coords) ? leg.coords[leg.coords.length - 1] : null;
+        if (Array.isArray(lastCoordinate) && Number.isFinite(Number(lastCoordinate[0])) &&
+            Number.isFinite(Number(lastCoordinate[1]))) {
+            return [Number(lastCoordinate[0]), Number(lastCoordinate[1])];
+        }
+        return null;
+    }
+
+    function getBusEgressWalkDistance(leg, destination) {
+        const endpoint = getBusLegEndpoint(leg);
+        if (!endpoint) return Infinity;
+        return Math.round(haversineMeters(destination.lat, destination.lon, endpoint[0], endpoint[1]) * 1.25);
+    }
+
+    function getNearbySingleBusRoute(route, destination) {
+        const busLegs = (route.legs || []).filter(leg => leg.mode === 'bus');
+        if (busLegs.length === 0) return null;
+
+        const firstBusIndex = route.legs.findIndex(leg => leg.mode === 'bus');
+        const firstBusLeg = route.legs[firstBusIndex];
+        const egressDistance = getBusEgressWalkDistance(firstBusLeg, destination);
+        if (egressDistance > BUS_FINAL_WALK_MAX_METERS) return null;
+        if (busLegs.length === 1) return route;
+
+        const endpoint = getBusLegEndpoint(firstBusLeg);
+        if (!endpoint) return null;
+        const endName = firstBusLeg.toName ||
+            [...(firstBusLeg.stops || [])].reverse().find(stop => stop.role === 'alight')?.name ||
+            'Parada de bajada';
+        const walkDuration = egressDistance > 0 ? Math.max(1, Math.round(egressDistance / 80)) : 0;
+        const prefixLegs = route.legs.slice(0, firstBusIndex).filter(leg => leg.mode === 'walk');
+        const finalWalk = egressDistance >= 30 ? {
+            mode: 'walk',
+            distanceMeters: egressDistance,
+            durationMin: walkDuration,
+            fromName: endName,
+            toName: destination.label || 'Destino',
+            coords: [endpoint, [destination.lat, destination.lon]]
+        } : null;
+        const legs = [
+            ...prefixLegs,
+            { ...firstBusLeg, toName: endName },
+            ...(finalWalk ? [finalWalk] : [])
+        ];
+        const lineName = firstBusLeg.lineName || 'Colectivo';
+        const busColor = firstBusLeg.color || getBusLegColor(firstBusLeg);
+        const busStepIndex = (route.steps || []).findIndex(step => step.icon === '🚌');
+        const steps = busStepIndex >= 0
+            ? route.steps.slice(0, busStepIndex + 1).filter(step => step.icon !== '🔁')
+            : [{ icon: '🚌', text: `Tomar ${lineName} hasta ${endName}` }];
+        if (finalWalk) {
+            steps.push({
+                icon: '🚶',
+                text: `Bajar en ${endName} y caminar ${formatDistanceText(egressDistance)} hasta destino (~${walkDuration} min)`
+            });
+        }
+
+        const summaryPills = prefixLegs.map(leg => ({
+            icon: '🚶',
+            text: `${leg.durationMin || 1}m`,
+            color: '#64748b'
+        }));
+        summaryPills.push({ icon: '🚌', text: lineName, color: busColor });
+        if (finalWalk) summaryPills.push({ icon: '🚶', text: `${walkDuration}m`, color: '#64748b' });
+
+        return {
+            ...route,
+            id: `${route.id || 'bus'}-walk-final`,
+            title: lineName,
+            durationMin: prefixLegs.reduce((total, leg) => total + (Number(leg.durationMin) || 0), 0)
+                + (Number(firstBusLeg.durationMin) || 0) + 5 + walkDuration,
+            distanceMeters: legs.reduce((total, leg) => total + (Number(leg.distanceMeters) || 0), 0),
+            summaryPills,
+            legs,
+            steps
+        };
     }
 
     async function computeRoutes(origin, destination) {
@@ -604,8 +759,24 @@
 
         // 6. Opción Colectivo (con recorridos reales del GTFS si están disponibles)
         if (distDirect > 1200) {
-            const busRoutes = await findBusRouteOptions(origin, destination);
-            busRoutes.forEach(r => routes.push(r));
+            const busRoutes = (await findBusRouteOptions(origin, destination)).map(colorBusLegs);
+            const nearbySingleBusRoutes = busRoutes
+                .map(route => getNearbySingleBusRoute(route, destination))
+                .filter(Boolean)
+                .sort((a, b) => a.durationMin - b.durationMin);
+            const busRoutesToShow = nearbySingleBusRoutes.length > 0
+                ? [nearbySingleBusRoutes[0]]
+                : busRoutes;
+            // Deduplicar ramales que usan las mismas líneas base (ej: 114A+19 vs 114B+19 → solo el más rápido)
+            const seenBusBases = new Map();
+            for (const r of busRoutesToShow) {
+                const key = getRouteBusLinesKey(r);
+                const existing = seenBusBases.get(key);
+                if (!existing || r.durationMin < existing.durationMin) {
+                    seenBusBases.set(key, r);
+                }
+            }
+            seenBusBases.forEach(r => routes.push(r));
         }
 
         routes.sort((a, b) =>
@@ -630,7 +801,10 @@
     }
 
     function getRouteTransferCount(route) {
-        const transitLegCount = route.legs.filter(leg => leg.mode !== 'walk').length;
+        if (route.type === 'walk') {
+            return route.durationMin > 20 ? 1 : 0;
+        }
+        const transitLegCount = (route.legs || []).filter(leg => leg.mode !== 'walk').length;
         return Math.max(0, transitLegCount - 1);
     }
 
@@ -679,16 +853,24 @@
             const lineShort = line.short || lineId.replace('Linea', '');
             const lineColor = line.color || SUBTE_FALLBACK_COLORS[lineId] || '#008033';
 
-            // Coordenadas del tramo en subte
+            // Coordenadas y paradas del tramo en subte
             const startIdx = Math.min(origSt.idx, destSt.idx);
             const endIdx = Math.max(origSt.idx, destSt.idx);
             const subteCoords = [];
+            const subteStops = [];
             for (let i = startIdx; i <= endIdx; i++) {
                 const sId = stationIds[i];
                 const s = stations[sId];
-                if (s) subteCoords.push([s.lat, s.lon]);
+                if (s) {
+                    subteCoords.push([s.lat, s.lon]);
+                    const role = (sId === origSt.id) ? 'board' : (sId === destSt.id) ? 'alight' : 'waypoint';
+                    subteStops.push({ id: sId, name: s.name, lat: s.lat, lon: s.lon, role });
+                }
             }
-            if (origSt.idx > destSt.idx) subteCoords.reverse();
+            if (origSt.idx > destSt.idx) {
+                subteCoords.reverse();
+                subteStops.reverse();
+            }
 
             // Cabecera de dirección
             const headsign = destSt.idx > origSt.idx
@@ -725,10 +907,7 @@
                         headsign,
                         durationMin: subteMin,
                         coords: subteCoords,
-                        stops: [
-                            { name: origSt.name, lat: origSt.lat, lon: origSt.lon, role: 'board' },
-                            { name: destSt.name, lat: destSt.lat, lon: destSt.lon, role: 'alight' }
-                        ]
+                        stops: subteStops
                     },
                     {
                         mode: 'walk',
@@ -751,6 +930,35 @@
         return candidates.slice(0, 2);
     }
 
+    function buildSubteLegSegment(stationIds, fromStation, toStation, stations) {
+        const fromIndex = stationIds.indexOf(fromStation.id);
+        const toIndex = stationIds.indexOf(toStation.id);
+        if (fromIndex < 0 || toIndex < 0) return null;
+
+        const step = fromIndex <= toIndex ? 1 : -1;
+        const stops = [];
+        for (let index = fromIndex; ; index += step) {
+            const id = stationIds[index];
+            const station = stations[id];
+            if (station && Number.isFinite(station.lat) && Number.isFinite(station.lon)) {
+                stops.push({
+                    id,
+                    name: station.name,
+                    lat: station.lat,
+                    lon: station.lon,
+                    role: id === fromStation.id ? 'board' : id === toStation.id ? 'alight' : 'waypoint'
+                });
+            }
+            if (index === toIndex) break;
+        }
+        if (stops.length < 2) return null;
+        return {
+            coords: stops.map(stop => [stop.lat, stop.lon]),
+            stops,
+            stationsCount: stops.length - 1
+        };
+    }
+
     function findSubteTransferRoutes(origin, destination) {
         const subteStatic = globalThis.cache?.subteStatic;
         const lines = subteStatic?.lines || {};
@@ -758,45 +966,69 @@
         if (!lines || Object.keys(lines).length === 0) return [];
 
         const routes = [];
+        const getNearestStations = (stationIds, point) => stationIds
+            .map(id => {
+                const station = stations[id];
+                if (!station || !Number.isFinite(station.lat) || !Number.isFinite(station.lon)) return null;
+                return {
+                    ...station,
+                    id,
+                    distance: haversineMeters(point.lat, point.lon, station.lat, station.lon)
+                };
+            })
+            .filter(station => station && station.distance <= 1200)
+            .sort((a, b) => a.distance - b.distance);
 
         // Buscar estación 1 cerca de origen y estación 2 cerca de destino en diferentes líneas
         for (const [line1Id, line1] of Object.entries(lines)) {
             const stIds1 = line1.stations || line1.stationIds || [];
-            const near1 = stIds1.map(id => stations[id]).filter(s => s && haversineMeters(origin.lat, origin.lon, s.lat, s.lon) <= 1200);
+            const near1 = getNearestStations(stIds1, origin);
             if (near1.length === 0) continue;
             const startSt = near1[0];
 
             for (const [line2Id, line2] of Object.entries(lines)) {
                 if (line1Id === line2Id) continue;
                 const stIds2 = line2.stations || line2.stationIds || [];
-                const near2 = stIds2.map(id => stations[id]).filter(s => s && haversineMeters(destination.lat, destination.lon, s.lat, s.lon) <= 1200);
+                const near2 = getNearestStations(stIds2, destination);
                 if (near2.length === 0) continue;
                 const endSt = near2[0];
 
                 // Buscar un nodo de combinación común
                 for (const hub of SUBTE_TRANSFER_HUBS) {
-                    const hubStationL1 = stIds1.map(id => stations[id]).find(s => s && hub.matchNames.some(m => s.name?.toLowerCase().includes(m)));
-                    const hubStationL2 = stIds2.map(id => stations[id]).find(s => s && hub.matchNames.some(m => s.name?.toLowerCase().includes(m)));
+                    const findHubStation = stationIds => stationIds
+                        .map(id => ({ ...stations[id], id }))
+                        .find(station => station && hub.matchNames.some(match =>
+                            normalizeText(station.name).includes(normalizeText(match))
+                        ));
+                    const hubStationL1 = findHubStation(stIds1);
+                    const hubStationL2 = findHubStation(stIds2);
 
                     if (hubStationL1 && hubStationL2 && hubStationL1.name !== startSt.name && hubStationL2.name !== endSt.name) {
-                        const walk1Dist = Math.round(haversineMeters(origin.lat, origin.lon, startSt.lat, startSt.lon) * 1.25);
+                        const firstSegment = buildSubteLegSegment(stIds1, startSt, hubStationL1, stations);
+                        const secondSegment = buildSubteLegSegment(stIds2, hubStationL2, endSt, stations);
+                        if (!firstSegment || !secondSegment) continue;
+
+                        const walk1Dist = Math.round(startSt.distance * 1.25);
                         const walk1Min = Math.max(1, Math.round(walk1Dist / 80));
-                        const walk2Dist = Math.round(haversineMeters(destination.lat, destination.lon, endSt.lat, endSt.lon) * 1.25);
+                        const walk2Dist = Math.round(endSt.distance * 1.25);
                         const walk2Min = Math.max(1, Math.round(walk2Dist / 80));
 
                         const l1Short = line1.short || line1Id.replace('Linea', '');
                         const l2Short = line2.short || line2Id.replace('Linea', '');
                         const l1Color = line1.color || SUBTE_FALLBACK_COLORS[line1Id] || '#0072ce';
                         const l2Color = line2.color || SUBTE_FALLBACK_COLORS[line2Id] || '#eb1923';
+                        const firstRideMin = Math.max(2, Math.round(firstSegment.stationsCount * 2.2));
+                        const secondRideMin = Math.max(2, Math.round(secondSegment.stationsCount * 2.2));
 
-                        const durationMin = walk1Min + 3 + 8 + 4 + 8 + walk2Min; // espera + viaje1 + transbordo + viaje2 + caminata
+                        const durationMin = walk1Min + 3 + firstRideMin + 4 + secondRideMin + walk2Min;
 
                         routes.push({
                             id: `subte-transfer-${line1Id}-${line2Id}`,
                             type: 'subte',
                             title: `Subte Líneas ${l1Short} y ${l2Short}`,
                             durationMin,
-                            distanceMeters: walk1Dist + walk2Dist + 7000,
+                            distanceMeters: walk1Dist + walk2Dist
+                                + (firstSegment.stationsCount + secondSegment.stationsCount) * 800,
                             summaryPills: [
                                 { icon: '🚶', text: `${walk1Min}m`, color: '#64748b' },
                                 { icon: '🚇', text: `Línea ${l1Short}`, color: l1Color },
@@ -817,20 +1049,24 @@
                                     mode: 'subte',
                                     lineName: `Línea ${l1Short}`,
                                     color: l1Color,
+                                    stationsCount: firstSegment.stationsCount,
                                     fromName: `Estación ${startSt.name}`,
                                     toName: `Estación ${hubStationL1.name}`,
-                                    durationMin: 8,
-                                    coords: [[startSt.lat, startSt.lon], [hubStationL1.lat, hubStationL1.lon]]
+                                    durationMin: firstRideMin,
+                                    coords: firstSegment.coords,
+                                    stops: firstSegment.stops
                                 },
                                 {
                                     mode: 'subte',
                                     isTransfer: true,
                                     lineName: `Línea ${l2Short}`,
                                     color: l2Color,
+                                    stationsCount: secondSegment.stationsCount,
                                     fromName: `Estación ${hubStationL2.name}`,
                                     toName: `Estación ${endSt.name}`,
-                                    durationMin: 8,
-                                    coords: [[hubStationL2.lat, hubStationL2.lon], [endSt.lat, endSt.lon]]
+                                    durationMin: secondRideMin,
+                                    coords: secondSegment.coords,
+                                    stops: secondSegment.stops
                                 },
                                 {
                                     mode: 'walk',
@@ -903,11 +1139,20 @@
             const startIdx = Math.min(origSt.idx, destSt.idx);
             const endIdx = Math.max(origSt.idx, destSt.idx);
             const trainCoords = [];
+            const trainStops = [];
             for (let i = startIdx; i <= endIdx; i++) {
-                const s = stations[stIds[i]];
-                if (s) trainCoords.push([s.lat, s.lon]);
+                const sId = stIds[i];
+                const s = stations[sId];
+                if (s) {
+                    trainCoords.push([s.lat, s.lon]);
+                    const role = (sId === origSt.id) ? 'board' : (sId === destSt.id) ? 'alight' : 'waypoint';
+                    trainStops.push({ id: sId, name: s.name, lat: s.lat, lon: s.lon, role });
+                }
             }
-            if (origSt.idx > destSt.idx) trainCoords.reverse();
+            if (origSt.idx > destSt.idx) {
+                trainCoords.reverse();
+                trainStops.reverse();
+            }
 
             routes.push({
                 id: `train-${lineKey}`,
@@ -938,10 +1183,7 @@
                         toName: `Estación ${destSt.name}`,
                         durationMin: trainMin,
                         coords: trainCoords,
-                        stops: [
-                            { name: origSt.name, lat: origSt.lat, lon: origSt.lon, role: 'board' },
-                            { name: destSt.name, lat: destSt.lat, lon: destSt.lon, role: 'alight' }
-                        ]
+                        stops: trainStops
                     },
                     {
                         mode: 'walk',
@@ -964,36 +1206,251 @@
         return routes.slice(0, 1);
     }
 
+    const bikeRouteNetworkCache = new WeakMap();
+    const BIKE_ROUTE_SNAP_DISTANCE_M = 400;
+
+    function getBikeRouteNetwork(source) {
+        if (!source || typeof source !== 'object' || !Array.isArray(source.features)) return null;
+        const cached = bikeRouteNetworkCache.get(source);
+        if (cached) return cached;
+
+        const coordinates = [];
+        const adjacency = [];
+        const edges = [];
+        const nodeIds = new Map();
+        const edgeIds = new Set();
+
+        function getNodeId(coordinate) {
+            const lon = Number(coordinate?.[0]);
+            const lat = Number(coordinate?.[1]);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return -1;
+            const key = `${Math.round(lon * 100000)}:${Math.round(lat * 100000)}`;
+            if (nodeIds.has(key)) return nodeIds.get(key);
+            const id = coordinates.length;
+            nodeIds.set(key, id);
+            coordinates.push([lat, lon]);
+            adjacency.push([]);
+            return id;
+        }
+
+        function addLine(line) {
+            if (!Array.isArray(line)) return;
+            let previousId = -1;
+            for (const coordinate of line) {
+                const currentId = getNodeId(coordinate);
+                if (currentId < 0) {
+                    previousId = -1;
+                    continue;
+                }
+                if (previousId >= 0 && previousId !== currentId) {
+                    const edgeKey = `${Math.min(previousId, currentId)}:${Math.max(previousId, currentId)}`;
+                    if (!edgeIds.has(edgeKey)) {
+                        const from = coordinates[previousId];
+                        const to = coordinates[currentId];
+                        const distance = haversineMeters(from[0], from[1], to[0], to[1]);
+                        if (distance > 0) {
+                            edgeIds.add(edgeKey);
+                            edges.push({ from: previousId, to: currentId, distance });
+                            adjacency[previousId].push({ to: currentId, distance });
+                            adjacency[currentId].push({ to: previousId, distance });
+                        }
+                    }
+                }
+                previousId = currentId;
+            }
+        }
+
+        source.features.forEach(feature => {
+            const geometry = feature?.geometry;
+            if (geometry?.type === 'LineString') {
+                addLine(geometry.coordinates);
+            } else if (geometry?.type === 'MultiLineString') {
+                geometry.coordinates?.forEach(addLine);
+            }
+        });
+
+        const network = { coordinates, adjacency, edges };
+        bikeRouteNetworkCache.set(source, network);
+        return network;
+    }
+
+    function findNearestBikeRoutePoint(network, point) {
+        const latitudeScale = 110540;
+        const longitudeScale = 111320 * Math.cos(point.lat * Math.PI / 180);
+        let nearest = null;
+
+        network.edges.forEach(edge => {
+            const from = network.coordinates[edge.from];
+            const to = network.coordinates[edge.to];
+            const dx = (to[1] - from[1]) * longitudeScale;
+            const dy = (to[0] - from[0]) * latitudeScale;
+            const lengthSquared = dx * dx + dy * dy;
+            if (lengthSquared === 0) return;
+
+            const px = (point.lon - from[1]) * longitudeScale;
+            const py = (point.lat - from[0]) * latitudeScale;
+            const fraction = Math.max(0, Math.min(1, (px * dx + py * dy) / lengthSquared));
+            const lat = from[0] + (to[0] - from[0]) * fraction;
+            const lon = from[1] + (to[1] - from[1]) * fraction;
+            const distance = haversineMeters(point.lat, point.lon, lat, lon);
+            if (distance <= BIKE_ROUTE_SNAP_DISTANCE_M && (!nearest || distance < nearest.distance)) {
+                nearest = { edge, fraction, coordinate: [lat, lon], distance };
+            }
+        });
+
+        return nearest;
+    }
+
+    function findBikeLanePath(network, startPoint, endPoint) {
+        if (!network?.edges.length) return null;
+        const start = findNearestBikeRoutePoint(network, startPoint);
+        const end = findNearestBikeRoutePoint(network, endPoint);
+        if (!start || !end) return null;
+
+        const startId = network.coordinates.length;
+        const endId = startId + 1;
+        const adjacency = network.adjacency.slice();
+        adjacency.push([], []);
+        const addTemporaryEdge = (from, to, distance) => {
+            adjacency[from].push({ to, distance });
+            adjacency[to].push({ to: from, distance });
+        };
+
+        addTemporaryEdge(startId, start.edge.from, start.edge.distance * start.fraction);
+        addTemporaryEdge(startId, start.edge.to, start.edge.distance * (1 - start.fraction));
+        addTemporaryEdge(endId, end.edge.from, end.edge.distance * end.fraction);
+        addTemporaryEdge(endId, end.edge.to, end.edge.distance * (1 - end.fraction));
+        if (start.edge.from === end.edge.from && start.edge.to === end.edge.to ||
+            start.edge.from === end.edge.to && start.edge.to === end.edge.from) {
+            addTemporaryEdge(startId, endId, start.edge.distance * Math.abs(start.fraction - end.fraction));
+        }
+
+        const distances = new Float64Array(adjacency.length);
+        distances.fill(Infinity);
+        const previous = new Int32Array(adjacency.length);
+        previous.fill(-1);
+        const heap = [];
+        const push = (item) => {
+            heap.push(item);
+            let index = heap.length - 1;
+            while (index > 0) {
+                const parent = Math.floor((index - 1) / 2);
+                if (heap[parent].distance <= item.distance) break;
+                heap[index] = heap[parent];
+                index = parent;
+            }
+            heap[index] = item;
+        };
+        const pop = () => {
+            const first = heap[0];
+            const last = heap.pop();
+            if (heap.length > 0) {
+                let index = 0;
+                while (true) {
+                    const left = index * 2 + 1;
+                    const right = left + 1;
+                    if (left >= heap.length) break;
+                    const child = right < heap.length && heap[right].distance < heap[left].distance ? right : left;
+                    if (heap[child].distance >= last.distance) break;
+                    heap[index] = heap[child];
+                    index = child;
+                }
+                heap[index] = last;
+            }
+            return first;
+        };
+
+        distances[startId] = 0;
+        push({ id: startId, distance: 0 });
+        while (heap.length > 0) {
+            const current = pop();
+            if (current.distance !== distances[current.id]) continue;
+            if (current.id === endId) break;
+            adjacency[current.id].forEach(edge => {
+                const distance = current.distance + edge.distance;
+                if (distance < distances[edge.to]) {
+                    distances[edge.to] = distance;
+                    previous[edge.to] = current.id;
+                    push({ id: edge.to, distance });
+                }
+            });
+        }
+        if (!Number.isFinite(distances[endId])) return null;
+
+        const path = [];
+        for (let id = endId; id >= 0; id = previous[id]) {
+            path.push(id);
+            if (id === startId) break;
+        }
+        if (path[path.length - 1] !== startId) return null;
+        path.reverse();
+
+        const pathCoordinates = path.map(id => id === startId
+            ? start.coordinate
+            : id === endId ? end.coordinate : network.coordinates[id]);
+        const routeCoordinates = [[startPoint.lat, startPoint.lon], ...pathCoordinates, [endPoint.lat, endPoint.lon]];
+        const compactCoordinates = routeCoordinates.filter((coordinate, index) => {
+            if (index === 0) return true;
+            const previousCoordinate = routeCoordinates[index - 1];
+            return haversineMeters(
+                coordinate[0], coordinate[1],
+                previousCoordinate[0], previousCoordinate[1]
+            ) >= 0.5;
+        });
+        let distanceMeters = 0;
+        for (let index = 1; index < compactCoordinates.length; index += 1) {
+            distanceMeters += haversineMeters(
+                compactCoordinates[index - 1][0], compactCoordinates[index - 1][1],
+                compactCoordinates[index][0], compactCoordinates[index][1]
+            );
+        }
+        return { coords: compactCoordinates, distanceMeters };
+    }
+
     function findBikeRoute(origin, destination, distDirect) {
         const bikes = Array.isArray(globalThis.cache?.bike) ? globalThis.cache.bike : [];
         if (bikes.length === 0) return null;
 
-        // Estación origen con bicis disponibles
+        // Estación origen: buscar estaciones en un radio de hasta 1500m
         const nearOrigin = bikes
-            .filter(b => Number(b.num_bikes_available || 0) > 0)
             .map(b => ({ ...b, d: haversineMeters(origin.lat, origin.lon, b.lat, b.lon) }))
-            .filter(b => b.d <= 900)
+            .filter(b => b.d <= 1500)
             .sort((a, b) => a.d - b.d);
 
-        // Estación destino con anclajes disponibles
+        // Estación destino: buscar estaciones en un radio de hasta 1500m
         const nearDest = bikes
-            .filter(b => Number(b.num_docks_available || 0) > 0)
             .map(b => ({ ...b, d: haversineMeters(destination.lat, destination.lon, b.lat, b.lon) }))
-            .filter(b => b.d <= 900)
+            .filter(b => b.d <= 1500)
             .sort((a, b) => a.d - b.d);
 
         if (nearOrigin.length === 0 || nearDest.length === 0) return null;
 
-        const stO = nearOrigin[0];
-        const stD = nearDest[0];
+        // Priorizar estación con bicis disponibles en origen; si ninguna tiene, tomar la más cercana
+        const originWithBikes = nearOrigin.filter(b => Number(b.num_bikes_available || 0) > 0);
+        const stO = originWithBikes.length > 0 ? originWithBikes[0] : nearOrigin[0];
+
+        // Priorizar estación con anclajes disponibles en destino; si ninguna tiene, tomar la más cercana
+        const destWithDocks = nearDest.filter(b => Number(b.num_docks_available || 0) > 0);
+        const stD = destWithDocks.length > 0 ? destWithDocks[0] : nearDest[0];
+
         if (stO.station_id === stD.station_id) return null;
 
         const walk1Dist = Math.round(stO.d * 1.25);
         const walk1Min = Math.max(1, Math.round(walk1Dist / 80));
-        const bikeDist = Math.round(haversineMeters(stO.lat, stO.lon, stD.lat, stD.lon) * 1.25);
-        const bikeMin = Math.max(2, Math.round(bikeDist / 230)); // ~14 km/h en bici
         const walk2Dist = Math.round(stD.d * 1.25);
         const walk2Min = Math.max(1, Math.round(walk2Dist / 80));
+
+        const network = getBikeRouteNetwork(globalThis.cache?.bikeRoutes);
+        const bikePath = findBikeLanePath(network, stO, stD);
+        if (!bikePath) return null;
+        const bikeRouteCoords = bikePath.coords;
+        const bikeDist = Math.round(bikePath.distanceMeters);
+        const bikeMin = Math.max(2, Math.round(bikeDist / 230)); // ~14 km/h en bici
+
+        const bikeStops = [
+            { id: stO.station_id, name: stO.name, lat: stO.lat, lon: stO.lon, role: 'board' },
+            { id: stD.station_id, name: stD.name, lat: stD.lat, lon: stD.lon, role: 'alight' }
+        ];
 
         const totalDurationMin = walk1Min + 2 + bikeMin + walk2Min; // 2 min desbloqueo
 
@@ -1024,7 +1481,8 @@
                     toName: stD.name,
                     durationMin: bikeMin,
                     distanceMeters: bikeDist,
-                    coords: [[stO.lat, stO.lon], [stD.lat, stD.lon]]
+                    coords: bikeRouteCoords,
+                    stops: bikeStops
                 },
                 {
                     mode: 'walk',
@@ -1037,7 +1495,7 @@
             ],
             steps: [
                 { icon: '🚶', text: `Caminar ${formatDistanceText(walk1Dist)} a Estación Ecobici ${stO.name}` },
-                { icon: '🚲', text: `Pedalear ${formatDistanceText(bikeDist)} hasta Estación ${stD.name} (~${bikeMin} min)` },
+                { icon: '🚲', text: `Pedalear ${formatDistanceText(bikeDist)} por ciclovías hasta Estación ${stD.name} (~${bikeMin} min)` },
                 { icon: '🚶', text: `Anclar bici y caminar ${formatDistanceText(walk2Dist)} hasta destino` }
             ]
         };
@@ -1310,7 +1768,7 @@
             return useStaticFallback();
         }
 
-        return response.data.routes
+        const rawRoutes = response.data.routes
             .filter(route => route?.type === 'bus' && Number.isFinite(route.durationMin) &&
                 Array.isArray(route.legs) && Array.isArray(route.steps) && Array.isArray(route.summaryPills))
             .map(route => {
@@ -1321,6 +1779,17 @@
                 if (lastWalk) lastWalk.toName = destination.label || 'Destino';
                 return normalized;
             });
+
+        // Agrupar ramales del mismo conjunto de líneas: conservar solo el más rápido por ramal
+        const seenLineBases = new Map();
+        for (const route of rawRoutes) {
+            const key = getRouteBusLinesKey(route);
+            const existing = seenLineBases.get(key);
+            if (!existing || route.durationMin < existing.durationMin) {
+                seenLineBases.set(key, route);
+            }
+        }
+        return Array.from(seenLineBases.values());
     }
 
     function formatDistanceText(meters) {
@@ -1438,12 +1907,131 @@
 
     // ─── Dibujo en el mapa con Leaflet ──────────────────────────────────────────
 
+    // Extrae los identificadores de líneas de la ruta activa para filtrar el mapa en tiempo real.
+    // Devuelve { busLines: Set<string>, subteLines: Set<string>, trainLines: Set<string>, hasBike: boolean }
+    function getActiveRouteTransitIds(route, allRoutes) {
+        const busLines = new Set();
+        const subteLines = new Set();
+        const trainLines = new Set();
+        const bikeStationIds = new Set();
+        const bikeRouteCoords = [];
+        let hasBike = false;
+        const hideSubteLayers = route?.type === 'subte';
+        const hideTrainLayers = route?.type === 'train';
+
+        // Si se seleccionó una ruta específica con transporte, priorizar esa ruta; si es caminata, mostrar todos los transportes sugeridos
+        const targetRoutes = (route && route.type !== 'walk') ? [route] : (allRoutes || [route]).filter(Boolean);
+        for (const r of targetRoutes) {
+            if (r.type === 'bike') hasBike = true;
+            for (const leg of (r.legs || [])) {
+                if (leg.mode === 'bike') {
+                    if (Array.isArray(leg.coords)) bikeRouteCoords.push(leg.coords);
+                    (leg.stops || []).forEach(stop => {
+                        if (stop.id !== undefined && stop.id !== null) bikeStationIds.add(String(stop.id));
+                    });
+                } else if (leg.mode === 'bus' && leg.lineName) {
+                    const base = leg.lineName.replace(/[^0-9]/g, '') || leg.lineName;
+                    busLines.add(base);
+                    busLines.add(leg.lineName.replace(/Línea\s*/i, '').trim());
+                } else if (leg.mode === 'subte' && leg.lineName) {
+                    const sShort = leg.lineName.replace(/Línea\s*/i, '').trim();
+                    subteLines.add(sShort);
+                    subteLines.add(`Linea${sShort}`);
+                } else if (leg.mode === 'train' && leg.lineName) {
+                    const tName = leg.lineName.trim();
+                    trainLines.add(tName);
+                    const clean = tName.toLowerCase().replace(/^tren\s*/, '');
+                    trainLines.add(clean);
+                }
+            }
+        }
+        return {
+            busLines,
+            subteLines,
+            trainLines,
+            hasBike,
+            bikeStationIds,
+            bikeRouteCoords,
+            hideSubteLayers,
+            hideTrainLayers
+        };
+    }
+
+    // Construye el HTML del horario en tiempo real para una estación de subte/tren.
+    function buildStationScheduleHtml(mode, stationName, stationId, lineId) {
+        const safeHtml = typeof escapeHtml === 'function' ? escapeHtml : s => String(s || '');
+        let rows = [];
+
+        if (mode === 'subte') {
+            const byBaseStop = globalThis.cache?.subteForecastByBaseStop || {};
+            const byName = globalThis.cache?.subteForecastByName || {};
+            const baseId = stationId ? String(stationId).replace(/-[^-]*$/, '') : null;
+            const arrivals = (baseId && byBaseStop[baseId]) || byName[typeof normalizeText === 'function' ? normalizeText(stationName) : stationName.toLowerCase()] || [];
+            const nowTs = Math.floor(Date.now() / 1000);
+            rows = arrivals
+                .filter(a => !lineId || a.routeId?.includes(lineId) || a.routeShort?.includes(lineId))
+                .slice(0, 5)
+                .map(a => {
+                    const eta = a.arrivalTime - nowTs;
+                    const etaText = eta <= 0 ? 'Ahora' : eta < 60 ? `${eta}s` : `${Math.round(eta / 60)} min`;
+                    return `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;padding:2px 0">
+                        <span style="color:#cbd5e1">${safeHtml(a.destination || '-')}</span>
+                        <span style="color:#fbbf24;font-weight:700">${etaText}</span>
+                    </div>`;
+                });
+        } else if (mode === 'train') {
+            const arrivalsByStation = globalThis.cache?.trainArrivalsByStation || {};
+            const normName = typeof normalizeText === 'function' ? normalizeText(stationName) : stationName.toLowerCase();
+            let data = (stationId && arrivalsByStation[stationId]?.data) || arrivalsByStation[stationName]?.data;
+            if (!data) {
+                for (const [k, v] of Object.entries(arrivalsByStation)) {
+                    if (typeof normalizeText === 'function' && normalizeText(k).includes(normName)) {
+                        data = v.data;
+                        break;
+                    }
+                }
+            }
+            const arrivals = Array.isArray(data?.arrivals) ? data.arrivals : [];
+            const nowTs = Math.floor(Date.now() / 1000);
+            rows = arrivals.slice(0, 5).map(a => {
+                const estimatedTs = Number(a.estimatedArrivalTs);
+                const eta = Number.isFinite(estimatedTs) && estimatedTs > 0
+                    ? estimatedTs - nowTs
+                    : Number(a.etaSeconds);
+                const etaText = !Number.isFinite(eta) || eta < 0 ? '-'
+                    : eta <= 0 ? 'Ahora' : eta < 60 ? `${eta}s` : `${Math.round(eta / 60)} min`;
+                return `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;padding:2px 0">
+                    <span style="color:#cbd5e1">${safeHtml(a.destino || '-')}</span>
+                    <span style="color:#fbbf24;font-weight:700">${etaText}</span>
+                </div>`;
+            });
+        }
+
+        const scheduleSection = rows.length > 0
+            ? `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.12);padding-top:5px">${rows.join('')}</div>`
+            : `<div style="margin-top:5px;font-size:10px;color:#94a3b8">Sin arribos en tiempo real en este momento</div>`;
+
+        return `
+            <div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:2px">${safeHtml(stationName)}</div>
+            ${scheduleSection}
+        `;
+    }
+
     function drawDirectionsRoute(route) {
         const layer = getDirectionsLayer();
         if (!layer) return;
         layer.clearLayers();
 
-        if (!route || !Array.isArray(route.legs)) return;
+        if (!route || !Array.isArray(route.legs)) {
+            // Sin ruta activa: restaurar renderizado completo del mapa
+            globalThis._directionsActiveTransit = null;
+            if (typeof scheduleRenderMarkers === 'function') scheduleRenderMarkers(50, { force: true });
+            return;
+        }
+
+        // Guardar los identificadores de la ruta activa para que renderMarkers pueda filtrar
+        globalThis._directionsActiveTransit = getActiveRouteTransitIds(route, directionsState.routes);
+        if (typeof scheduleRenderMarkers === 'function') scheduleRenderMarkers(50, { force: true });
 
         const allLatLngs = [];
 
@@ -1471,16 +2059,49 @@
                 }).addTo(layer);
 
                 // Si tiene paradas intermedias/cabeceras
-                if (Array.isArray(leg.stops)) {
+                if (Array.isArray(leg.stops) && leg.mode !== 'subte' && leg.mode !== 'train') {
                     leg.stops.forEach(st => {
+                        const isWaypoint = st.role === 'waypoint';
                         const marker = L.circleMarker([st.lat, st.lon], {
-                            radius: 5,
-                            fillColor: '#ffffff',
+                            radius: isWaypoint ? 4 : 6,
+                            fillColor: isWaypoint ? color : '#ffffff',
                             color,
-                            weight: 2.5,
-                            fillOpacity: 1
+                            weight: isWaypoint ? 1.5 : 2.5,
+                            fillOpacity: isWaypoint ? 0.7 : 1,
+                            opacity: isWaypoint ? 0.8 : 1
                         }).addTo(layer);
-                        marker.bindTooltip(`<b>Estación ${st.name}</b>`, { direction: 'top', offset: [0, -6] });
+                        const label = isWaypoint
+                            ? `Estación Ecobici ${st.name}`
+                            : `<b>Estación ${st.name}</b>`;
+                        marker.bindTooltip(label, { direction: 'top', offset: [0, -6] });
+                    });
+                }
+
+                // ── Estaciones de subte/tren con horarios en tiempo real ────────────────
+                if ((leg.mode === 'subte' || leg.mode === 'train') && Array.isArray(leg.stops)) {
+                    leg.stops.forEach(st => {
+                        const lineId = leg.mode === 'subte'
+                            ? (leg.lineName || '').replace(/Línea\s*/i, '').trim()
+                            : null;
+                        const baseIconSpec = typeof getMarkerIconSpec === 'function'
+                            ? getMarkerIconSpec(leg.mode, st.name, color, st)
+                            : null;
+                        const stationIcon = baseIconSpec && typeof buildMarkerIcon === 'function'
+                            ? buildMarkerIcon(leg.mode, st.name, color, { ...baseIconSpec, dot: false })
+                            : L.divIcon({
+                                className: '',
+                                html: `<div class="marker-container"><div class="vehicle-label">${escapeHtml(st.name)}</div></div>`,
+                                iconSize: [36, 24],
+                                iconAnchor: [18, 12]
+                            });
+                        const stationMarker = L.marker([st.lat, st.lon], {
+                            icon: stationIcon,
+                            zIndexOffset: 100
+                        }).addTo(layer);
+                        stationMarker.bindTooltip(
+                            () => buildStationScheduleHtml(leg.mode, st.name, st.id, lineId),
+                            { className: 'tooltip-dark directions-station-tooltip', direction: 'top', offset: [0, -12], sticky: false }
+                        );
                     });
                 }
             }
@@ -1552,6 +2173,18 @@
             const suggestions = document.getElementById('directions-suggestions');
             if (suggestions && !suggestions.hidden && !container?.contains(e.target)) {
                 hideSuggestions();
+            }
+        });
+
+        // Cerrar panel con tecla Escape si está abierto
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && (directionsState.isOpen || document.getElementById('directions-panel')?.classList.contains('is-open'))) {
+                const sugg = document.getElementById('directions-suggestions');
+                if (sugg && !sugg.hidden) {
+                    hideSuggestions();
+                } else {
+                    closeDirectionsPanel();
+                }
             }
         });
     }
